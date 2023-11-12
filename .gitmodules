@@ -1,0 +1,15 @@
+[submodule "OpenGL-Registry"]
+	path = OpenGL-Registry
+	url = https://github.com/KhronosGroup/OpenGL-Registry
+[submodule "OpenCL-CLHPP"]
+	path = OpenCL-CLHPP
+	url = https://github.com/KhronosGroup/OpenCL-CLHPP
+[submodule "OpenCL-Headers"]
+	path = OpenCL-Headers
+	url = https://github.com/KhronosGroup/OpenCL-Headers
+[submodule "EGL-Registry"]
+	path = EGL-Registry
+	url = https://github.com/KhronosGroup/EGL-Registry
+[submodule "OpenCL-ICD-Loader"]
+	path = OpenCL-ICD-Loader
+	url = https://github.com/KhronosGroup/OpenCL-ICD-Loader
