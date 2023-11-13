@@ -58,6 +58,9 @@ namespace {
 	class GL46;
 	thread_local GL46* gl{};
 
+#include "mmf.h"
+#include "dev.h"
+
 #include "GL46.h"
 };
 
@@ -191,19 +194,10 @@ int test_opencl() {
     return 0;
 }
 
-#include "mmf.h"
-#include "dev.h"
-void device_to_cpp() {
-    Dev dev;
-    OutputDebugStringA(std::format("{}\n", dev.stringMap.size()).c_str());
-    dev.tile_svg();
-}
-
 int32_t WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int32_t nShowCmd) {
     // test_opencl()
-    device_to_cpp();
-	// GL46 gl46;
-	// gl46.loop();
+	GL46 gl46;
+	gl46.loop();
 
 	return 0;
 }

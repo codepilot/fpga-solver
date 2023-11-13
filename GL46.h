@@ -385,6 +385,49 @@ public:
 
     }
 
+    template<GLenum target>
+    class Textures {
+        std::vector<GLuint> vec;
+    public:
+        GLsizei sizei() {
+            return SafeInt<GLsizei>(vec.size());
+        }
+        Textures(const Textures&) = delete;
+        Textures& operator=(const Textures&) = delete;
+        Textures(Textures&& src) {
+            vec = std::move(src.vec);
+        }
+        Textures& operator=(Textures&& src) {
+            vec = std::move(src.vec);
+            return *this;
+        }
+        Textures(GLsizei n = 0) {
+            vec.resize(n);
+            if (sizei() > 0) {
+                gl->glCreateTextures(target, sizei(), vec.data());
+                OutputDebugStringW(L"glCreateTextures\r\n");
+            }
+        }
+        ~Textures() {
+            if (sizei() > 0 && gl) {
+                gl->glDeleteTextures(sizei(), vec.data());
+                OutputDebugStringW(L"glDeleteTextures\r\n");
+            }
+        }
+        void bindImages() {
+            gl->glBindImageTextures(0, sizei(), vec.data());
+        }
+        GLuint operator [](GLsizei i) {
+            return vec[i];
+        }
+    };
+
+
+    GLuint fb{};
+    Textures<GL_TEXTURE_RECTANGLE> textures{};
+    Dev dev;
+
+
 	GL46(): hwnd{ make_window(this) }, hdc{ GetDC(hwnd) } {
         ShowWindow(hwnd, SW_MAXIMIZE);
         if (false) {
@@ -396,6 +439,14 @@ public:
             ClipCursor(&rcClip);
         }
         load_opengl();
+        glCreateFramebuffers(1, &fb);
+        textures = 1;
+        glTextureStorage2D(textures[0], 1, GL_RGBA8, static_cast<GLsizei>(dev.tileInfo.numCol), static_cast<GLsizei>(dev.tileInfo.numRow));
+        OutputDebugStringA(std::format("{}\n", dev.stringMap.size()).c_str());
+        glClearTexSubImage(textures[0], 0, 0, 0, 0, static_cast<GLsizei>(dev.tileInfo.numCol), static_cast<GLsizei>(dev.tileInfo.numRow), 1, GL_RGBA, GL_FLOAT, nullptr);
+
+        glTextureSubImage2D(textures[0], 0, 0, 0, static_cast<GLsizei>(dev.tileInfo.numCol), static_cast<GLsizei>(dev.tileInfo.numRow), GL_RGBA, GL_UNSIGNED_BYTE, dev.sp_tile_drawing.data());
+
 	}
 
     UINT step() {
@@ -435,6 +486,12 @@ public:
         glViewport(0, 0, gl->clientWidth, gl->clientHeight);
         glClearColor(1.0f, 0.0f, 0.0f, 0.0f);
         glClear(or_reduce<GLbitfield>({ GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT, GL_STENCIL_BUFFER_BIT }));
+        glNamedFramebufferTexture(fb, GL_COLOR_ATTACHMENT0, textures[0], 0);
+
+        glBlitNamedFramebuffer(fb, 0,
+            0, 0, static_cast<GLsizei>(dev.tileInfo.numCol), static_cast<GLsizei>(dev.tileInfo.numRow),
+            0, 0, static_cast<GLint>(gl->clientWidth), static_cast<GLint>(gl->clientHeight),
+            GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
         SwapBuffers(hdc);
     }

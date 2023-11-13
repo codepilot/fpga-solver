@@ -2,6 +2,31 @@
 
 class Dev {
 public:
+    struct tile_info {
+        int64_t minCol;
+        int64_t minRow;
+        int64_t maxCol;
+        int64_t maxRow;
+        int64_t numCol;
+        int64_t numRow;
+        constexpr static tile_info make() noexcept {
+            return {
+                .minCol{ INT64_MAX },
+                .minRow{ INT64_MAX },
+                .maxCol{ INT64_MIN },
+                .maxRow{ INT64_MIN },
+                .numCol{},
+                .numRow{},
+            };
+        }
+        __forceinline constexpr size_t size() const noexcept {
+            return numCol * numRow;
+        }
+        __forceinline constexpr void set_tile(std::span<uint32_t> sp_tile_drawing, int64_t col, int64_t row, uint32_t val) const noexcept {
+            sp_tile_drawing[col + row * numCol] = val;
+        }
+    };
+
     MMF_READONLY mmf;
     MMF_READER<DeviceResources::Device> dev;
 
@@ -24,8 +49,42 @@ public:
     std::vector<uint8_t> tile_strIndex_to_tileType;
     std::vector<uint32_t> wire_to_node;
     std::unordered_map<std::string_view, int32_t> stringMap;
+    tile_info tileInfo;
+    std::vector<uint32_t> tile_drawing;
+    std::span<uint32_t> sp_tile_drawing;
 
-    inline void tile_svg() {
+    __forceinline static tile_info get_tile_info(decltype(tiles) tiles) noexcept {
+        auto ret{ tile_info::make() };
+        for (auto&& tile : tiles) {
+            const auto tileName{ tile.getName() };
+            const auto col{ tile.getCol() };
+            const auto row{ tile.getRow() };
+            ret.minCol = (col < ret.minCol) ? col : ret.minCol;
+            ret.minRow = (row < ret.minRow) ? row : ret.minRow;
+            ret.maxCol = (col > ret.maxCol) ? col : ret.maxCol;
+            ret.maxRow = (row > ret.maxRow) ? row : ret.maxRow;
+        }
+        ret.numCol = ret.maxCol - ret.minCol + 1ui16;
+        ret.numRow = ret.maxRow - ret.minRow + 1ui16;
+        return ret;
+    }
+
+    __forceinline static std::vector<uint32_t> get_tile_drawing(decltype(tiles) tiles, tile_info tileInfo) noexcept {
+        std::vector<uint32_t> ret(tileInfo.size(), 0);
+        std::span<uint32_t> sp_tile_drawing{ ret };;
+        for (auto&& tile : tiles) {
+            const auto tileName{ tile.getName() };
+            const auto tileType{ tile.getType() };
+            const auto col{ tile.getCol() };
+            const auto row{ tile.getRow() };
+            if (tileType == 56) {
+                tileInfo.set_tile(sp_tile_drawing, col, row, 0xffffff00ui32);
+            }
+        }
+        return ret;
+    }
+
+    __forceinline void tile_svg() {
         std::ofstream ostrm("vu3p_tiles.svg", std::ios::binary);
         ostrm << R"(<svg style="background-color: white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 13400 6220">
 )";
@@ -37,18 +96,11 @@ public:
 )";
 
         uint32_t tileIdx{};
-        uint16_t minCol{ UINT16_MAX };
-        uint16_t minRow{ UINT16_MAX };
-        uint16_t maxCol{};
-        uint16_t maxRow{};
+
         for (auto&& tile : tiles) {
             const auto tileName{ tile.getName() };
             const auto col{ tile.getCol() };
             const auto row{ tile.getRow() };
-            minCol = (col < minCol) ? col : minCol;
-            minRow = (row < minRow) ? row : minRow;
-            maxCol = (col > maxCol) ? col : maxCol;
-            maxRow = (row > maxRow) ? row : maxRow;
             if(tile.getType() == 56)
             ostrm << std::format(R"(    <rect id="{}" x="{}" y="{}" data-type="{}" />
 )",
@@ -59,15 +111,14 @@ public:
 
             tileIdx++;
         }
-        uint16_t numCol = maxCol - minCol + 1ui16;
-        uint16_t numRow = maxRow - minRow + 1ui16;
+
         /*ostrm << std::format(R"(<set attributeName="viewBox" to="{} {} {} {}" />
 )", minCol * 20i32, minRow * 20i32, numCol * 20i32, numRow * 20i32);*/
 
         ostrm << "</svg>\n";
     }
 
-    inline static std::unordered_map<std::string_view, int32_t> list_of_strings_map(decltype(strList) list_of_strings) {
+    __forceinline static std::unordered_map<std::string_view, int32_t> list_of_strings_map(decltype(strList) list_of_strings) {
         int32_t strIdx{ 0 };
         std::unordered_map<std::string_view, int32_t> stringMap{};
         // std::ofstream ostrm("vu3p_strList.json", std::ios::binary);
@@ -88,7 +139,7 @@ public:
         return stringMap;
     }
 
-    inline static std::vector<uint32_t> make_tile_strIndex_to_tile(size_t strList_size, decltype(tiles) tiles) {
+    __forceinline static std::vector<uint32_t> make_tile_strIndex_to_tile(size_t strList_size, decltype(tiles) tiles) {
         std::vector<uint32_t> ret(strList_size);
         uint32_t tileIdx{};
         for (auto&& tile : tiles) {
@@ -99,7 +150,7 @@ public:
         return ret;
     }
 
-    inline static std::vector<uint8_t> make_tile_strIndex_to_tileType(size_t strList_size, decltype(tiles) tiles) {
+    __forceinline static std::vector<uint8_t> make_tile_strIndex_to_tileType(size_t strList_size, decltype(tiles) tiles) {
         std::vector<uint8_t> ret(strList_size);
         uint32_t tileIdx{};
         for (auto&& tile : tiles) {
@@ -110,7 +161,7 @@ public:
         return ret;
     }
 
-    inline static std::vector<uint32_t> make_wire_to_node(size_t wires_size, decltype(nodes) nodes) {
+    __forceinline static std::vector<uint32_t> make_wire_to_node(size_t wires_size, decltype(nodes) nodes) {
         std::vector<uint32_t> ret(wires_size);
         uint32_t nodeIdx{};
         for (auto&& node : nodes) {
@@ -144,7 +195,10 @@ public:
         tile_strIndex_to_tile{ make_tile_strIndex_to_tile(strList_size, tiles) },
         tile_strIndex_to_tileType(make_tile_strIndex_to_tileType(strList_size, tiles) ),
         wire_to_node(make_wire_to_node(wires.size(), nodes)),
-        stringMap{ list_of_strings_map(strList)}
+        stringMap{ list_of_strings_map(strList)},
+        tileInfo{ get_tile_info(tiles) },
+        tile_drawing{ get_tile_drawing(tiles, tileInfo) },
+        sp_tile_drawing{ tile_drawing }
     {
 #if 0
         std::vector<bool> node_cover(static_cast<size_t>(nodes.size()), false);
