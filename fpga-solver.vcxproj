@@ -44,11 +44,12 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>OpenGL-Registry\api;OpenGL-Registry\extensions;EGL-Registry\api;OpenCL-CLHPP\include;OpenCL-Headers;$(IncludePath)</IncludePath>
-    <LibraryPath>OpenCL-ICD-Loader\install\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>OpenGL-Registry\api;OpenGL-Registry\extensions;EGL-Registry\api;OpenCL-CLHPP\include;OpenCL-Headers;capnproto\c++\src;$(IncludePath)</IncludePath>
+    <LibraryPath>OpenCL-ICD-Loader\install\lib;capnproto\build\c++\src\capnp\$(Configuration);capnproto\build\c++\src\kj\$(Configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>OpenGL-Registry\api;OpenGL-Registry\extensions;EGL-Registry\api;OpenCL-CLHPP\include;OpenCL-Headers;$(IncludePath)</IncludePath>
+    <IncludePath>OpenGL-Registry\api;OpenGL-Registry\extensions;EGL-Registry\api;OpenCL-CLHPP\include;OpenCL-Headers;capnproto\c++\src;$(IncludePath)</IncludePath>
+    <LibraryPath>OpenCL-ICD-Loader\install\lib;capnproto\build\c++\src\capnp\$(Configuration);capnproto\build\c++\src\kj\$(Configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -59,6 +60,7 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -76,6 +78,7 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -85,10 +88,20 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="generated\DeviceResources.capnp.c++" />
+    <ClCompile Include="generated\LogicalNetlist.capnp.c++" />
+    <ClCompile Include="generated\PhysicalNetlist.capnp.c++" />
+    <ClCompile Include="generated\References.capnp.c++" />
     <ClCompile Include="win-desktop.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="dev.h" />
+    <ClInclude Include="generated\DeviceResources.capnp.h" />
+    <ClInclude Include="generated\LogicalNetlist.capnp.h" />
+    <ClInclude Include="generated\PhysicalNetlist.capnp.h" />
+    <ClInclude Include="generated\References.capnp.h" />
     <ClInclude Include="GL46.h" />
+    <ClInclude Include="mmf.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

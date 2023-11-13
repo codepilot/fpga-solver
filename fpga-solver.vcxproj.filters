@@ -18,9 +18,39 @@
     <ClCompile Include="win-desktop.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="generated\DeviceResources.capnp.c++">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="generated\LogicalNetlist.capnp.c++">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="generated\PhysicalNetlist.capnp.c++">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="generated\References.capnp.c++">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="GL46.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="generated\DeviceResources.capnp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="generated\LogicalNetlist.capnp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="generated\PhysicalNetlist.capnp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="generated\References.capnp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="dev.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mmf.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
