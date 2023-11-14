@@ -46,9 +46,10 @@ public:
     size_t nodes_size;
 
     std::vector<uint32_t> tile_strIndex_to_tile;
+    std::vector<uint32_t> site_strIndex_to_tile;
     std::vector<uint8_t> tile_strIndex_to_tileType;
     std::vector<uint32_t> wire_to_node;
-    std::unordered_map<std::string_view, int32_t> stringMap;
+    std::unordered_map<std::string_view, uint32_t> stringMap;
     tile_info tileInfo;
     std::vector<uint32_t> tile_drawing;
     std::span<uint32_t> sp_tile_drawing;
@@ -118,9 +119,9 @@ public:
         ostrm << "</svg>\n";
     }
 
-    __forceinline static std::unordered_map<std::string_view, int32_t> list_of_strings_map(decltype(strList) list_of_strings) {
-        int32_t strIdx{ 0 };
-        std::unordered_map<std::string_view, int32_t> stringMap{};
+    __forceinline static std::unordered_map<std::string_view, uint32_t> list_of_strings_map(decltype(strList) list_of_strings) {
+        uint32_t strIdx{ 0 };
+        std::unordered_map<std::string_view, uint32_t> stringMap{};
         // std::ofstream ostrm("vu3p_strList.json", std::ios::binary);
         //ostrm << "[\n";
         for (auto&& str : list_of_strings) {
@@ -145,6 +146,18 @@ public:
         for (auto&& tile : tiles) {
             const auto tileName{ tile.getName() };
             ret[tileName] = tileIdx;
+            tileIdx++;
+        }
+        return ret;
+    }
+    __forceinline static std::vector<uint32_t> make_site_strIndex_to_tile(size_t strList_size, decltype(tiles) tiles) {
+        std::vector<uint32_t> ret(strList_size);
+        uint32_t tileIdx{};
+        for (auto&& tile : tiles) {
+            for (auto&& site : tile.getSites()) {
+                const auto siteName{ site.getName() };
+                ret[siteName] = tileIdx;
+            }
             tileIdx++;
         }
         return ret;
@@ -193,6 +206,7 @@ public:
         nodes_size{ nodes.size() },
 
         tile_strIndex_to_tile{ make_tile_strIndex_to_tile(strList_size, tiles) },
+        site_strIndex_to_tile{ make_site_strIndex_to_tile(strList_size, tiles) },
         tile_strIndex_to_tileType(make_tile_strIndex_to_tileType(strList_size, tiles) ),
         wire_to_node(make_wire_to_node(wires.size(), nodes)),
         stringMap{ list_of_strings_map(strList)},

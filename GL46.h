@@ -17,6 +17,8 @@ public:
     }
 };
 
+#include "MemoryMappedFile.h"
+
 class GL46 {
 public:
 
@@ -184,12 +186,12 @@ public:
             for (GLint i = 0; i < numExtensions; i++) {
                 std::string extI = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, i));
                 extensions.insert(extI);
-                OutputDebugStringA((extI + "\r\n").c_str());
+                // OutputDebugStringA((extI + "\r\n").c_str());
             }
         }
         {
             std::string ext{ wglGetExtensionsStringARB(hdc) };
-            OutputDebugStringA((ext + "\r\n").c_str());
+            // OutputDebugStringA((ext + "\r\n").c_str());
         }
 
     }
@@ -426,7 +428,49 @@ public:
     GLuint fb{};
     Textures<GL_TEXTURE_RECTANGLE> textures{};
     Dev dev;
+    Physnet phys{ dev };
+    GLuint vbo_locations{};
+    GLuint vio{};
+    GLuint va{};
+    GLuint pipe{};
 
+    enum class ShaderType : GLenum {
+        compute = GL_COMPUTE_SHADER,
+        vertex = GL_VERTEX_SHADER,
+        tess_control = GL_TESS_CONTROL_SHADER,
+        tess_evaluation = GL_TESS_EVALUATION_SHADER,
+        geometry = GL_GEOMETRY_SHADER,
+        fragment = GL_FRAGMENT_SHADER,
+    };
+    GLuint createShader(ShaderType shaderType, std::string src) {
+        std::array<const char*, 1> strings{ src.c_str() };
+        const auto prog = glCreateShaderProgramv(
+            static_cast<GLenum>(shaderType),
+            SafeInt<GLsizei>(strings.size()),
+            strings.data());
+        GLint linkStatus{};
+        GLint validateStatus{};
+        // glValidateProgram(prog);
+        glGetProgramiv(prog, GL_LINK_STATUS, &linkStatus);
+        glGetProgramiv(prog, GL_VALIDATE_STATUS, &validateStatus);
+        GLint infoLogLength{ 0 };
+        glGetProgramiv(prog, GL_INFO_LOG_LENGTH, &infoLogLength);
+        if (infoLogLength) {
+            std::vector<GLchar> infoLog; infoLog.resize(infoLogLength);
+            GLsizei infoLogSize{ 0 };
+            glGetProgramInfoLog(prog, SafeInt<GLsizei>(infoLog.size()), &infoLogSize, infoLog.data());
+            std::string infoLogStr{ infoLog.begin(), infoLog.end() };
+            infoLogStr += "\r\n";
+            OutputDebugStringA(infoLogStr.c_str());
+            if (!linkStatus || !validateStatus) {
+                DebugBreak();
+            }
+        }
+        return prog;
+    }
+
+    GLuint vertexShader{};
+    GLuint fragmentShader{};
 
 	GL46(): hwnd{ make_window(this) }, hdc{ GetDC(hwnd) } {
         ShowWindow(hwnd, SW_MAXIMIZE);
@@ -442,12 +486,35 @@ public:
         glCreateFramebuffers(1, &fb);
         textures = 1;
         glTextureStorage2D(textures[0], 1, GL_RGBA8, static_cast<GLsizei>(dev.tileInfo.numCol), static_cast<GLsizei>(dev.tileInfo.numRow));
-        OutputDebugStringA(std::format("{}\n", dev.stringMap.size()).c_str());
+
         glClearTexSubImage(textures[0], 0, 0, 0, 0, static_cast<GLsizei>(dev.tileInfo.numCol), static_cast<GLsizei>(dev.tileInfo.numRow), 1, GL_RGBA, GL_FLOAT, nullptr);
 
         glTextureSubImage2D(textures[0], 0, 0, 0, static_cast<GLsizei>(dev.tileInfo.numCol), static_cast<GLsizei>(dev.tileInfo.numRow), GL_RGBA, GL_UNSIGNED_BYTE, dev.sp_tile_drawing.data());
 
-	}
+        glCreateBuffers(1, &vbo_locations);
+        glNamedBufferStorage(vbo_locations, sizeof(uint32_t) * phys.unrouted_locations.size(), phys.unrouted_locations.data(), 0);
+
+        glCreateBuffers(1, &vio);
+        glNamedBufferStorage(vio, sizeof(uint32_t) * phys.unrouted_indecies.size(), phys.unrouted_indecies.data(), 0);
+
+        glCreateVertexArrays(1, &va);
+        glVertexArrayAttribBinding(va, 0, 0);
+        glVertexArrayAttribFormat(va, 0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
+        glVertexArrayVertexBuffer(va, 0, vbo_locations, 0, 4);
+        glEnableVertexArrayAttrib(va, 0);
+        glVertexArrayElementBuffer(va, vio);
+
+
+        MemoryMappedFile vertexGlsl{ L"vertex.glsl" };
+        MemoryMappedFile fragmentGlsl{ L"fragment.glsl" };
+        vertexShader = createShader(ShaderType::vertex, std::string{ reinterpret_cast<char*>(vertexGlsl.fp), vertexGlsl.fsize });
+        fragmentShader = createShader(ShaderType::fragment, std::string{ reinterpret_cast<char*>(fragmentGlsl.fp), fragmentGlsl.fsize });
+        glCreateProgramPipelines(1, &pipe);
+        glUseProgramStages(pipe, GL_VERTEX_SHADER_BIT, vertexShader);
+        glUseProgramStages(pipe, GL_FRAGMENT_SHADER_BIT, fragmentShader);
+        glValidateProgramPipeline(pipe);
+        glBindProgramPipeline(pipe);
+    }
 
     UINT step() {
         for (;;) {
@@ -480,11 +547,11 @@ public:
         }
     }
 
-    void draw() {
+    DECLSPEC_NOINLINE void draw() {
         if (!getThis(hwnd)) return;
         if (!hglrc) return;
         glViewport(0, 0, gl->clientWidth, gl->clientHeight);
-        glClearColor(1.0f, 0.0f, 0.0f, 0.0f);
+        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         glClear(or_reduce<GLbitfield>({ GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT, GL_STENCIL_BUFFER_BIT }));
         glNamedFramebufferTexture(fb, GL_COLOR_ATTACHMENT0, textures[0], 0);
 
@@ -492,6 +559,9 @@ public:
             0, 0, static_cast<GLsizei>(dev.tileInfo.numCol), static_cast<GLsizei>(dev.tileInfo.numRow),
             0, 0, static_cast<GLint>(gl->clientWidth), static_cast<GLint>(gl->clientHeight),
             GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+        glBindVertexArray(va);
+        glDrawElements(GL_LINES, phys.unrouted_indecies.size() << 1ui64, GL_UNSIGNED_INT, nullptr);
 
         SwapBuffers(hdc);
     }

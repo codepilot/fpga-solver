@@ -60,6 +60,7 @@ namespace {
 
 #include "mmf.h"
 #include "dev.h"
+#include "Physnet.h"
 
 #include "GL46.h"
 };

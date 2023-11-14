@@ -102,6 +102,11 @@
     <ClInclude Include="generated\References.capnp.h" />
     <ClInclude Include="GL46.h" />
     <ClInclude Include="mmf.h" />
+    <ClInclude Include="Physnet.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="fragment.glsl" />
+    <None Include="vertex.glsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
