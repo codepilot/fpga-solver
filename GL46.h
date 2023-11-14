@@ -514,6 +514,7 @@ public:
         glUseProgramStages(pipe, GL_FRAGMENT_SHADER_BIT, fragmentShader);
         glValidateProgramPipeline(pipe);
         glBindProgramPipeline(pipe);
+        glProgramUniform2f(vertexShader, 0, dev.tileInfo.numCol, dev.tileInfo.numRow);
     }
 
     UINT step() {
