@@ -33,3 +33,5 @@
 .vs
 x64
 generated
+build
+.vscode

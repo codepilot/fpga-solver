@@ -427,6 +427,8 @@ public:
 
     GLuint fb{};
     Textures<GL_TEXTURE_RECTANGLE> textures{};
+    MemoryMappedFile vertexGlsl{ L"shaders\\vertex.vert.spv" };
+    MemoryMappedFile fragmentGlsl{ L"shaders\\fragment.frag.spv" };
     Dev dev;
     Physnet phys{ dev };
     GLuint vbo_locations{};
@@ -442,6 +444,32 @@ public:
         geometry = GL_GEOMETRY_SHADER,
         fragment = GL_FRAGMENT_SHADER,
     };
+
+    GLuint createShaderSpirv(ShaderType shaderType, std::span<unsigned char> spirv) {
+        // Read our shaders into the appropriate buffers
+
+        // Create an empty vertex shader handle
+        GLuint shader = glCreateShader(static_cast<GLenum>(shaderType));
+
+        // Apply the vertex shader SPIR-V to the shader object.
+        glShaderBinary(1, &shader, GL_SHADER_BINARY_FORMAT_SPIR_V, spirv.data(), spirv.size());
+
+        glSpecializeShader(shader, (const GLchar*)"main", 0, nullptr, nullptr);
+
+        GLuint program = glCreateProgram();
+
+        // Attach our shaders to our program
+        glProgramParameteri(program, GL_PROGRAM_SEPARABLE, GL_TRUE);
+        glAttachShader(program, shader);
+
+        // Link our program
+        glLinkProgram(program);
+
+        // Always detach shaders after a successful link.
+        glDetachShader(program, shader);
+        return program;
+    }
+
     GLuint createShader(ShaderType shaderType, std::string src) {
         std::array<const char*, 1> strings{ src.c_str() };
         const auto prog = glCreateShaderProgramv(
@@ -504,17 +532,21 @@ public:
         glEnableVertexArrayAttrib(va, 0);
         glVertexArrayElementBuffer(va, vio);
 
-
-        MemoryMappedFile vertexGlsl{ L"vertex.glsl" };
-        MemoryMappedFile fragmentGlsl{ L"fragment.glsl" };
+#if 0
+        MemoryMappedFile vertexGlsl{ L"../../vertex.glsl" };
+        MemoryMappedFile fragmentGlsl{ L"../../fragment.glsl" };
         vertexShader = createShader(ShaderType::vertex, std::string{ reinterpret_cast<char*>(vertexGlsl.fp), vertexGlsl.fsize });
         fragmentShader = createShader(ShaderType::fragment, std::string{ reinterpret_cast<char*>(fragmentGlsl.fp), fragmentGlsl.fsize });
+#else
+        vertexShader = createShaderSpirv(ShaderType::vertex, std::span<unsigned char>{ reinterpret_cast<unsigned char*>(vertexGlsl.fp), vertexGlsl.fsize });
+        fragmentShader = createShaderSpirv(ShaderType::fragment, std::span<unsigned char>{ reinterpret_cast<unsigned char*>(fragmentGlsl.fp), fragmentGlsl.fsize });
+#endif
         glCreateProgramPipelines(1, &pipe);
         glUseProgramStages(pipe, GL_VERTEX_SHADER_BIT, vertexShader);
         glUseProgramStages(pipe, GL_FRAGMENT_SHADER_BIT, fragmentShader);
         glValidateProgramPipeline(pipe);
         glBindProgramPipeline(pipe);
-        glProgramUniform2f(vertexShader, 0, dev.tileInfo.numCol, dev.tileInfo.numRow);
+        glProgramUniform2f(vertexShader, 0, static_cast<GLfloat>(dev.tileInfo.numCol), static_cast<GLfloat>(dev.tileInfo.numRow));
     }
 
     UINT step() {
@@ -564,7 +596,7 @@ public:
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glBindVertexArray(va);
-        glDrawElements(GL_LINES, phys.unrouted_indecies.size() << 1ui64, GL_UNSIGNED_INT, nullptr);
+        glDrawElements(GL_LINES, static_cast<GLsizei>(phys.unrouted_indecies.size() << 1ui64), GL_UNSIGNED_INT, nullptr);
         glDisable(GL_BLEND);
 
         SwapBuffers(hdc);
