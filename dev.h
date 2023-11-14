@@ -53,6 +53,7 @@ public:
     tile_info tileInfo;
     std::vector<uint32_t> tile_drawing;
     std::span<uint32_t> sp_tile_drawing;
+    std::unordered_map<uint64_t, uint64_t> tile_strIdx_high_wire_strIdx_low_to_wireIdx_high_nodeIdx_low;
 
     __forceinline static tile_info get_tile_info(decltype(tiles) tiles) noexcept {
         auto ret{ tile_info::make() };
@@ -186,7 +187,7 @@ public:
         return ret;
     }
 
-    Dev():
+    DECLSPEC_NOINLINE Dev():
         mmf{ L"C:\\Users\\root\\Desktop\\validate-routing\\vu3p-unzipped.canon.msg.device" },
         dev{ mmf },
 
@@ -214,6 +215,21 @@ public:
         tile_drawing{ get_tile_drawing(tiles, tileInfo) },
         sp_tile_drawing{ tile_drawing }
     {
+        {
+            std::vector<uint32_t> tileTypeCounts(static_cast<size_t>(tileTypes.size()), 0);
+            for (auto&& tile : tiles) {
+                tileTypeCounts[tile.getType()]++;
+            }
+            {
+                int32_t tileTypeIdx{};
+                for (auto&& tileType : tileTypes) {
+                    if (tileType.getPips().size()) {
+                        OutputDebugStringA(std::format("{}: {}\n", strList[tileType.getName()].cStr(), tileTypeCounts[tileTypeIdx]).c_str());
+                    }
+                    tileTypeIdx++;
+                }
+            }
+        }
 #if 0
         std::vector<bool> node_cover(static_cast<size_t>(nodes.size()), false);
         std::vector<bool> tile_cover(static_cast<size_t>(tiles.size()), false);
@@ -296,9 +312,144 @@ public:
             }
         }
 #endif
-          //  for (auto &&tile: tiles) {
-            //}
+        {
 
+            tile_strIdx_high_wire_strIdx_low_to_wireIdx_high_nodeIdx_low.reserve(wires_size);
+            {
+                uint32_t nodeIdx{};
+                for (auto&& node : nodes) {
+                    auto node_wires{ node.getWires() };
+                    for (auto&& wireA_Idx : node_wires) {
+                        auto wireA{ wires[wireA_Idx] };
+                        auto wireA_tile_strIdx{ wireA.getTile() };
+                        auto wireA_wire_strIdx{ wireA.getWire() };
+
+                        //auto wireA_tile{ tiles[tile_strIndex_to_tile[wires[wireA].getTile()]] };
+                        //auto wireA_col{ wireA_tile.getCol() };
+                        //auto wireA_row{ wireA_tile.getRow() };
+                        ULARGE_INTEGER k{ .u{.LowPart{wireA_wire_strIdx}, .HighPart{wireA_tile_strIdx}} };
+                        ULARGE_INTEGER v{ .u{.LowPart{nodeIdx}, .HighPart{wireA_Idx}} };
+                        tile_strIdx_high_wire_strIdx_low_to_wireIdx_high_nodeIdx_low.emplace(k.QuadPart, v.QuadPart);
+                    }
+                    nodeIdx++;
+                }
+            }
+            {
+                uint32_t wireA_Idx{};
+                for (auto&& wireA : wires) {
+                    auto wireA_tile_strIdx{ wireA.getTile() };
+                    auto wireA_wire_strIdx{ wireA.getWire() };
+
+                    //auto wireA_tile{ tiles[tile_strIndex_to_tile[wires[wireA].getTile()]] };
+                    //auto wireA_col{ wireA_tile.getCol() };
+                    //auto wireA_row{ wireA_tile.getRow() };
+                    ULARGE_INTEGER k{ .u{.LowPart{wireA_wire_strIdx}, .HighPart{wireA_tile_strIdx}} };
+                    ULARGE_INTEGER v{ .u{.LowPart{UINT32_MAX}, .HighPart{wireA_Idx}} };
+                    auto result{ tile_strIdx_high_wire_strIdx_low_to_wireIdx_high_nodeIdx_low.emplace(k.QuadPart, v.QuadPart) };
+#if 0
+                    if (result.second) {
+                        std::string_view tileStr{ strList[wireA_tile_strIdx].cStr() };
+                        std::string_view wireStr{ strList[wireA_wire_strIdx].cStr() };
+                        OutputDebugStringA(std::format("wireA_Idx({}) tile({}) wire({})\n", wireA_Idx, tileStr, wireStr).c_str());
+                    }
+#endif
+                    wireA_Idx++;
+                }
+            }
+            OutputDebugStringA(std::format("wires.size({})\n", tile_strIdx_high_wire_strIdx_low_to_wireIdx_high_nodeIdx_low.size()).c_str());
+            OutputDebugStringA(std::format("tile_strIdx_high_wire_strIdx_low_to_wireIdx_high_nodeIdx_low.size({})\n", tile_strIdx_high_wire_strIdx_low_to_wireIdx_high_nodeIdx_low.size()).c_str());
+
+            std::vector<bool> used_nodes(nodes_size, false);
+            uint32_t remaining_nodes{ static_cast<uint32_t>( nodes_size )};
+#if 1
+            for (auto&& tile : tiles) {
+                auto tileStrIdx{ tile.getName() };
+                std::string_view tileStr{ strList[tileStrIdx].cStr() };
+                auto tileTypeIdx{ tile.getType() };
+                auto tileType{ tileTypes[tileTypeIdx] };
+                auto tileTypeWireStringIndcies{ tileType.getWires() };
+                std::vector<uint64_t> tileTypeNodes; tileTypeNodes.reserve(static_cast<size_t>(tileTypeWireStringIndcies.size()));
+                for (auto&& tileTypeWireStrIdx : tileTypeWireStringIndcies) {
+                    std::string_view wireStr{ strList[tileTypeWireStrIdx].cStr() };
+                    ULARGE_INTEGER k{ .u{.LowPart{tileTypeWireStrIdx}, .HighPart{tileStrIdx}} };
+                    auto v{ tile_strIdx_high_wire_strIdx_low_to_wireIdx_high_nodeIdx_low.at(k.QuadPart) };
+                    tileTypeNodes.emplace_back(v);
+                }
+                for (auto&& pip : tileType.getPips()) {
+                    ULARGE_INTEGER wire0_v{ .QuadPart{ tileTypeNodes[pip.getWire0()]} };
+                    ULARGE_INTEGER wire1_v{ .QuadPart{ tileTypeNodes[pip.getWire1()]} };
+                    auto wire0_nodeIdx{ wire0_v.LowPart };
+                    auto wire1_nodeIdx{ wire1_v.LowPart };
+#if 0
+                    if (wire0_nodeIdx == UINT32_MAX) {
+                        auto wire0{ wires[wire0_v.HighPart] };
+                        auto wire0_tile_strIdx{ wire0.getTile() };
+                        auto wire0_wire_strIdx{ wire0.getWire() };
+                        std::string_view tileStr{ strList[wire0_tile_strIdx].cStr() };
+                        std::string_view wireStr{ strList[wire0_wire_strIdx].cStr() };
+                        OutputDebugStringA(std::format("wire0 nodeless tile({}) wire({})\n", tileStr, wireStr).c_str());
+                    }
+#endif
+#if 0
+                    if (wire1_nodeIdx == UINT32_MAX) {
+                        auto wire1{ wires[wire1_v.HighPart] };
+                        auto wire1_tile_strIdx{ wire1.getTile() };
+                        auto wire1_wire_strIdx{ wire1.getWire() };
+                        std::string_view tileStr{ strList[wire1_tile_strIdx].cStr() };
+                        std::string_view wireStr{ strList[wire1_wire_strIdx].cStr() };
+                        OutputDebugStringA(std::format("wire1 nodeless tile({}) wire({})\n", tileStr, wireStr).c_str());
+                    }
+#endif
+                    if (pip.getDirectional()) {
+                        if (wire0_nodeIdx != UINT32_MAX && !used_nodes[wire0_nodeIdx]) {
+                            used_nodes[wire0_nodeIdx] = true;
+                            remaining_nodes--;
+                        }
+                        if (wire1_nodeIdx != UINT32_MAX && !used_nodes[wire1_nodeIdx]) {
+                            used_nodes[wire1_nodeIdx] = true;
+                            remaining_nodes--;
+                        }
+                    }
+                    else {
+                        if (wire0_nodeIdx != UINT32_MAX && !used_nodes[wire0_nodeIdx]) {
+                            used_nodes[wire0_nodeIdx] = true;
+                            remaining_nodes--;
+                        }
+                        if (wire1_nodeIdx != UINT32_MAX && !used_nodes[wire1_nodeIdx]) {
+                            used_nodes[wire1_nodeIdx] = true;
+                            remaining_nodes--;
+                        }
+
+                    }
+                }
+            }
+#endif
+            OutputDebugStringA(std::format("remaining_nodes {}\n", remaining_nodes).c_str());
+            {
+#if 0
+                for (auto&& wireB : node_wires) {
+                    auto wireB_tile{ tiles[tile_strIndex_to_tile[wires[wireB].getTile()]] };
+                    auto wireB_col{ wireB_tile.getCol() };
+                    auto wireB_row{ wireB_tile.getRow() };
+                    if (wireA_col == wireB_col) {
+                        if (wireA_row == wireB_row) {
+                            continue;
+                        }
+                        else if (wireA_row == wireB_row + 1ui16) {
+                            //east
+                        }
+                        else if (wireA_row + 1ui16 == wireB_row) {
+                            //west
+                        }
+            }
+                    else if (wireA_row == wireB_row) {
+
+                    }
+        }
+#endif
+
+            }
+        }
 	}
 
 };

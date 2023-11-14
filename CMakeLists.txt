@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(fpga-solver)
 add_executable(fpga-solver WIN32 win-desktop.cpp)
+target_include_directories(fpga-solver PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(fpga-solver PUBLIC OpenGL-Registry/api OpenGL-Registry/extensions EGL-Registry/api OpenCL-CLHPP/include OpenCL-Headers capnproto/c++/src)
 target_compile_features(fpga-solver PUBLIC cxx_std_23)
 target_link_directories(fpga-solver PUBLIC build/OpenCL-ICD-Loader/$(ConfigurationName) build/capnproto/c++/src/capnp/$(ConfigurationName) build/capnproto/c++/src/kj/$(ConfigurationName))
