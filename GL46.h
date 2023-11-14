@@ -452,7 +452,7 @@ public:
         GLuint shader = glCreateShader(static_cast<GLenum>(shaderType));
 
         // Apply the vertex shader SPIR-V to the shader object.
-        glShaderBinary(1, &shader, GL_SHADER_BINARY_FORMAT_SPIR_V, spirv.data(), spirv.size());
+        glShaderBinary(1, &shader, GL_SHADER_BINARY_FORMAT_SPIR_V, spirv.data(), static_cast<GLsizei>(spirv.size()));
 
         glSpecializeShader(shader, (const GLchar*)"main", 0, nullptr, nullptr);
 
@@ -574,7 +574,14 @@ public:
         }
     }
 
+    LARGE_INTEGER time_step_freq{};
+    LARGE_INTEGER prev_time_step{};
+    std::array<int64_t, 1024> time_steps{};
+    int64_t time_step_count{};
+    int64_t time_step_sum{};
     void loop() {
+        QueryPerformanceFrequency(&time_step_freq);
+        QueryPerformanceCounter(&prev_time_step);
         while (step() != WM_QUIT) {
             draw();
         }
@@ -600,6 +607,17 @@ public:
         glDisable(GL_BLEND);
 
         SwapBuffers(hdc);
+        auto prev_ts{ prev_time_step.QuadPart };
+        QueryPerformanceCounter(&prev_time_step);
+        auto diff_ts{ prev_time_step.QuadPart - prev_ts };
+        auto step_num{ (time_step_count++) & 1023i64 };
+        time_step_sum += diff_ts - time_steps[step_num];
+        time_steps[step_num] = diff_ts;
+        double_t divisor{ time_step_count>=1024?1024.0: time_step_count };
+        double_t fps{1.0 / (static_cast<double_t>(time_step_sum) / static_cast<double_t>(time_step_freq.QuadPart) / divisor)};
+         auto title_text{ std::format(L"{} fps", fps) };
+        // SetWindowTextW(hwnd, title_text.c_str());
+        if((time_step_count & 127i64) == 0i64) OutputDebugStringW(std::format(L"{}\n", title_text).c_str());
     }
 
     static GL46* getThis(HWND hwnd) {
