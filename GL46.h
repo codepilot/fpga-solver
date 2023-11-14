@@ -560,8 +560,11 @@ public:
             0, 0, static_cast<GLint>(gl->clientWidth), static_cast<GLint>(gl->clientHeight),
             GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glBindVertexArray(va);
         glDrawElements(GL_LINES, phys.unrouted_indecies.size() << 1ui64, GL_UNSIGNED_INT, nullptr);
+        glDisable(GL_BLEND);
 
         SwapBuffers(hdc);
     }
