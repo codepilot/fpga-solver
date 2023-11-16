@@ -35,7 +35,13 @@ namespace {
 	class GL46;
 	thread_local GL46* gl{};
 
+
+#include "constexpr_intrinsics.h"
+#include "Trivial_Span.h"
+
+#include "constexpr_siphash.h"
 #include "mmf.h"
+#include "MemoryMappedFile.h"
 #include "dev.h"
 #include "Physnet.h"
 

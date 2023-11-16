@@ -1,11 +1,5 @@
 #pragma once
 
-template<typename T> constexpr T or_reduce(std::vector<T> v) {
-    T ret{ 0 };
-    for (auto& n : v) { ret |= n; }
-    return ret;
-};
-
 class User32Class {
 public:
     ATOM atom{ 0 };
@@ -532,9 +526,9 @@ public:
         glEnableVertexArrayAttrib(va, 0);
         glVertexArrayElementBuffer(va, vio);
 
-#if 0
-        MemoryMappedFile vertexGlsl{ L"../../vertex.glsl" };
-        MemoryMappedFile fragmentGlsl{ L"../../fragment.glsl" };
+#if 1
+        MemoryMappedFile vertexGlsl{ L"../shaders/vertex.vert" };
+        MemoryMappedFile fragmentGlsl{ L"../shaders/fragment.frag" };
         vertexShader = createShader(ShaderType::vertex, std::string{ reinterpret_cast<char*>(vertexGlsl.fp), vertexGlsl.fsize });
         fragmentShader = createShader(ShaderType::fragment, std::string{ reinterpret_cast<char*>(fragmentGlsl.fp), fragmentGlsl.fsize });
 #else

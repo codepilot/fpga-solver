@@ -24,10 +24,21 @@ public:
     return ret.QuadPart;
   }
 
-  HANDLE fh{ INVALID_HANDLE_VALUE };
-  size_t fsize{};
-  HANDLE fm{ nullptr };
-  PVOID fp{ nullptr };
+  const HANDLE fh{ INVALID_HANDLE_VALUE };
+  const size_t fsize{};
+  const HANDLE fm{ nullptr };
+  const PVOID fp{ nullptr };
+
+  template<typename T>
+  __forceinline std::span<T> get_span() const noexcept {
+      return { reinterpret_cast<T*>(fp), fsize / sizeof(T)};
+  }
+
+  template<typename T>
+  __forceinline Trivial_Span<T> get_trivial_span() const noexcept {
+      return Trivial_Span<T>::make( reinterpret_cast<T*>(fp), fsize / sizeof(T) );
+  }
+
   MemoryMappedFile(std::wstring fn) : fh{ CreateFile2(
     fn.c_str(),
     GENERIC_READ,
@@ -38,6 +49,19 @@ public:
     fsize{ getFileSize(fh) },
     fm{ CreateFileMapping2(fh, nullptr, FILE_MAP_READ, PAGE_READONLY, 0, 0, nullptr, nullptr, 0) },
     fp{ MapViewOfFile3(fm, GetCurrentProcess(), nullptr, 0, 0, 0, PAGE_READONLY, nullptr, 0) }
+  {
+
+  }
+  MemoryMappedFile(std::wstring fn, uint64_t requestedSize) : fh{ CreateFile2(
+    fn.c_str(),
+    GENERIC_ALL,
+    0,
+    CREATE_ALWAYS,
+    nullptr
+    ) },
+      fsize{ requestedSize },
+      fm{ CreateFileMapping2(fh, nullptr, FILE_MAP_WRITE, PAGE_READWRITE, 0, requestedSize, nullptr, nullptr, 0) },
+      fp{ MapViewOfFile3(fm, GetCurrentProcess(), nullptr, 0, 0, 0, PAGE_READWRITE, nullptr, 0) }
   {
 
   }
