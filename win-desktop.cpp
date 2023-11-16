@@ -1,20 +1,3 @@
-#define NOMINMAX
-
-#define CL_HPP_ENABLE_EXCEPTIONS
-#define CL_HPP_TARGET_OPENCL_VERSION 300
-
-//#pragma comment( lib, "capnp-json.lib" )
-//#pragma comment( lib, "capnp-rpc.lib" )
-//#pragma comment( lib, "capnp-websocket.lib" )
-//#pragma comment( lib, "capnpc.lib" )
-#pragma comment( lib, "capnp.lib" )
-
-
-#pragma comment( lib, "kj.lib" )
-//#pragma comment( lib, "kj-async.lib" )
-//#pragma comment( lib, "kj-http.lib" )
-//#pragma comment( lib, "kj-test.lib" )
-
 #include <capnp/serialize.h>
 #include "generated\DeviceResources.capnp.h"
 #include "generated\LogicalNetlist.capnp.h"
@@ -46,12 +29,6 @@
 #include <fstream>
 
 #include <CL/opencl.hpp>
-
-#pragma comment( lib, "Opengl32" )
-#pragma comment( lib, "Kernel32" )
-#pragma comment( lib, "WindowsApp" )
-#pragma comment( lib, "Avrt" )
-#pragma comment( lib, "OpenCL" )
 
 namespace {
 	using msl::utilities::SafeInt;

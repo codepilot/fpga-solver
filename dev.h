@@ -45,6 +45,9 @@ public:
     decltype(dev.reader.getNodes()) nodes;
     size_t nodes_size;
 
+    std::vector<std::unordered_set<uint32_t>> inbound_node_tiles;
+    std::vector<std::unordered_set<uint32_t>> outbound_node_tiles;
+
     std::vector<uint32_t> tile_strIndex_to_tile;
     std::vector<uint32_t> site_strIndex_to_tile;
     std::vector<uint8_t> tile_strIndex_to_tileType;
@@ -54,6 +57,9 @@ public:
     std::vector<uint32_t> tile_drawing;
     std::span<uint32_t> sp_tile_drawing;
     std::unordered_map<uint64_t, uint64_t> tile_strIdx_high_wire_strIdx_low_to_wireIdx_high_nodeIdx_low;
+
+    std::vector<uint32_t> wire_drawing;
+    std::span<uint32_t> sp_wire_drawing;
 
     __forceinline static tile_info get_tile_info(decltype(tiles) tiles) noexcept {
         auto ret{ tile_info::make() };
@@ -361,66 +367,76 @@ public:
 
             std::vector<bool> used_nodes(nodes_size, false);
             uint32_t remaining_nodes{ static_cast<uint32_t>( nodes_size )};
-#if 1
-            for (auto&& tile : tiles) {
-                auto tileStrIdx{ tile.getName() };
-                std::string_view tileStr{ strList[tileStrIdx].cStr() };
-                auto tileTypeIdx{ tile.getType() };
-                auto tileType{ tileTypes[tileTypeIdx] };
-                auto tileTypeWireStringIndcies{ tileType.getWires() };
-                std::vector<uint64_t> tileTypeNodes; tileTypeNodes.reserve(static_cast<size_t>(tileTypeWireStringIndcies.size()));
-                for (auto&& tileTypeWireStrIdx : tileTypeWireStringIndcies) {
-                    std::string_view wireStr{ strList[tileTypeWireStrIdx].cStr() };
-                    ULARGE_INTEGER k{ .u{.LowPart{tileTypeWireStrIdx}, .HighPart{tileStrIdx}} };
-                    auto v{ tile_strIdx_high_wire_strIdx_low_to_wireIdx_high_nodeIdx_low.at(k.QuadPart) };
-                    tileTypeNodes.emplace_back(v);
-                }
-                for (auto&& pip : tileType.getPips()) {
-                    ULARGE_INTEGER wire0_v{ .QuadPart{ tileTypeNodes[pip.getWire0()]} };
-                    ULARGE_INTEGER wire1_v{ .QuadPart{ tileTypeNodes[pip.getWire1()]} };
-                    auto wire0_nodeIdx{ wire0_v.LowPart };
-                    auto wire1_nodeIdx{ wire1_v.LowPart };
-#if 0
-                    if (wire0_nodeIdx == UINT32_MAX) {
-                        auto wire0{ wires[wire0_v.HighPart] };
-                        auto wire0_tile_strIdx{ wire0.getTile() };
-                        auto wire0_wire_strIdx{ wire0.getWire() };
-                        std::string_view tileStr{ strList[wire0_tile_strIdx].cStr() };
-                        std::string_view wireStr{ strList[wire0_wire_strIdx].cStr() };
-                        OutputDebugStringA(std::format("wire0 nodeless tile({}) wire({})\n", tileStr, wireStr).c_str());
-                    }
-#endif
-#if 0
-                    if (wire1_nodeIdx == UINT32_MAX) {
-                        auto wire1{ wires[wire1_v.HighPart] };
-                        auto wire1_tile_strIdx{ wire1.getTile() };
-                        auto wire1_wire_strIdx{ wire1.getWire() };
-                        std::string_view tileStr{ strList[wire1_tile_strIdx].cStr() };
-                        std::string_view wireStr{ strList[wire1_wire_strIdx].cStr() };
-                        OutputDebugStringA(std::format("wire1 nodeless tile({}) wire({})\n", tileStr, wireStr).c_str());
-                    }
-#endif
-                    if (pip.getDirectional()) {
-                        if (wire0_nodeIdx != UINT32_MAX && !used_nodes[wire0_nodeIdx]) {
-                            used_nodes[wire0_nodeIdx] = true;
-                            remaining_nodes--;
-                        }
-                        if (wire1_nodeIdx != UINT32_MAX && !used_nodes[wire1_nodeIdx]) {
-                            used_nodes[wire1_nodeIdx] = true;
-                            remaining_nodes--;
-                        }
-                    }
-                    else {
-                        if (wire0_nodeIdx != UINT32_MAX && !used_nodes[wire0_nodeIdx]) {
-                            used_nodes[wire0_nodeIdx] = true;
-                            remaining_nodes--;
-                        }
-                        if (wire1_nodeIdx != UINT32_MAX && !used_nodes[wire1_nodeIdx]) {
-                            used_nodes[wire1_nodeIdx] = true;
-                            remaining_nodes--;
-                        }
 
+            inbound_node_tiles.resize(nodes_size);
+            outbound_node_tiles.resize(nodes_size);
+
+            wire_drawing.resize((tileInfo.numCol - 1i64) * (tileInfo.numRow - 1i64));
+            sp_wire_drawing = wire_drawing;
+#if 1
+            {
+                uint32_t tileIndex{};
+                for (auto&& tile : tiles) {
+                    auto tileStrIdx{ tile.getName() };
+                    std::string_view tileStr{ strList[tileStrIdx].cStr() };
+                    auto tileTypeIdx{ tile.getType() };
+                    auto tileType{ tileTypes[tileTypeIdx] };
+                    auto tileTypeWireStringIndcies{ tileType.getWires() };
+                    std::vector<uint64_t> tileTypeNodes; tileTypeNodes.reserve(static_cast<size_t>(tileTypeWireStringIndcies.size()));
+#if 1
+                    for (auto&& tileTypeWireStrIdx : tileTypeWireStringIndcies) {
+                        std::string_view wireStr{ strList[tileTypeWireStrIdx].cStr() };
+                        ULARGE_INTEGER k{ .u{.LowPart{tileTypeWireStrIdx}, .HighPart{tileStrIdx}} };
+                        auto v{ tile_strIdx_high_wire_strIdx_low_to_wireIdx_high_nodeIdx_low.at(k.QuadPart) };
+                        tileTypeNodes.emplace_back(v);
                     }
+
+                    for (auto&& pip : tileType.getPips()) {
+                        ULARGE_INTEGER wire0_v{ .QuadPart{ tileTypeNodes[pip.getWire0()]} };
+                        ULARGE_INTEGER wire1_v{ .QuadPart{ tileTypeNodes[pip.getWire1()]} };
+                        auto wire0_nodeIdx{ wire0_v.LowPart };
+                        auto wire1_nodeIdx{ wire1_v.LowPart };
+
+                        if (pip.getDirectional()) {
+                            if (wire0_nodeIdx != UINT32_MAX) {
+                                outbound_node_tiles[wire0_nodeIdx].insert(tileIndex);
+                            }
+                            if (wire1_nodeIdx != UINT32_MAX) {
+                                inbound_node_tiles[wire1_nodeIdx].insert(tileIndex);
+                            }
+
+                            if (wire0_nodeIdx != UINT32_MAX && !used_nodes[wire0_nodeIdx]) {
+                                used_nodes[wire0_nodeIdx] = true;
+                                remaining_nodes--;
+                            }
+                            if (wire1_nodeIdx != UINT32_MAX && !used_nodes[wire1_nodeIdx]) {
+                                used_nodes[wire1_nodeIdx] = true;
+                                remaining_nodes--;
+                            }
+                        }
+                        else {
+                            if (wire0_nodeIdx != UINT32_MAX) {
+                                inbound_node_tiles[wire0_nodeIdx].insert(tileIndex);
+                                outbound_node_tiles[wire0_nodeIdx].insert(tileIndex);
+                            }
+                            if (wire1_nodeIdx != UINT32_MAX) {
+                                inbound_node_tiles[wire1_nodeIdx].insert(tileIndex);
+                                outbound_node_tiles[wire1_nodeIdx].insert(tileIndex);
+                            }
+
+                            if (wire0_nodeIdx != UINT32_MAX && !used_nodes[wire0_nodeIdx]) {
+                                used_nodes[wire0_nodeIdx] = true;
+                                remaining_nodes--;
+                            }
+                            if (wire1_nodeIdx != UINT32_MAX && !used_nodes[wire1_nodeIdx]) {
+                                used_nodes[wire1_nodeIdx] = true;
+                                remaining_nodes--;
+                            }
+
+                        }
+                    }
+                    tileIndex++;
+#endif
                 }
             }
 #endif
