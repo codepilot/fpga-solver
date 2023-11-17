@@ -1,10 +1,5 @@
 #pragma once
 
-#include<cstdint>
-#include<type_traits>
-#include<immintrin.h>
-
-
 template<const uint32_t start, const uint32_t len>
 static __forceinline constexpr uint64_t extract_bits(const uint64_t word) noexcept {
     if (std::is_constant_evaluated()) {
@@ -57,6 +52,7 @@ static __forceinline constexpr __m256i constexpr_mm256_broadcast_i64x2(__m128i a
     }
 }
 
+#include <vector>
 template<typename T> constexpr T or_reduce(std::vector<T> v) {
     T ret{ 0 };
     for (auto& n : v) { ret |= n; }

@@ -42,6 +42,7 @@ namespace {
 #include "constexpr_siphash.h"
 #include "mmf.h"
 #include "MemoryMappedFile.h"
+#include "cached_node_lookup.h"
 #include "dev.h"
 #include "Physnet.h"
 

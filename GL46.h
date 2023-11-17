@@ -581,7 +581,7 @@ public:
         }
     }
 
-    DECLSPEC_NOINLINE void draw() {
+    __declspec(noinline) void draw() {
         if (!getThis(hwnd)) return;
         if (!hglrc) return;
         glViewport(0, 0, gl->clientWidth, gl->clientHeight);

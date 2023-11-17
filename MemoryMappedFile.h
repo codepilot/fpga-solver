@@ -24,10 +24,10 @@ public:
     return ret.QuadPart;
   }
 
-  const HANDLE fh{ INVALID_HANDLE_VALUE };
-  const size_t fsize{};
-  const HANDLE fm{ nullptr };
-  const PVOID fp{ nullptr };
+  HANDLE fh{ INVALID_HANDLE_VALUE };
+  size_t fsize{};
+  HANDLE fm{ nullptr };
+  PVOID fp{ nullptr };
 
   template<typename T>
   __forceinline std::span<T> get_span() const noexcept {
@@ -37,6 +37,14 @@ public:
   template<typename T>
   __forceinline Trivial_Span<T> get_trivial_span() const noexcept {
       return Trivial_Span<T>::make( reinterpret_cast<T*>(fp), fsize / sizeof(T) );
+  }
+
+  MemoryMappedFile(HANDLE fh) : fh{fh},
+      fsize{ getFileSize(fh) },
+      fm{ CreateFileMapping2(fh, nullptr, FILE_MAP_READ, PAGE_READONLY, 0, 0, nullptr, nullptr, 0) },
+      fp{ MapViewOfFile3(fm, GetCurrentProcess(), nullptr, 0, 0, 0, PAGE_READONLY, nullptr, 0) }
+  {
+
   }
 
   MemoryMappedFile(std::wstring fn) : fh{ CreateFile2(
@@ -65,6 +73,19 @@ public:
   {
 
   }
+
+  MemoryMappedFile shrink(int64_t EndOfFile) {
+      CloseHandle(fm); fm = nullptr;
+      UnmapViewOfFile2(GetCurrentProcess(), fp, 0); fp = nullptr;
+      FILE_END_OF_FILE_INFO info{ .EndOfFile{.QuadPart{EndOfFile}} };
+      auto result{ SetFileInformationByHandle(fh, FileEndOfFileInfo, &info, sizeof(info)) };
+      fsize = 0;
+      // std::print("result: {}\n", result);
+      MemoryMappedFile ret{ fh };
+      fh = INVALID_HANDLE_VALUE;
+      return ret;
+  }
+
   ~MemoryMappedFile() {
     CloseHandle(fm);
     CloseHandle(fh);
