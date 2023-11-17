@@ -97,23 +97,33 @@ endforeach(BENCHMARK_FILE)
 
 
 
-set(CACHE_FILE "${PROJECT_BINARY_DIR}/cache/direct.bin")
-set(DEVICE_UNZIPPED_FILE "${PROJECT_BINARY_DIR}/cache/unzipped.device")
-set(DEVICE_UNZIPPED_CANON_FILE "${PROJECT_BINARY_DIR}/cache/unzipped.canon.device")
-add_custom_command(
-  OUTPUT ${DEVICE_UNZIPPED_FILE} ${DEVICE_UNZIPPED_CANON_FILE} ${CACHE_FILE}
-  COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/cache/"
-  COMMAND $<TARGET_FILE:build-cache> ${device-file_SOURCE_DIR}/xcvu3p.device ${DEVICE_UNZIPPED_FILE} ${DEVICE_UNZIPPED_CANON_FILE} ${CACHE_FILE} 
-  DEPENDS $<TARGET_FILE:build-cache>
-  DEPENDS ${device-file_SOURCE_DIR}/xcvu3p.device
-)
-list(APPEND CACHE_BINARY_FILES ${DEVICE_UNZIPPED_FILE})
-list(APPEND CACHE_BINARY_FILES ${DEVICE_UNZIPPED_CANON_FILE})
-list(APPEND CACHE_BINARY_FILES ${CACHE_FILE})
 
 add_custom_target(Shaders DEPENDS ${SPIRV_BINARY_FILES})
-add_custom_target(cache-files DEPENDS ${CACHE_BINARY_FILES})
 add_custom_target(prepared-benchmark-files DEPENDS ${PREPARED_BENCHMARK_FILES})
+
+
+file(GLOB_RECURSE DEVICE_FILES "${PROJECT_BINARY_DIR}/benchmarks/*.device.CANON")
+
+foreach(DEVICE_FILE ${DEVICE_FILES})
+  get_filename_component(FILE_NAME ${DEVICE_FILE} NAME)
+  set(INDIRECT_CACHE_FILE "${PROJECT_BINARY_DIR}/cache/${FILE_NAME}.indirect.bin")
+  set(DIRECT_CACHE_FILE "${PROJECT_BINARY_DIR}/cache/${FILE_NAME}.direct.bin")
+  set(DIRECT_DATA_CACHE_FILE "${PROJECT_BINARY_DIR}/cache/${FILE_NAME}.direct.data.bin")
+
+  add_custom_command(
+    OUTPUT ${INDIRECT_CACHE_FILE} ${DIRECT_CACHE_FILE} ${DIRECT_DATA_CACHE_FILE}
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/cache/"
+    COMMAND $<TARGET_FILE:build-cache> ${DEVICE_FILE} ${INDIRECT_CACHE_FILE} ${DIRECT_CACHE_FILE} ${DIRECT_DATA_CACHE_FILE}
+    DEPENDS $<TARGET_FILE:build-cache>
+    DEPENDS ${DEVICE_FILE}
+  )
+  list(APPEND CACHE_BINARY_FILES ${INDIRECT_CACHE_FILE})
+  list(APPEND CACHE_BINARY_FILES ${DIRECT_CACHE_FILE})
+  list(APPEND CACHE_BINARY_FILES ${DIRECT_DATA_CACHE_FILE})
+endforeach(DEVICE_FILE)
+
+add_custom_target(cache-files DEPENDS ${CACHE_BINARY_FILES})
+add_dependencies(cache-files prepared-benchmark-files)
 
 add_dependencies(${PROJECT_NAME} Shaders cache-files prepared-benchmark-files)
 

@@ -28,18 +28,30 @@
 
 int main(int argc, char* argv[]) {
 	std::vector<std::string_view> args;
+	std::vector<std::wstring> wargs;
 	for (int i{}; i != argc; i++) {
 		args.emplace_back(argv[i]);
 	}
-	MemoryMappedFile mmf_test{ L"cache/direct.bin", 65536 };
+	if (args.size() != 5) return 1;
+	for (auto&& arg : args) {
+		wargs.emplace_back(std::wstring_convert<std::codecvt_utf8<wchar_t>>().from_bytes(std::string{ arg }));
+	}
 	{
 		int32_t arg_index{};
 		for (auto&& arg : args) {
 			std::print("[{}]{} ", arg_index, arg);
 			arg_index++;
 		}
+		std::print("\n");
 	}
-	std::print("\n");
+
+	MemoryMappedFile mmf2{ wargs.at(2), 65536 };
+	MemoryMappedFile mmf3{ wargs.at(3), 65536 };
+	MemoryMappedFile mmf4{ wargs.at(4), 65536 };
+
+#if 0
+#endif
+#if 0
 	{
 		std::string file_name{ args.size() > 1 ? args.at(1) : "C:/Users/root/Desktop/fpga-solver/build/_deps/device-file-src/xcvu3p.device" };
 		std::wstring wfile_name{ std::wstring_convert<std::codecvt_utf8<wchar_t>>().from_bytes(file_name)};
@@ -88,6 +100,6 @@ int main(int argc, char* argv[]) {
 		std::print("isCanon: {}\n", isCanon);
 
 	}
-
+#endif
 	return 0;
 }
