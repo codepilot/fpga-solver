@@ -526,7 +526,7 @@ public:
         glEnableVertexArrayAttrib(va, 0);
         glVertexArrayElementBuffer(va, vio);
 
-#if 1
+#if 0
         MemoryMappedFile vertexGlsl{ L"../shaders/vertex.vert" };
         MemoryMappedFile fragmentGlsl{ L"../shaders/fragment.frag" };
         vertexShader = createShader(ShaderType::vertex, std::string{ reinterpret_cast<char*>(vertexGlsl.fp), vertexGlsl.fsize });

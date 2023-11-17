@@ -21,33 +21,26 @@ target_include_directories(${PROJECT_NAME} PUBLIC OpenGL-Registry/api OpenGL-Reg
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<BOOL:${MSVC}>:/arch:AVX2 /Zc:__cplusplus /MP /GR->)
 
-# set(GLSL_VALIDATOR "${PROJECT_BINARY_DIR}/glslang/StandAlone/RelWithDebInfo/glslangValidator.exe")
+file(GLOB_RECURSE GLSL_SOURCE_FILES
+    "shaders/*.frag"
+    "shaders/*.vert"
+)
 
-# file(GLOB_RECURSE GLSL_SOURCE_FILES
-#     "shaders/*.frag"
-#     "shaders/*.vert"
-# )
+foreach(GLSL ${GLSL_SOURCE_FILES})
+  get_filename_component(FILE_NAME ${GLSL} NAME)
+  set(SPIRV "${PROJECT_BINARY_DIR}/shaders/${FILE_NAME}.spv")
+  add_custom_command(
+    OUTPUT ${SPIRV}
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/shaders/"
+    COMMAND $<TARGET_FILE:glslang-standalone> -G ${GLSL} -o ${SPIRV}
+    DEPENDS ${GLSL}
+    DEPENDS glslang-standalone)
+  list(APPEND SPIRV_BINARY_FILES ${SPIRV})
+endforeach(GLSL)
 
-# foreach(GLSL ${GLSL_SOURCE_FILES})
-#   get_filename_component(FILE_NAME ${GLSL} NAME)
-#   set(SPIRV "${PROJECT_BINARY_DIR}/shaders/${FILE_NAME}.spv")
-#   add_custom_command(
-#     OUTPUT ${SPIRV}
-#     COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/shaders/"
-#     COMMAND ${GLSL_VALIDATOR} -G ${GLSL} -o ${SPIRV}
-#     DEPENDS ${GLSL}
-#     DEPENDS ${GLSL_VALIDATOR})
-#   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
-# endforeach(GLSL)
+add_custom_target(Shaders DEPENDS ${SPIRV_BINARY_FILES})
 
-# add_custom_target(Shaders DEPENDS ${SPIRV_BINARY_FILES})
-
-# add_dependencies(${PROJECT_NAME} Shaders)
-# add_dependencies(Shaders glslang)
-
-# add_dependencies(${PROJECT_NAME} capnp)
-# add_dependencies(${PROJECT_NAME} OpenCL)
-# add_dependencies(${PROJECT_NAME} libclcxx)
+add_dependencies(${PROJECT_NAME} Shaders)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE capnp)
 target_link_libraries(${PROJECT_NAME} PRIVATE OpenCL)
@@ -56,9 +49,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Kernel32.lib)
 target_link_libraries(${PROJECT_NAME} PRIVATE WindowsApp.lib)
 target_link_libraries(${PROJECT_NAME} PRIVATE Avrt.lib)
 
-# add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-#     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders/"
-#     COMMAND ${CMAKE_COMMAND} -E copy_directory
-#         "${PROJECT_BINARY_DIR}/shaders"
-#         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders")
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders/"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${PROJECT_BINARY_DIR}/shaders"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders")
 
