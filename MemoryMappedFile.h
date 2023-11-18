@@ -25,6 +25,7 @@ public:
   }
 
   HANDLE fh{ INVALID_HANDLE_VALUE };
+  bool sparse{};
   size_t fsize{};
   HANDLE fm{ nullptr };
   PVOID fp{ nullptr };
@@ -60,6 +61,25 @@ public:
   {
 
   }
+
+
+  static bool make_sparse(HANDLE fh) noexcept {
+      FILE_SET_SPARSE_BUFFER InBuffer{ .SetSparse{true} };
+      DWORD lpBytesReturned{};
+      auto result{ DeviceIoControl(
+          fh,                         // handle to a file
+          FSCTL_SET_SPARSE,                         // dwIoControlCode
+          (PFILE_SET_SPARSE_BUFFER)&InBuffer,     // input buffer
+          (DWORD)sizeof(InBuffer),                    // size of input buffer
+          NULL,                                     // lpOutBuffer
+          0,                                        // nOutBufferSize
+          (LPDWORD)&lpBytesReturned,                // number of bytes returned
+          (LPOVERLAPPED)nullptr               // OVERLAPPED structure
+      ) };
+
+      return true;
+  }
+
   MemoryMappedFile(std::wstring fn, uint64_t requestedSize) : fh{ CreateFile2(
     fn.c_str(),
     GENERIC_ALL,
@@ -67,9 +87,10 @@ public:
     CREATE_ALWAYS,
     nullptr
     ) },
-      fsize{ requestedSize },
-      fm{ CreateFileMapping2(fh, nullptr, FILE_MAP_WRITE, PAGE_READWRITE, 0, requestedSize, nullptr, nullptr, 0) },
-      fp{ MapViewOfFile3(fm, GetCurrentProcess(), nullptr, 0, 0, 0, PAGE_READWRITE, nullptr, 0) }
+    sparse{ make_sparse(fh) },
+    fsize{ requestedSize },
+    fm{ CreateFileMapping2(fh, nullptr, FILE_MAP_WRITE, PAGE_READWRITE, 0, requestedSize, nullptr, nullptr, 0) },
+    fp{ MapViewOfFile3(fm, GetCurrentProcess(), nullptr, 0, 0, 0, PAGE_READWRITE, nullptr, 0) }
   {
 
   }

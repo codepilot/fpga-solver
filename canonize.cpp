@@ -22,8 +22,9 @@
 #include <zlib/zlib.h>
 
 int main(int argc, char* argv[]) {
-	std::vector<std::string_view> args;
 	std::vector<std::wstring> wargs;
+	std::vector<std::string_view> args;
+	args.reserve(argc);
 	for (int i{}; i != argc; i++) {
 		args.emplace_back(argv[i]);
 	}
@@ -34,14 +35,14 @@ int main(int argc, char* argv[]) {
 
 	{
 		MemoryMappedFile mmf_args{ wargs.at(1) };
-		MemoryMappedFile mmf_dst{ wargs.at(2), 3221225472ui64 };
+		MemoryMappedFile mmf_dst{ wargs.at(2), 4294967296ui64 };
 		auto read_span{ mmf_args.get_span<Bytef>() };
 		auto write_span{ mmf_dst.get_span<Bytef>()};
 		z_stream strm{
 			 .next_in{read_span.data()},
 			.avail_in{static_cast<uint32_t>(read_span.size())},
 			.next_out{write_span.data()},
-			.avail_out{static_cast<uint32_t>(write_span.size())},
+			.avail_out{UINT32_MAX},
 		};
 		auto init_result{ inflateInit2(&strm, 15 + 16) };
 		auto inflate_result{ inflate(&strm, Z_FINISH) };
@@ -52,22 +53,17 @@ int main(int argc, char* argv[]) {
 		auto span_words{ mmf_unzipped.get_span<capnp::word>() };
 		kj::ArrayPtr<capnp::word> words{ span_words.data(), span_words.size()};
 		capnp::FlatArrayMessageReader famr{ words, {.traversalLimitInWords = UINT64_MAX, .nestingLimit = INT32_MAX} };
-		capnp::AnyStruct::Reader anyReader{ famr.getRoot<capnp::AnyStruct>()};
+		auto anyReader{ famr.getRoot<capnp::AnyStruct>() };
 
-		auto canonical2 = anyReader.canonicalize();
-		const auto bytes{ canonical2.asBytes() };
-
-		MemoryMappedFile mmf_canon_dst{ wargs.at(3), bytes.size() };
-		memcpy(mmf_canon_dst.fp, bytes.begin(), bytes.size());
-		std::print("unzipped.canon.device: {}\n", bytes.size());
+		MemoryMappedFile mmf_canon_dst{ wargs.at(3), 0xFFFFFFF8ui64 };
+		auto mmf_canon_dst_span{ mmf_canon_dst.get_span<capnp::word>() };
+		kj::ArrayPtr<capnp::word> backing{ mmf_canon_dst_span.data(), mmf_canon_dst_span.size() };
+		auto canonical_size = anyReader.canonicalize(backing);
+		auto mmf_canon_dst_shrunk{ mmf_canon_dst.shrink(canonical_size * sizeof(capnp::word)) };
+		std::print("canon_size:   {}\n", mmf_canon_dst_shrunk.fsize);
 	}
 	{
 		MemoryMappedFile mmf_canon_dst{ wargs.at(3) };
-
-		// Technically we don't know if the bytes are aligned so we'd better copy them to a new
-		// array. Note that if we have a non-whole number of words we chop off the straggler
-		// bytes. This is fine because if those bytes are actually part of the message we will
-		// hit an error later and if they are not then who cares?
 
 		auto span_words{ mmf_canon_dst.get_span<capnp::word>() };
 		kj::ArrayPtr<capnp::word> words{ span_words.data(), span_words.size() };
