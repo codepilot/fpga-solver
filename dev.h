@@ -203,13 +203,13 @@ public:
         return ret;
     }
 
-    MemoryMappedFile mmf_indirect;
-    MemoryMappedFile mmf_direct;
-    MemoryMappedFile mmf_direct_value;
-    cached_node_lookup cnl;
+    //MemoryMappedFile mmf_indirect;
+    //MemoryMappedFile mmf_direct;
+    //MemoryMappedFile mmf_direct_value;
+    //cached_node_lookup cnl;
 
     __declspec(noinline) Dev():
-        dev_mmf{ L"benchmarks/xcvu3p.device.CANON" },
+        dev_mmf{ L"benchmarks/xcvu3p.device" },
         dev{ make_canon_reader<DeviceResources::Device>(dev_mmf) },
 
         strList{ dev.getStrList() },
@@ -234,11 +234,11 @@ public:
         stringMap{ list_of_strings_map(strList)},
         tileInfo{ get_tile_info(tiles) },
         tile_drawing{ get_tile_drawing(tiles, tileInfo) },
-        sp_tile_drawing{ tile_drawing },
-        mmf_indirect{ L"indirect.bin" },
-        mmf_direct{ L"direct.bin" },
-        mmf_direct_value{ L"direct_value.bin" },
-        cnl{ cached_node_lookup::open_cached_node_lookup(mmf_indirect, mmf_direct, mmf_direct_value) }
+        sp_tile_drawing{ tile_drawing }//,
+        //mmf_indirect{ L"indirect.bin" },
+        //mmf_direct{ L"direct.bin" },
+        //mmf_direct_value{ L"direct_value.bin" },
+        //cnl{ cached_node_lookup::open_cached_node_lookup(mmf_indirect, mmf_direct, mmf_direct_value) }
     {
         // cached_node_lookup::make_cached_node_lookup(nodes, wires);
 #if 0

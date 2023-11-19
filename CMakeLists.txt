@@ -84,14 +84,13 @@ file(GLOB_RECURSE BENCHMARK_FILES "${benchmark-files_SOURCE_DIR}/*.netlist" "${b
 foreach(BENCHMARK_FILE ${BENCHMARK_FILES})
   get_filename_component(FILE_NAME ${BENCHMARK_FILE} NAME)
   set(UNZIPPED "${PROJECT_BINARY_DIR}/benchmarks/${FILE_NAME}.UNZIPPED")
-  set(CANON "${PROJECT_BINARY_DIR}/benchmarks/${FILE_NAME}.CANON")
+  set(CANON "${PROJECT_BINARY_DIR}/benchmarks/${FILE_NAME}")
   add_custom_command(
-    OUTPUT ${UNZIPPED} ${CANON}
+    OUTPUT  ${CANON}
     COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/benchmarks/"
     COMMAND $<TARGET_FILE:canonize> ${BENCHMARK_FILE} ${UNZIPPED} ${CANON}
     DEPENDS ${BENCHMARK_FILE}
     DEPENDS canonize)
-  list(APPEND PREPARED_BENCHMARK_FILES ${UNZIPPED})
   list(APPEND PREPARED_BENCHMARK_FILES ${CANON})
 endforeach(BENCHMARK_FILE)
 

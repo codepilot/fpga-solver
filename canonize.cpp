@@ -49,18 +49,19 @@ int main(int argc, char* argv[]) {
 		auto end_result{ inflateEnd(&strm) };
 		std::print("init_result: {}\ninflate_result: {}\nend_result: {}\n", init_result, inflate_result, end_result);
 		auto mmf_unzipped{ mmf_dst.shrink(strm.total_out) };
-		std::print("mmf_unzipped: {}\n", mmf_unzipped.fsize);
 		auto span_words{ mmf_unzipped.get_span<capnp::word>() };
 		kj::ArrayPtr<capnp::word> words{ span_words.data(), span_words.size()};
 		capnp::FlatArrayMessageReader famr{ words, {.traversalLimitInWords = UINT64_MAX, .nestingLimit = INT32_MAX} };
 		auto anyReader{ famr.getRoot<capnp::AnyStruct>() };
 
-		MemoryMappedFile mmf_canon_dst{ wargs.at(3), 0xFFFFFFF8ui64 };
+		MemoryMappedFile mmf_canon_dst{ wargs.at(3), mmf_unzipped.fsize };
 		auto mmf_canon_dst_span{ mmf_canon_dst.get_span<capnp::word>() };
 		kj::ArrayPtr<capnp::word> backing{ mmf_canon_dst_span.data(), mmf_canon_dst_span.size() };
 		auto canonical_size = anyReader.canonicalize(backing);
 		auto mmf_canon_dst_shrunk{ mmf_canon_dst.shrink(canonical_size * sizeof(capnp::word)) };
 		std::print("canon_size:   {}\n", mmf_canon_dst_shrunk.fsize);
+		mmf_unzipped.will_delete = true;
+		std::print("mmf_unzipped: {}\n", mmf_unzipped.fsize);
 	}
 	{
 		MemoryMappedFile mmf_canon_dst{ wargs.at(3) };

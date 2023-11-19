@@ -45,7 +45,9 @@ public:
       fm{ CreateFileMapping2(fh, nullptr, FILE_MAP_READ, PAGE_READONLY, 0, 0, nullptr, nullptr, 0) },
       fp{ MapViewOfFile3(fm, GetCurrentProcess(), nullptr, 0, 0, 0, PAGE_READONLY, nullptr, 0) }
   {
-
+      if (fh == INVALID_HANDLE_VALUE) DebugBreak();
+      if (!fm) DebugBreak();
+      if (!fp) DebugBreak();
   }
 
   MemoryMappedFile(std::wstring fn) : fh{ CreateFile2(
@@ -59,7 +61,9 @@ public:
     fm{ CreateFileMapping2(fh, nullptr, FILE_MAP_READ, PAGE_READONLY, 0, 0, nullptr, nullptr, 0) },
     fp{ MapViewOfFile3(fm, GetCurrentProcess(), nullptr, 0, 0, 0, PAGE_READONLY, nullptr, 0) }
   {
-
+      if (fh == INVALID_HANDLE_VALUE) DebugBreak();
+      if (!fm) DebugBreak();
+      if (!fp) DebugBreak();
   }
 
 
@@ -82,7 +86,7 @@ public:
 
   MemoryMappedFile(std::wstring fn, uint64_t requestedSize) : fh{ CreateFile2(
     fn.c_str(),
-    GENERIC_ALL,
+    FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE,
     0,
     CREATE_ALWAYS,
     nullptr
@@ -92,12 +96,14 @@ public:
     fm{ CreateFileMapping2(fh, nullptr, FILE_MAP_WRITE, PAGE_READWRITE, 0, requestedSize, nullptr, nullptr, 0) },
     fp{ MapViewOfFile3(fm, GetCurrentProcess(), nullptr, 0, 0, 0, PAGE_READWRITE, nullptr, 0) }
   {
-
+      if (fh == INVALID_HANDLE_VALUE) DebugBreak();
+      if (!fm) DebugBreak();
+      if (!fp) DebugBreak();
   }
 
   MemoryMappedFile shrink(int64_t EndOfFile) {
-      CloseHandle(fm); fm = nullptr;
       UnmapViewOfFile2(GetCurrentProcess(), fp, 0); fp = nullptr;
+      CloseHandle(fm); fm = nullptr;
       FILE_END_OF_FILE_INFO info{ .EndOfFile{.QuadPart{EndOfFile}} };
       auto result{ SetFileInformationByHandle(fh, FileEndOfFileInfo, &info, sizeof(info)) };
       fsize = 0;
@@ -107,9 +113,22 @@ public:
       return ret;
   }
 
+  bool will_delete{false};
+  bool mark_deleted() {
+      FILE_DISPOSITION_INFO info{ true };
+      SetLastError(NO_ERROR);
+      auto result{ SetFileInformationByHandle(fh, FileDispositionInfo, &info, sizeof(info)) };
+      auto lastError{ GetLastError() };
+      if (!result) { DebugBreak(); }
+      return result;
+  }
+
   ~MemoryMappedFile() {
-    CloseHandle(fm);
-    CloseHandle(fh);
     UnmapViewOfFile2(GetCurrentProcess(), fp, 0);
+    CloseHandle(fm);
+    if (will_delete) {
+        if (!mark_deleted()) { DebugBreak(); };
+    }
+    CloseHandle(fh);
   }
 };
