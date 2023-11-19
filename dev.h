@@ -27,22 +27,32 @@ public:
         }
     };
 
-    MMF_READONLY mmf;
-    MMF_READER<DeviceResources::Device> dev;
+    template<class T>
+    static T::Reader make_canon_reader(MemoryMappedFile &mmf) noexcept {
+        auto span_words{ mmf.get_span<capnp::word>() };
+        kj::ArrayPtr<capnp::word> words{ span_words.data(), span_words.size() };
+        kj::ArrayPtr<const capnp::word> segments[1] = { words };
+        capnp::SegmentArrayMessageReader message(segments, { .traversalLimitInWords = UINT64_MAX, .nestingLimit = INT32_MAX });
+        //auto isCanon{ message.isCanonical() };
+        return message.getRoot<T>();
+    }
 
-    decltype(dev.reader.getStrList()) strList;
+    MemoryMappedFile dev_mmf;
+    DeviceResources::Device::Reader dev;
+
+    decltype(dev.getStrList()) strList;
     size_t strList_size;
 
-    decltype(dev.reader.getTileList()) tiles;
+    decltype(dev.getTileList()) tiles;
     size_t tiles_size;
 
-    decltype(dev.reader.getTileTypeList()) tileTypes;
+    decltype(dev.getTileTypeList()) tileTypes;
     size_t tileTypes_size;
 
-    decltype(dev.reader.getWires()) wires;
+    decltype(dev.getWires()) wires;
     size_t wires_size;
 
-    decltype(dev.reader.getNodes()) nodes;
+    decltype(dev.getNodes()) nodes;
     size_t nodes_size;
 
     std::vector<std::unordered_set<uint32_t>> inbound_node_tiles;
@@ -56,7 +66,6 @@ public:
     tile_info tileInfo;
     std::vector<uint32_t> tile_drawing;
     std::span<uint32_t> sp_tile_drawing;
-    //std::unordered_map<uint64_t, uint64_t> tile_strIdx_high_wire_strIdx_low_to_wireIdx_high_nodeIdx_low;
 
     std::vector<uint32_t> wire_drawing;
     std::span<uint32_t> sp_wire_drawing;
@@ -157,6 +166,7 @@ public:
         }
         return ret;
     }
+
     __forceinline static std::vector<uint32_t> make_site_strIndex_to_tile(size_t strList_size, decltype(tiles) tiles) {
         std::vector<uint32_t> ret(strList_size);
         uint32_t tileIdx{};
@@ -199,22 +209,22 @@ public:
     cached_node_lookup cnl;
 
     __declspec(noinline) Dev():
-        mmf{ L"C:\\Users\\root\\Desktop\\validate-routing\\vu3p-unzipped.canon.msg.device" },
-        dev{ mmf },
+        dev_mmf{ L"benchmarks/xcvu3p.device.CANON" },
+        dev{ make_canon_reader<DeviceResources::Device>(dev_mmf) },
 
-        strList{ dev.reader.getStrList() },
+        strList{ dev.getStrList() },
         strList_size{strList.size()},
 
-        tiles{ dev.reader.getTileList() },
+        tiles{ dev.getTileList() },
         tiles_size{ tiles.size() },
 
-        tileTypes{ dev.reader.getTileTypeList() },
+        tileTypes{ dev.getTileTypeList() },
         tileTypes_size{ tileTypes.size() },
 
-        wires{ dev.reader.getWires() },
+        wires{ dev.getWires() },
         wires_size{ wires.size() },
 
-        nodes{ dev.reader.getNodes() },
+        nodes{ dev.getNodes() },
         nodes_size{ nodes.size() },
 
         tile_strIndex_to_tile{ make_tile_strIndex_to_tile(strList_size, tiles) },
