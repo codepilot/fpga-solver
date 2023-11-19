@@ -19,7 +19,7 @@ add_subdirectory(glslang)
 # ExternalProject_Add(libclcxx GIT_REPOSITORY https://github.com/KhronosGroup/libclcxx.git GIT_TAG main GIT_PROGRESS true)
 
 add_executable(${PROJECT_NAME} WIN32 win-desktop.cpp)
-target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" ${PROJECT_BINARY_DIR}/interchange)
 target_include_directories(${PROJECT_NAME} PUBLIC OpenGL-Registry/api OpenGL-Registry/extensions EGL-Registry/api OpenCL-CLHPP/include OpenCL-Headers capnproto/c++/src)
 target_compile_definitions(${PROJECT_NAME} PRIVATE NOMINMAX)
 target_compile_definitions(${PROJECT_NAME} PRIVATE CL_HPP_ENABLE_EXCEPTIONS)
@@ -34,7 +34,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE WindowsApp.lib)
 target_link_libraries(${PROJECT_NAME} PRIVATE Avrt.lib)
 
 add_executable(build-cache build-cache.cpp)
-target_include_directories(build-cache PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(build-cache PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" ${PROJECT_BINARY_DIR}/interchange)
 target_include_directories(build-cache PRIVATE ${ZLIB_INCLUDE_DIR})
 target_include_directories(build-cache PUBLIC capnproto/c++/src)
 target_compile_definitions(build-cache PRIVATE NOMINMAX)
@@ -101,7 +101,7 @@ add_custom_target(Shaders DEPENDS ${SPIRV_BINARY_FILES})
 add_custom_target(prepared-benchmark-files DEPENDS ${PREPARED_BENCHMARK_FILES})
 
 
-file(GLOB_RECURSE DEVICE_FILES "${PROJECT_BINARY_DIR}/benchmarks/*.device.CANON")
+file(GLOB_RECURSE DEVICE_FILES "${PROJECT_BINARY_DIR}/benchmarks/*.device")
 
 foreach(DEVICE_FILE ${DEVICE_FILES})
   get_filename_component(FILE_NAME ${DEVICE_FILE} NAME)
@@ -124,7 +124,6 @@ endforeach(DEVICE_FILE)
 add_custom_target(cache-files DEPENDS ${CACHE_BINARY_FILES})
 add_dependencies(cache-files prepared-benchmark-files)
 
-add_dependencies(${PROJECT_NAME} Shaders cache-files prepared-benchmark-files)
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders/"
@@ -132,3 +131,33 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         "${PROJECT_BINARY_DIR}/shaders"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders")
 
+file(GLOB_RECURSE CAPNP_SOURCE_FILES
+    "fpga-interchange-schema/interchange/*.capnp"
+)
+
+foreach(CAPNP ${CAPNP_SOURCE_FILES})
+  get_filename_component(FILE_NAME ${CAPNP} NAME)
+  set(CAPNPH "${PROJECT_BINARY_DIR}/interchange/${FILE_NAME}.h")
+  set(CAPNPCPP "${PROJECT_BINARY_DIR}/interchange/${FILE_NAME}.c++")
+  set(CAPNP_SRC "${PROJECT_BINARY_DIR}/interchange/${FILE_NAME}")
+  add_custom_command(
+    OUTPUT ${CAPNPH} ${CAPNPCPP}
+    WORKING_DIRECTORY "${PROJECT_BINARY_DIR}/interchange"
+    COMMAND $<TARGET_FILE:capnp_tool> compile --import-path="${CMAKE_CURRENT_SOURCE_DIR}/capnproto-java/compiler/src/main/schema" --import-path="${CMAKE_CURRENT_SOURCE_DIR}/capnproto/c++/src" --output="$<TARGET_FILE:capnpc_cpp>" --src-prefix=${PROJECT_BINARY_DIR}/interchange ${CAPNP_SRC}
+    DEPENDS ${CAPNP_SRC}
+    DEPENDS capnp_tool)
+  list(APPEND CAPNPH_FILES ${CAPNPH})
+  list(APPEND CAPNPH_FILES ${CAPNPCPP})
+endforeach(CAPNP)
+
+add_custom_target(interchange-files DEPENDS ${CAPNPH_FILES})
+
+add_custom_command(TARGET interchange-files PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/interchange/"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/fpga-interchange-schema/interchange"
+        "${PROJECT_BINARY_DIR}/interchange")
+
+
+add_dependencies(${PROJECT_NAME} Shaders cache-files prepared-benchmark-files interchange-files)
+add_dependencies(build-cache interchange-files)

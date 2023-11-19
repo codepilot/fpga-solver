@@ -87,7 +87,7 @@ public:
   MemoryMappedFile(std::wstring fn, uint64_t requestedSize) : fh{ CreateFile2(
     fn.c_str(),
     FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE,
-    0,
+    or_reduce<DWORD>({FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_SHARE_DELETE}),
     CREATE_ALWAYS,
     nullptr
     ) },
@@ -113,22 +113,17 @@ public:
       return ret;
   }
 
-  bool will_delete{false};
-  bool mark_deleted() {
-      FILE_DISPOSITION_INFO info{ true };
-      SetLastError(NO_ERROR);
-      auto result{ SetFileInformationByHandle(fh, FileDispositionInfo, &info, sizeof(info)) };
-      auto lastError{ GetLastError() };
-      if (!result) { DebugBreak(); }
-      return result;
+  void reopen_delete() {
+      auto rfh{ ReOpenFile(fh, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, FILE_FLAG_DELETE_ON_CLOSE) };
+      if (rfh == INVALID_HANDLE_VALUE) {
+          ExitProcess(1);
+      }
+      CloseHandle(rfh);
   }
 
   ~MemoryMappedFile() {
     UnmapViewOfFile2(GetCurrentProcess(), fp, 0);
     CloseHandle(fm);
-    if (will_delete) {
-        if (!mark_deleted()) { DebugBreak(); };
-    }
     CloseHandle(fh);
   }
 };

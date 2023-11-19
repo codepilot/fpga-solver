@@ -1,7 +1,7 @@
 #include <capnp/serialize.h>
-#include "generated\DeviceResources.capnp.h"
-#include "generated\LogicalNetlist.capnp.h"
-#include "generated\PhysicalNetlist.capnp.h"
+#include "DeviceResources.capnp.h"
+#include "LogicalNetlist.capnp.h"
+#include "PhysicalNetlist.capnp.h"
 
 
 #include <cstdint>
