@@ -517,7 +517,7 @@ public:
         glNamedBufferStorage(vbo_locations, sizeof(uint32_t) * phys.unrouted_locations.size(), phys.unrouted_locations.data(), 0);
 
         glCreateBuffers(1, &vio);
-        glNamedBufferStorage(vio, sizeof(uint32_t) * phys.unrouted_indecies.size(), phys.unrouted_indecies.data(), 0);
+        glNamedBufferStorage(vio, sizeof(uint32_t) * phys.unrouted_indices.size(), phys.unrouted_indices.data(), 0);
 
         glCreateVertexArrays(1, &va);
         glVertexArrayAttribBinding(va, 0, 0);
@@ -597,7 +597,7 @@ public:
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glBindVertexArray(va);
-        glDrawElements(GL_LINES, static_cast<GLsizei>(phys.unrouted_indecies.size() << 1ui64), GL_UNSIGNED_INT, nullptr);
+        glDrawElements(GL_LINES, static_cast<GLsizei>(phys.unrouted_indices.size() << 1ui64), GL_UNSIGNED_INT, nullptr);
         glDisable(GL_BLEND);
 
         SwapBuffers(hdc);

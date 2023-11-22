@@ -1,5 +1,7 @@
 #pragma once
 
+#include "canon_reader.h"
+
 class Dev {
 public:
     struct tile_info {
@@ -27,32 +29,22 @@ public:
         }
     };
 
-    template<class T>
-    static T::Reader make_canon_reader(MemoryMappedFile &mmf) noexcept {
-        auto span_words{ mmf.get_span<capnp::word>() };
-        kj::ArrayPtr<capnp::word> words{ span_words.data(), span_words.size() };
-        kj::ArrayPtr<const capnp::word> segments[1] = { words };
-        capnp::SegmentArrayMessageReader message(segments, { .traversalLimitInWords = UINT64_MAX, .nestingLimit = INT32_MAX });
-        //auto isCanon{ message.isCanonical() };
-        return message.getRoot<T>();
-    }
-
     MemoryMappedFile dev_mmf;
-    DeviceResources::Device::Reader dev;
+    CanonReader<DeviceResources::Device> dev;
 
-    decltype(dev.getStrList()) strList;
+    decltype(dev.reader.getStrList()) strList;
     size_t strList_size;
 
-    decltype(dev.getTileList()) tiles;
+    decltype(dev.reader.getTileList()) tiles;
     size_t tiles_size;
 
-    decltype(dev.getTileTypeList()) tileTypes;
+    decltype(dev.reader.getTileTypeList()) tileTypes;
     size_t tileTypes_size;
 
-    decltype(dev.getWires()) wires;
+    decltype(dev.reader.getWires()) wires;
     size_t wires_size;
 
-    decltype(dev.getNodes()) nodes;
+    decltype(dev.reader.getNodes()) nodes;
     size_t nodes_size;
 
     std::vector<std::unordered_set<uint32_t>> inbound_node_tiles;
@@ -210,21 +202,21 @@ public:
 
     __declspec(noinline) Dev():
         dev_mmf{ L"benchmarks/xcvu3p.device" },
-        dev{ make_canon_reader<DeviceResources::Device>(dev_mmf) },
+        dev{ dev_mmf },
 
-        strList{ dev.getStrList() },
+        strList{ dev.reader.getStrList() },
         strList_size{strList.size()},
 
-        tiles{ dev.getTileList() },
+        tiles{ dev.reader.getTileList() },
         tiles_size{ tiles.size() },
 
-        tileTypes{ dev.getTileTypeList() },
+        tileTypes{ dev.reader.getTileTypeList() },
         tileTypes_size{ tileTypes.size() },
 
-        wires{ dev.getWires() },
+        wires{ dev.reader.getWires() },
         wires_size{ wires.size() },
 
-        nodes{ dev.getNodes() },
+        nodes{ dev.reader.getNodes() },
         nodes_size{ nodes.size() },
 
         tile_strIndex_to_tile{ make_tile_strIndex_to_tile(strList_size, tiles) },

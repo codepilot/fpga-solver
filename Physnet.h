@@ -1,14 +1,16 @@
 #pragma once
 
+#include "canon_reader.h"
+
 class Physnet {
 public:
 
 	Dev& dev;
-	MMF_READONLY mmf;
-	MMF_READER<PhysicalNetlist::PhysNetlist> phys;
+	MemoryMappedFile mmf;
+	CanonReader<PhysicalNetlist::PhysNetlist> phys;
 	decltype(phys.reader.getStrList()) strList;
 	std::vector<uint32_t> phys_stridx_to_dev_stridx;
-	std::vector<uint64_t> unrouted_indecies;
+	std::vector<uint64_t> unrouted_indices;
 	std::vector<uint32_t> unrouted_locations;
 	std::unordered_map<uint32_t, uint32_t> location_map;
 
@@ -71,7 +73,7 @@ public:
 
 	DECLSPEC_NOINLINE Physnet(Dev& dev) noexcept :
 		dev{ dev },
-		mmf{ L"C:\\Users\\root\\Desktop\\a7q\\benchmarks\\boom_soc_unrouted-unzipped.phys" },
+		mmf{ L"benchmarks/boom_soc_unrouted.phys" },
 		phys{ mmf },
 		strList{ phys.reader.getStrList() },
 		phys_stridx_to_dev_stridx{}
@@ -101,7 +103,7 @@ public:
 					for (auto&& stub : physNet.getStubs()) {
 						auto stub_location{ get_rs_location(stub.getRouteSegment()) };
 						auto stub_location_index{ get_location_index(stub_location) };
-						unrouted_indecies.emplace_back(ULARGE_INTEGER{ .u{.LowPart{source_location_index}, .HighPart{stub_location_index}} }.QuadPart);
+						unrouted_indices.emplace_back(ULARGE_INTEGER{ .u{.LowPart{source_location_index}, .HighPart{stub_location_index}} }.QuadPart);
 					}
 					break;
 				}
