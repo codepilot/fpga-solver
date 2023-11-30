@@ -12,6 +12,7 @@ public:
 };
 
 #include "MemoryMappedFile.h"
+#include "png.h"
 
 class GL46 {
 public:
@@ -581,11 +582,12 @@ public:
         }
     }
 
+    bool first_capture_png{ false };
     __declspec(noinline) void draw() {
         if (!getThis(hwnd)) return;
         if (!hglrc) return;
         glViewport(0, 0, gl->clientWidth, gl->clientHeight);
-        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(or_reduce<GLbitfield>({ GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT, GL_STENCIL_BUFFER_BIT }));
         glNamedFramebufferTexture(fb, GL_COLOR_ATTACHMENT0, textures[0], 0);
 
@@ -599,6 +601,44 @@ public:
         glBindVertexArray(va);
         glDrawElements(GL_LINES, static_cast<GLsizei>(phys.unrouted_indices.size() << 1ui64), GL_UNSIGNED_INT, nullptr);
         glDisable(GL_BLEND);
+
+        if (!first_capture_png) {
+            first_capture_png = true;
+            std::vector<uint8_t> src{ std::vector<uint8_t>(static_cast<size_t>(gl->clientWidth) * static_cast<size_t>(gl->clientHeight) * static_cast<size_t>(4), 0) };
+            glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
+            glClear(or_reduce<GLbitfield>({ GL_COLOR_BUFFER_BIT }));
+            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+            glReadnPixels(0,0, gl->clientWidth, gl->clientHeight, GL_RGBA, GL_UNSIGNED_BYTE, src.size(), src.data());
+            size_t line_bytes{ 4 * static_cast<size_t>(gl->clientWidth) };
+            for (int line = 0; line != gl->clientHeight / 2; ++line) {
+                std::swap_ranges(
+                    src.begin() + line_bytes * line,
+                    src.begin() + line_bytes * (line + 1),
+                    src.begin() + line_bytes * (static_cast<size_t>(gl->clientHeight) - line - 1));
+            }
+            MemoryMappedFile mmf_dst{ L"dst.png", static_cast<size_t>(gl->clientWidth) * static_cast<size_t>(gl->clientHeight) * static_cast<size_t>(4) + static_cast<size_t>(65536) };
+            png_image img{
+                .opaque{nullptr},
+                .version{PNG_IMAGE_VERSION},
+                .width{gl->clientWidth},
+                .height{gl->clientHeight},
+                .format{PNG_FORMAT_RGBA},
+                .flags{},
+                .colormap_entries{},
+            };
+            size_t memory_bytes{ mmf_dst.fsize };
+            auto result{ png_image_write_to_memory(
+                &img,
+                mmf_dst.fp,
+                &memory_bytes,
+                0,
+                src.data(),
+                0,
+                nullptr
+            ) };
+            OutputDebugStringW(std::format(L"png result: {}\n", result).c_str());
+            mmf_dst.shrink(memory_bytes);
+        }
 
         SwapBuffers(hdc);
         auto prev_ts{ prev_time_step.QuadPart };

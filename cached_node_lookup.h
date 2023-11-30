@@ -1,5 +1,7 @@
 #pragma once
 
+#include<type_traits>
+
 class cached_node_lookup {
 public:
     Trivial_Span<const __m128i> indirect;
