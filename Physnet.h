@@ -17,9 +17,13 @@ public:
 	DECLSPEC_NOINLINE void build() {
 
 		MemoryMappedFile dst{ L"dst.phy", 4294967296ui64 };
+		MemoryMappedFile dst_written{ L"dst_written.phy", 4294967296ui64 };
 
 		auto span_words{ dst.get_span<capnp::word>() };
+		auto span_words_written{ dst.get_span<capnp::word>() };
+
 		kj::ArrayPtr<capnp::word> words{ span_words.data(), span_words.size() - 1ui64 };
+		kj::ArrayPtr<capnp::word> words_written{ span_words_written.data(), span_words_written.size() - 1ui64 };
 
 		size_t msgSize{};
 		{
@@ -36,9 +40,27 @@ public:
 			phyBuilder.setProperties(phys.reader.getProperties());
 			phyBuilder.setNullNet(phys.reader.getNullNet());
 
+			auto fa{ messageToFlatArray(message) };
 			msgSize = ::capnp::computeSerializedSizeInWords(message) * sizeof(capnp::word);
+			memcpy(dst_written.fp, fa.begin(), msgSize);
 		}
-		dst.shrink(msgSize);
+		auto shrunk{ dst.shrink(msgSize) };
+		auto shrunk_written{ dst_written.shrink(msgSize) };
+
+		auto written_span_words{ shrunk_written.get_span<capnp::word>() };
+		kj::ArrayPtr<capnp::word> written_words{ written_span_words.data(), written_span_words.size() };
+		capnp::FlatArrayMessageReader famr{ written_words, {.traversalLimitInWords = UINT64_MAX, .nestingLimit = INT32_MAX} };
+		auto anyReader{ famr.getRoot<capnp::AnyStruct>() };
+
+
+		MemoryMappedFile mmf_canon_dst{ L"dst-canon.phy", msgSize };
+		auto mmf_canon_dst_span{ mmf_canon_dst.get_span<capnp::word>() };
+		kj::ArrayPtr<capnp::word> backing{ mmf_canon_dst_span.data(), mmf_canon_dst_span.size() };
+		auto canonical_size = anyReader.canonicalize(backing);
+		auto mmf_canon_dst_shrunk{ mmf_canon_dst.shrink(canonical_size * sizeof(capnp::word)) };
+		//std::print("canon_size:   {}\n", mmf_canon_dst_shrunk.fsize);
+
+
 	}
 
 	__forceinline constexpr uint32_t get_dev_strIdx(uint32_t phys_strIdx) const noexcept {
