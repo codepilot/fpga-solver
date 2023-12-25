@@ -14,6 +14,33 @@ public:
 	std::vector<uint32_t> unrouted_locations;
 	std::unordered_map<uint32_t, uint32_t> location_map;
 
+	DECLSPEC_NOINLINE void build() {
+
+		MemoryMappedFile dst{ L"dst.phy", 4294967296ui64 };
+
+		auto span_words{ dst.get_span<capnp::word>() };
+		kj::ArrayPtr<capnp::word> words{ span_words.data(), span_words.size() - 1ui64 };
+
+		size_t msgSize{};
+		{
+			::capnp::MallocMessageBuilder message{ words };
+
+			PhysicalNetlist::PhysNetlist::Builder phyBuilder{ message.initRoot<PhysicalNetlist::PhysNetlist>() };
+
+			phyBuilder.setPart(phys.reader.getPart());
+			phyBuilder.setPlacements(phys.reader.getPlacements());
+			phyBuilder.setPhysNets(phys.reader.getPhysNets());
+			phyBuilder.setPhysCells(phys.reader.getPhysCells());
+			phyBuilder.setStrList(phys.reader.getStrList());
+			phyBuilder.setSiteInsts(phys.reader.getSiteInsts());
+			phyBuilder.setProperties(phys.reader.getProperties());
+			phyBuilder.setNullNet(phys.reader.getNullNet());
+
+			msgSize = ::capnp::computeSerializedSizeInWords(message) * sizeof(capnp::word);
+		}
+		dst.shrink(msgSize);
+	}
+
 	__forceinline constexpr uint32_t get_dev_strIdx(uint32_t phys_strIdx) const noexcept {
 		return phys_stridx_to_dev_stridx[phys_strIdx];
 	}

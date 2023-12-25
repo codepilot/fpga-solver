@@ -506,6 +506,7 @@ public:
             ClipCursor(&rcClip);
         }
         load_opengl();
+        phys.build();
         glCreateFramebuffers(1, &fb);
         textures = 1;
         glTextureStorage2D(textures[0], 1, GL_RGBA8, static_cast<GLsizei>(dev.tileInfo.numCol), static_cast<GLsizei>(dev.tileInfo.numRow));

@@ -32,7 +32,15 @@ int main(int argc, char* argv[]) {
 	for (int i{}; i != argc; i++) {
 		args.emplace_back(argv[i]);
 	}
-	if (args.size() != 5) return 1;
+	if (args.size() == 1) {
+		args.emplace_back("C:/Users/root/Desktop/fpga-solver/build/benchmarks/xcvu3p.device");
+		args.emplace_back("C:/Users/root/Desktop/fpga-solver/build/cache/xcvu3p.device.indirect.bin");
+		args.emplace_back("C:/Users/root/Desktop/fpga-solver/build/cache/xcvu3p.device.direct.bin");
+		args.emplace_back("C:/Users/root/Desktop/fpga-solver/build/cache/xcvu3p.device.direct.data.bin");
+	}
+	if (args.size() != 5) {
+		return 1;
+	}
 	for (auto&& arg : args) {
 		wargs.emplace_back(std::wstring_convert<std::codecvt_utf8<wchar_t>>().from_bytes(std::string{ arg }));
 	}
