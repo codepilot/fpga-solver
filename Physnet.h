@@ -2,6 +2,28 @@
 
 #include "canon_reader.h"
 
+#define REBUILD_PHYS
+
+using branch_list = ::capnp::List< ::PhysicalNetlist::PhysNetlist::RouteBranch, ::capnp::Kind::STRUCT>;
+using branch_list_builder = branch_list::Builder;
+using branch_list_reader = branch_list::Reader;
+
+void assign_stubs(branch_list_builder branches, branch_list_reader  stubs) {
+	for (auto&& branch : branches) {
+		branch_list_builder branch_branches{ branch.getBranches() };
+		uint32_t branch_branches_size{ branch_branches.size() };
+		if (branch_branches_size == 0) {
+			branch.setBranches(stubs);
+			return;
+		}
+		else {
+			assign_stubs(branch_branches, stubs);
+			return;
+		}
+		break;
+	}
+}
+
 class Physnet {
 public:
 
@@ -12,10 +34,11 @@ public:
 	std::vector<uint32_t> phys_stridx_to_dev_stridx;
 	std::vector<uint64_t> unrouted_indices;
 	std::vector<uint32_t> unrouted_locations;
+	std::vector<uint64_t> routed_indices;
 	std::unordered_map<uint32_t, uint32_t> location_map;
 
 	DECLSPEC_NOINLINE void build() {
-
+#ifdef REBUILD_PHYS
 		MemoryMappedFile dst{ L"dst.phy", 4294967296ui64 };
 		MemoryMappedFile dst_written{ L"dst_written.phy", 4294967296ui64 };
 
@@ -33,7 +56,33 @@ public:
 
 			phyBuilder.setPart(phys.reader.getPart());
 			phyBuilder.setPlacements(phys.reader.getPlacements());
+#if 1
+			auto readerPhysNets{ phys.reader.getPhysNets() };
+			uint32_t readerPhysNets_size{ readerPhysNets.size() };
+			phyBuilder.initPhysNets(readerPhysNets_size);
+			auto listPhysNets{ phyBuilder.getPhysNets() };
+			for (uint32_t n{}; n != readerPhysNets_size; n++) {
+				auto phyNetReader{ readerPhysNets[n] };
+#if 1
+				auto phyNetBuilder{ listPhysNets[n] };
+				phyNetBuilder.setName(phyNetReader.getName());
+				phyNetBuilder.setSources(phyNetReader.getSources());
+				assign_stubs(phyNetBuilder.getSources(), phyNetReader.getStubs());
+				phyNetBuilder.setType(phyNetReader.getType());
+				phyNetBuilder.setStubNodes(phyNetReader.getStubNodes());
+#else
+				listPhysNets.setWithCaveats(n, phyNetReader);
+				auto phyNetBuilder{ listPhysNets[n] };
+				phyNetBuilder.setName(phyNetReader.getName());
+				phyNetBuilder.setSources(phyNetReader.getSources());
+				//phyNetBuilder.setStubs(phyNetReader.getStubs());
+				phyNetBuilder.setType(phyNetReader.getType());
+				//phyNetBuilder.setStubNodes(phyNetReader.getStubNodes());
+#endif
+			}
+#else
 			phyBuilder.setPhysNets(phys.reader.getPhysNets());
+#endif
 			phyBuilder.setPhysCells(phys.reader.getPhysCells());
 			phyBuilder.setStrList(phys.reader.getStrList());
 			phyBuilder.setSiteInsts(phys.reader.getSiteInsts());
@@ -59,7 +108,7 @@ public:
 		auto canonical_size = anyReader.canonicalize(backing);
 		auto mmf_canon_dst_shrunk{ mmf_canon_dst.shrink(canonical_size * sizeof(capnp::word)) };
 		//std::print("canon_size:   {}\n", mmf_canon_dst_shrunk.fsize);
-
+#endif
 
 	}
 
@@ -120,9 +169,26 @@ public:
 		return ret;
 	}
 
+	void draw_routed_tree(::PhysicalNetlist::PhysNetlist::RouteBranch::Reader source) {
+
+		auto source_location{ get_rs_location(source.getRouteSegment()) };
+		auto source_location_index{ get_location_index(source_location) };
+
+		for (auto&& branch : source.getBranches()) {
+			auto branch_location{ get_rs_location(branch.getRouteSegment()) };
+			auto branch_location_index{ get_location_index(branch_location) };
+			unrouted_indices.emplace_back(ULARGE_INTEGER{ .u{.LowPart{source_location_index}, .HighPart{branch_location_index}} }.QuadPart);
+			draw_routed_tree(branch);
+		}
+	}
+
 	DECLSPEC_NOINLINE Physnet(Dev& dev) noexcept :
 		dev{ dev },
+#ifdef REBUILD_PHYS
 		mmf{ L"benchmarks/boom_soc_unrouted.phys" },
+#else
+		mmf{ L"dst-canon.phy" },
+#endif
 		phys{ mmf },
 		strList{ phys.reader.getStrList() },
 		phys_stridx_to_dev_stridx{}
@@ -147,6 +213,7 @@ public:
 					continue;
 				}
 				for (auto&& source : sources) {
+					draw_routed_tree(source);
 					auto source_location{ get_rs_location(source.getRouteSegment()) };
 					auto source_location_index{ get_location_index(source_location) };
 					for (auto&& stub : physNet.getStubs()) {
