@@ -14,6 +14,11 @@ public:
 #include "MemoryMappedFile.h"
 #include "png.h"
 
+#ifdef REBUILD_PHYS
+#else
+#define DRAW_ROUTED
+#endif
+
 class GL46 {
 public:
 
@@ -427,7 +432,11 @@ public:
     Dev dev;
     Physnet phys{ dev };
     GLuint vbo_locations{};
-    GLuint vio{};
+#ifdef DRAW_ROUTED
+    GLuint vio_routed{};
+#else
+    GLuint vio_unrouted{};
+#endif
     GLuint va{};
     GLuint pipe{};
 
@@ -518,15 +527,23 @@ public:
         glCreateBuffers(1, &vbo_locations);
         glNamedBufferStorage(vbo_locations, sizeof(uint32_t) * phys.unrouted_locations.size(), phys.unrouted_locations.data(), 0);
 
-        glCreateBuffers(1, &vio);
-        glNamedBufferStorage(vio, sizeof(uint32_t) * phys.unrouted_indices.size(), phys.unrouted_indices.data(), 0);
-
         glCreateVertexArrays(1, &va);
         glVertexArrayAttribBinding(va, 0, 0);
         glVertexArrayAttribFormat(va, 0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
         glVertexArrayVertexBuffer(va, 0, vbo_locations, 0, 4);
         glEnableVertexArrayAttrib(va, 0);
-        glVertexArrayElementBuffer(va, vio);
+
+
+#ifdef DRAW_ROUTED
+        glCreateBuffers(1, &vio_routed);
+        glNamedBufferStorage(vio_routed, sizeof(uint32_t) * phys.routed_indices.size(), phys.routed_indices.data(), 0);
+        glVertexArrayElementBuffer(va, vio_routed);
+#else
+        glCreateBuffers(1, &vio_unrouted);
+        glNamedBufferStorage(vio_unrouted, sizeof(uint32_t) * phys.unrouted_indices.size(), phys.unrouted_indices.data(), 0);
+        glVertexArrayElementBuffer(va, vio_unrouted);
+#endif
+
 
 #if 0
         MemoryMappedFile vertexGlsl{ L"../shaders/vertex.vert" };
@@ -543,6 +560,11 @@ public:
         glValidateProgramPipeline(pipe);
         glBindProgramPipeline(pipe);
         glProgramUniform2f(vertexShader, 0, static_cast<GLfloat>(dev.tileInfo.numCol), static_cast<GLfloat>(dev.tileInfo.numRow));
+#ifdef DRAW_ROUTED
+        glProgramUniform4f(fragmentShader, 0, 0.0f, 1.0f, 0.0f, 0.01f);
+#else
+        glProgramUniform4f(fragmentShader, 0, 1.0f, 0.0f, 0.0f, 0.01f);
+#endif
     }
 
     UINT step() {
@@ -600,7 +622,11 @@ public:
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glBindVertexArray(va);
+#ifdef DRAW_ROUTED
+        glDrawElements(GL_LINES, static_cast<GLsizei>(phys.routed_indices.size() << 1ui64), GL_UNSIGNED_INT, nullptr);
+#else
         glDrawElements(GL_LINES, static_cast<GLsizei>(phys.unrouted_indices.size() << 1ui64), GL_UNSIGNED_INT, nullptr);
+#endif
         glDisable(GL_BLEND);
 
         if (!first_capture_png) {

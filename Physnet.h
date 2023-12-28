@@ -4,7 +4,9 @@
 
 #define REBUILD_PHYS
 
-using branch_list = ::capnp::List< ::PhysicalNetlist::PhysNetlist::RouteBranch, ::capnp::Kind::STRUCT>;
+using branch = ::PhysicalNetlist::PhysNetlist::RouteBranch;
+using branch_reader = ::PhysicalNetlist::PhysNetlist::RouteBranch::Reader;
+using branch_list = ::capnp::List<branch, ::capnp::Kind::STRUCT>;
 using branch_list_builder = branch_list::Builder;
 using branch_list_reader = branch_list::Reader;
 
@@ -40,7 +42,7 @@ public:
 	DECLSPEC_NOINLINE void build() {
 #ifdef REBUILD_PHYS
 		MemoryMappedFile dst{ L"dst.phy", 4294967296ui64 };
-		MemoryMappedFile dst_written{ L"dst_written.phy", 4294967296ui64 };
+		MemoryMappedFile dst_written{ L"dst_written.phy.gz", 4294967296ui64 };
 
 		auto span_words{ dst.get_span<capnp::word>() };
 		auto span_words_written{ dst.get_span<capnp::word>() };
@@ -49,6 +51,7 @@ public:
 		kj::ArrayPtr<capnp::word> words_written{ span_words_written.data(), span_words_written.size() - 1ui64 };
 
 		size_t msgSize{};
+		size_t gzSize{};
 		{
 			::capnp::MallocMessageBuilder message{ words };
 
@@ -67,7 +70,8 @@ public:
 				auto phyNetBuilder{ listPhysNets[n] };
 				phyNetBuilder.setName(phyNetReader.getName());
 				phyNetBuilder.setSources(phyNetReader.getSources());
-				assign_stubs(phyNetBuilder.getSources(), phyNetReader.getStubs());
+				// assign_stubs(phyNetBuilder.getSources(), phyNetReader.getStubs());
+				phyNetBuilder.setStubs(phyNetReader.getStubs());
 				phyNetBuilder.setType(phyNetReader.getType());
 				phyNetBuilder.setStubNodes(phyNetReader.getStubNodes());
 #else
@@ -91,11 +95,25 @@ public:
 
 			auto fa{ messageToFlatArray(message) };
 			msgSize = ::capnp::computeSerializedSizeInWords(message) * sizeof(capnp::word);
-			memcpy(dst_written.fp, fa.begin(), msgSize);
+			//memcpy(dst_written.fp, fa.begin(), msgSize);
+			z_stream strm{
+				.next_in{reinterpret_cast<Bytef *>(fa.begin())},
+				.avail_in{msl::utilities::SafeInt<uint32_t>(msgSize)},
+				.next_out{reinterpret_cast<Bytef *>(dst_written.fp)},
+				.avail_out{0xffffffffui32},
+
+			};
+			auto a1 = deflateInit2(&strm, Z_NO_COMPRESSION, Z_DEFLATED, 16 | 15, 9, Z_DEFAULT_STRATEGY);
+			auto a2 = deflate(&strm, Z_FINISH);
+			auto a3 = deflateEnd(&strm);
+
+			OutputDebugStringA(std::format("{} {} {}\n", a1, a2, a3).c_str());
+
+			gzSize = strm.total_out;
 		}
 		auto shrunk{ dst.shrink(msgSize) };
-		auto shrunk_written{ dst_written.shrink(msgSize) };
-
+		auto shrunk_written{ dst_written.shrink(gzSize) };
+#if 0
 		auto written_span_words{ shrunk_written.get_span<capnp::word>() };
 		kj::ArrayPtr<capnp::word> written_words{ written_span_words.data(), written_span_words.size() };
 		capnp::FlatArrayMessageReader famr{ written_words, {.traversalLimitInWords = UINT64_MAX, .nestingLimit = INT32_MAX} };
@@ -108,6 +126,7 @@ public:
 		auto canonical_size = anyReader.canonicalize(backing);
 		auto mmf_canon_dst_shrunk{ mmf_canon_dst.shrink(canonical_size * sizeof(capnp::word)) };
 		//std::print("canon_size:   {}\n", mmf_canon_dst_shrunk.fsize);
+#endif
 #endif
 
 	}
@@ -169,7 +188,7 @@ public:
 		return ret;
 	}
 
-	void draw_routed_tree(::PhysicalNetlist::PhysNetlist::RouteBranch::Reader source) {
+	void draw_routed_tree(branch_reader source) {
 
 		auto source_location{ get_rs_location(source.getRouteSegment()) };
 		auto source_location_index{ get_location_index(source_location) };
@@ -177,7 +196,7 @@ public:
 		for (auto&& branch : source.getBranches()) {
 			auto branch_location{ get_rs_location(branch.getRouteSegment()) };
 			auto branch_location_index{ get_location_index(branch_location) };
-			unrouted_indices.emplace_back(ULARGE_INTEGER{ .u{.LowPart{source_location_index}, .HighPart{branch_location_index}} }.QuadPart);
+			routed_indices.emplace_back(ULARGE_INTEGER{ .u{.LowPart{source_location_index}, .HighPart{branch_location_index}} }.QuadPart);
 			draw_routed_tree(branch);
 		}
 	}

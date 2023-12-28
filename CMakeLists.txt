@@ -33,6 +33,7 @@ configure_file("libpng/scripts/pnglibconf.h.prebuilt" "build/libpng/pnglibconf.h
 add_executable(${PROJECT_NAME} WIN32 win-desktop.cpp)
 target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" ${PROJECT_BINARY_DIR}/interchange)
 target_include_directories(${PROJECT_NAME} PUBLIC OpenGL-Registry/api OpenGL-Registry/extensions EGL-Registry/api OpenCL-CLHPP/include OpenCL-Headers capnproto/c++/src $<TARGET_PROPERTY:png_shared,SOURCE_DIR> $<TARGET_PROPERTY:png_shared,BINARY_DIR>)
+target_include_directories(${PROJECT_NAME} PRIVATE ${ZLIB_INCLUDE_DIR})
 target_compile_definitions(${PROJECT_NAME} PRIVATE NOMINMAX)
 target_compile_definitions(${PROJECT_NAME} PRIVATE CL_HPP_ENABLE_EXCEPTIONS)
 target_compile_definitions(${PROJECT_NAME} PRIVATE CL_HPP_TARGET_OPENCL_VERSION=300)

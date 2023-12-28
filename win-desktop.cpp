@@ -30,6 +30,8 @@
 
 #include <CL/opencl.hpp>
 
+#include <zlib/zlib.h>
+
 namespace {
 	using msl::utilities::SafeInt;
 	class GL46;
