@@ -62,6 +62,19 @@ public:
     std::vector<uint32_t> wire_drawing;
     std::span<uint32_t> sp_wire_drawing;
 
+    std::unordered_map<uint64_t, uint32_t> tile_strIdx_wire_strIdx_to_wire_idx;
+
+    __forceinline static std::unordered_map<uint64_t, uint32_t> get_tile_strIdx_wire_strIdx_to_wire_idx(decltype(wires) &wires) {
+        std::unordered_map<uint64_t, uint32_t> tile_strIdx_wire_strIdx_to_wire_idx;
+        tile_strIdx_wire_strIdx_to_wire_idx.reserve(wires.size());
+        for (uint32_t wireIdx{}; wireIdx < wires.size(); wireIdx++) {
+            auto wire{ wires[wireIdx] };
+            ULARGE_INTEGER key{ .u{.LowPart{wire.getWire()}, .HighPart{wire.getTile()}}};
+            tile_strIdx_wire_strIdx_to_wire_idx.insert({ key.QuadPart, wireIdx });
+        }
+        return tile_strIdx_wire_strIdx_to_wire_idx;
+    }
+
     __forceinline static tile_info get_tile_info(decltype(tiles) tiles) noexcept {
         auto ret{ tile_info::make() };
         for (auto&& tile : tiles) {
@@ -195,6 +208,83 @@ public:
         return ret;
     }
 
+    __forceinline uint32_t get_site_index(uint32_t site_strIdx) const noexcept {
+        auto tileIdx{ site_strIndex_to_tile[site_strIdx] };
+        auto sites{ tiles[tileIdx].getSites() };
+        for (uint32_t site_index{}; site_index < sites.size(); site_index++) {
+            if (sites[site_index].getName() == site_strIdx) {
+                return site_index;
+            }
+        }
+        DebugBreak();
+        std::unreachable();
+    }
+
+    __forceinline uint32_t get_site_pin_index(DeviceResources::Device::SiteType::Reader siteType, uint32_t site_pin_strIdx) const noexcept {
+        auto pins{ siteType.getPins() };
+        for (uint32_t pin_index{}; pin_index < pins.size(); pin_index++) {
+            auto pin{ pins[pin_index] };
+            if (pin.getName() == site_pin_strIdx) {
+                return pin_index;
+            }
+        }
+        DebugBreak();
+        std::unreachable();
+    }
+
+    __forceinline uint32_t site_pin_out_wire(uint32_t site_strIdx, uint32_t pin_strIdx) const noexcept {
+        auto tileIdx{ site_strIndex_to_tile[site_strIdx] };
+        auto siteIdx{ get_site_index(site_strIdx) };
+        auto tile{ tiles[tileIdx] };
+        auto tile_strIdx{tile.getName()};
+        auto tileType{ tileTypes[tile.getType()] };
+        auto siteTypeInTileTypes{ tileType.getSiteTypes() };
+        auto siteTypeInTileType{ siteTypeInTileTypes[tile.getSites()[siteIdx].getType()] };
+        auto siteType{ dev.reader.getSiteTypeList()[siteTypeInTileType.getPrimaryType()] };
+        auto pin_index{ get_site_pin_index(siteType, pin_strIdx) };
+        auto wire_strIdx{ siteTypeInTileType.getPrimaryPinsToTileWires()[pin_index] };
+
+        OutputDebugStringA(std::format("site:{} tile:{} siteIdx:{} wire:{}\n",
+            strList[site_strIdx].cStr(),
+            strList[tiles[tileIdx].getName()].cStr(),
+            siteIdx,
+            strList[wire_strIdx].cStr()
+        ).c_str());
+#if 0
+        for (uint32_t wireIdx{}; wireIdx < wires.size(); wireIdx++) {
+            auto wire{ wires[wireIdx] };
+            if (wire.getTile() == tile_strIdx && wire.getWire() == wire_strIdx) {
+                return wireIdx;
+            }
+        }
+
+        DebugBreak();
+        std::unreachable();
+#else
+        ULARGE_INTEGER key{ .u{.LowPart{wire_strIdx}, .HighPart{tile_strIdx}} };
+        return tile_strIdx_wire_strIdx_to_wire_idx.at(key.QuadPart);
+#endif
+    }
+
+    __forceinline uint32_t site_pin_in_wire() const noexcept {
+        return 0;
+    }
+
+    __forceinline uint32_t get_wire_to_node() const noexcept {
+        return 0;
+    }
+
+    __forceinline std::span<uint32_t> node_to_wires() const noexcept {
+        return {};
+    }
+
+    __forceinline std::span<uint64_t> wire_to_pips() const noexcept {
+        // x 16 bit
+        // y 16 bit
+        // pip 16 bit
+        return {};
+    }
+
     //MemoryMappedFile mmf_indirect;
     //MemoryMappedFile mmf_direct;
     //MemoryMappedFile mmf_direct_value;
@@ -226,11 +316,12 @@ public:
         stringMap{ list_of_strings_map(strList)},
         tileInfo{ get_tile_info(tiles) },
         tile_drawing{ get_tile_drawing(tiles, tileInfo) },
-        sp_tile_drawing{ tile_drawing }//,
+        sp_tile_drawing{ tile_drawing },
         //mmf_indirect{ L"indirect.bin" },
         //mmf_direct{ L"direct.bin" },
         //mmf_direct_value{ L"direct_value.bin" },
         //cnl{ cached_node_lookup::open_cached_node_lookup(mmf_indirect, mmf_direct, mmf_direct_value) }
+        tile_strIdx_wire_strIdx_to_wire_idx{ get_tile_strIdx_wire_strIdx_to_wire_idx(wires) }
     {
         // cached_node_lookup::make_cached_node_lookup(nodes, wires);
 #if 0
