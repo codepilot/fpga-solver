@@ -60,7 +60,7 @@ int main(int argc, char* argv[]) {
 		auto canonical_size = anyReader.canonicalize(backing);
 		auto mmf_canon_dst_shrunk{ mmf_canon_dst.shrink(canonical_size * sizeof(capnp::word)) };
 		std::print("canon_size:   {}\n", mmf_canon_dst_shrunk.fsize);
-		mmf_unzipped.reopen_delete();
+		// mmf_unzipped.reopen_delete();
 		std::print("mmf_unzipped: {}\n", mmf_unzipped.fsize);
 	}
 	{
