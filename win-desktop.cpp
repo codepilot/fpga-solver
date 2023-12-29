@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <vector>
 #include <span>
+#include <optional>
 #include <array>
 #include <string>
 #include <unordered_map>

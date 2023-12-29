@@ -6,25 +6,10 @@
 
 using branch = ::PhysicalNetlist::PhysNetlist::RouteBranch;
 using branch_reader = ::PhysicalNetlist::PhysNetlist::RouteBranch::Reader;
+using branch_builder = ::PhysicalNetlist::PhysNetlist::RouteBranch::Builder;
 using branch_list = ::capnp::List<branch, ::capnp::Kind::STRUCT>;
 using branch_list_builder = branch_list::Builder;
 using branch_list_reader = branch_list::Reader;
-
-void assign_stubs(branch_list_builder branches, branch_list_reader  stubs) {
-	for (auto&& branch : branches) {
-		branch_list_builder branch_branches{ branch.getBranches() };
-		uint32_t branch_branches_size{ branch_branches.size() };
-		if (branch_branches_size == 0) {
-			branch.setBranches(stubs);
-			return;
-		}
-		else {
-			assign_stubs(branch_branches, stubs);
-			return;
-		}
-		break;
-	}
-}
 
 class Physnet {
 public:
@@ -38,6 +23,148 @@ public:
 	std::vector<uint32_t> unrouted_locations;
 	std::vector<uint64_t> routed_indices;
 	std::unordered_map<uint32_t, uint32_t> location_map;
+
+	std::optional<branch_builder> source_site_pin(uint32_t nameIdx, branch_builder branch) {
+		auto name{ strList[nameIdx] };
+		auto branch_rs{ branch.getRouteSegment() };
+		auto branch_branches{ branch.getBranches() };
+		auto branch_rs_which{ branch_rs.which() };
+		// OutputDebugStringA(std::format("{} branches({}) which {}\n", name.cStr(), branch_branches.size(), static_cast<uint16_t>(branch_rs_which)).c_str());
+		switch (branch_rs_which) {
+		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::BEL_PIN: {
+			// OutputDebugStringA("BEL_PIN\n");
+			if (branch_branches.size()) {
+				for (auto&& subbranch : branch_branches) {
+					auto ret{ source_site_pin(nameIdx, subbranch) };
+					if (ret.has_value()) return ret;
+				}
+				return std::nullopt;
+			}
+			else {
+				// OutputDebugStringA("BEL_PIN Empty\n");
+				return std::nullopt;
+			}
+			break;
+		}
+		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_PIN: {
+			// OutputDebugStringA("SITE_PIN\n");
+			return branch;
+		}
+		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::PIP: {
+			OutputDebugStringA("PIP\n");
+			DebugBreak();
+			break;
+		}
+		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_P_I_P: {
+			// OutputDebugStringA("SITE_P_I_P\n");
+			if (branch_branches.size()) {
+				for (auto&& subbranch : branch_branches) {
+					auto ret{ source_site_pin(nameIdx, subbranch) };
+					if (ret.has_value()) return ret;
+				}
+				return std::nullopt;
+			}
+			else {
+				// OutputDebugStringA("SITE_P_I_P Empty\n");
+				return std::nullopt;
+			}
+
+			DebugBreak();
+			break;
+		}
+		default: {
+			DebugBreak();
+			std::unreachable();
+		}
+		}
+		return std::nullopt;
+	}
+
+	void assign_stub(uint32_t nameIdx, branch_builder branch, branch_reader stub) {
+		auto site_pin_optional{ source_site_pin(nameIdx, branch) };
+		if (!site_pin_optional.has_value()) {
+			OutputDebugStringA("source lacking site_pin\n");
+			DebugBreak();
+		}
+		auto site_pin{ site_pin_optional.value() };
+		if (site_pin.getBranches().size()) {
+			OutputDebugStringA("site_pin.getBranches().size()\n");
+			DebugBreak();
+		}
+#if 0
+		auto name{ strList[nameIdx] };
+		auto branch_rs{ branch.getRouteSegment() };
+		auto branch_branches{ branch.getBranches() };
+		auto branch_rs_which{ branch_rs.which() };
+		OutputDebugStringA(std::format("{} branches({}) which {}\n", name.cStr(), branch_branches.size(), static_cast<uint16_t>(branch_rs_which)).c_str());
+		switch (branch_rs_which) {
+		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::BEL_PIN: {
+			OutputDebugStringA("BEL_PIN\n");
+			if (branch_branches.size()) {
+				for (auto&& subbranch : branch_branches) {
+					assign_stub(nameIdx, subbranch, stub);
+				}
+			}
+			else {
+				DebugBreak();
+			}
+			break;
+		}
+		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_PIN: {
+			OutputDebugStringA("SITE_PIN\n");
+			DebugBreak();
+			break;
+		}
+		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::PIP: {
+			OutputDebugStringA("PIP\n");
+			DebugBreak();
+			break;
+		}
+		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_P_I_P: {
+			OutputDebugStringA("SITE_P_I_P\n");
+			DebugBreak();
+			break;
+		}
+		default: {
+			DebugBreak();
+			std::unreachable();
+		}
+		}
+#endif
+#if 0
+		for (auto&& branch : branches) {
+			auto branch_location{ get_rs_location(branch.getRouteSegment()) };
+			branch_list_builder branch_branches{ branch.getBranches() };
+			uint32_t branch_branches_size{ branch_branches.size() };
+			if (branch_branches_size == 0) {
+				branch.setBranches(stubs);
+				return;
+			}
+			else {
+				assign_stubs(branch_branches, stubs);
+				return;
+			}
+			break;
+		}
+#endif
+	}
+
+	void assign_stubs(branch_list_builder branches, branch_list_reader stubs) {
+		for (auto&& branch : branches) {
+			auto branch_location{ get_rs_location(branch.getRouteSegment()) };
+			branch_list_builder branch_branches{ branch.getBranches() };
+			uint32_t branch_branches_size{ branch_branches.size() };
+			if (branch_branches_size == 0) {
+				branch.setBranches(stubs);
+				return;
+			}
+			else {
+				assign_stubs(branch_branches, stubs);
+				return;
+			}
+			break;
+		}
+	}
 
 	DECLSPEC_NOINLINE void build() {
 #ifdef REBUILD_PHYS
@@ -69,9 +196,16 @@ public:
 #if 1
 				auto phyNetBuilder{ listPhysNets[n] };
 				phyNetBuilder.setName(phyNetReader.getName());
-				phyNetBuilder.setSources(phyNetReader.getSources());
-				// assign_stubs(phyNetBuilder.getSources(), phyNetReader.getStubs());
-				phyNetBuilder.setStubs(phyNetReader.getStubs());
+				if (phyNetReader.getSources().size() == 1ui32 && phyNetReader.getStubs().size() == 1ui32) {
+					phyNetBuilder.setSources(phyNetReader.getSources());
+					// assign_stubs(phyNetBuilder.getSources(), phyNetReader.getStubs());
+					assign_stub(phyNetReader.getName(), phyNetBuilder.getSources()[0], phyNetReader.getStubs()[0]);
+					phyNetBuilder.initStubs(0);
+				}
+				else {
+					phyNetBuilder.setSources(phyNetReader.getSources());
+					phyNetBuilder.setStubs(phyNetReader.getStubs());
+				}
 				phyNetBuilder.setType(phyNetReader.getType());
 				phyNetBuilder.setStubNodes(phyNetReader.getStubNodes());
 #else
@@ -86,7 +220,7 @@ public:
 			}
 #else
 			phyBuilder.setPhysNets(phys.reader.getPhysNets());
-#endif
+#endif  
 			phyBuilder.setPhysCells(phys.reader.getPhysCells());
 			phyBuilder.setStrList(phys.reader.getStrList());
 			phyBuilder.setSiteInsts(phys.reader.getSiteInsts());
@@ -103,11 +237,9 @@ public:
 				.avail_out{0xffffffffui32},
 
 			};
-			auto a1 = deflateInit2(&strm, Z_NO_COMPRESSION, Z_DEFLATED, 16 | 15, 9, Z_DEFAULT_STRATEGY);
-			auto a2 = deflate(&strm, Z_FINISH);
-			auto a3 = deflateEnd(&strm);
-
-			OutputDebugStringA(std::format("{} {} {}\n", a1, a2, a3).c_str());
+			deflateInit2(&strm, Z_NO_COMPRESSION, Z_DEFLATED, 16 | 15, 9, Z_DEFAULT_STRATEGY);
+			deflate(&strm, Z_FINISH);
+			deflateEnd(&strm);
 
 			gzSize = strm.total_out;
 		}
