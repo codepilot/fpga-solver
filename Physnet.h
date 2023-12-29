@@ -99,21 +99,26 @@ public:
 		auto ps_source_pin{ site_pin.getRouteSegment().getSitePin().getPin() };
 		auto ps_stub_site{ stub.getRouteSegment().getSitePin().getSite() };
 		auto ps_stub_pin{ stub.getRouteSegment().getSitePin().getPin() };
+#if 0
 		OutputDebugStringA(std::format("source {}:{}, stub {}:{}\n", strList[ps_source_site].cStr(), strList[ps_source_pin].cStr(), strList[ps_stub_site].cStr(), strList[ps_stub_pin].cStr()).c_str());
+#endif
 
 		auto ds_source_site{ phys_stridx_to_dev_stridx[ps_source_site] };
 		auto ds_source_pin{ phys_stridx_to_dev_stridx[ps_source_pin] };
 		auto ds_stub_site{ phys_stridx_to_dev_stridx[ps_stub_site] };
 		auto ds_stub_pin{ phys_stridx_to_dev_stridx[ps_stub_pin] };
+
+#if 0
 		OutputDebugStringA(std::format("source {}:{}, stub {}:{}\n",
 			dev.strList[ds_source_site].cStr(),
 			dev.strList[ds_source_pin].cStr(),
 			dev.strList[ds_stub_site].cStr(),
 			dev.strList[ds_stub_pin].cStr()
 		).c_str());
+#endif
 
-		dev.site_pin_out_wire(ds_source_site, ds_source_pin);
-		dev.site_pin_out_wire(ds_stub_site, ds_stub_pin);
+		dev.get_site_pin_wire(ds_source_site, ds_source_pin);
+		dev.get_site_pin_wire(ds_stub_site, ds_stub_pin);
 
 #if 0
 		auto name{ strList[nameIdx] };
