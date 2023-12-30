@@ -200,9 +200,8 @@ public:
 			stub_node_tiles.push_back(stub_node_wire_tile);
 		}
 
-		auto source_pip_range{ dev.node_idx_pip_wire_idx_wire_idx.equal_range(source_node_idx) };
-		for (auto it = source_pip_range.first; it != source_pip_range.second; ++it) {
-			ULARGE_INTEGER v{ .QuadPart{it->second} };
+		for (auto &&source_pip: dev.vv_node_idx_pip_wire_idx_wire_idx[source_node_idx]) {
+			ULARGE_INTEGER v{ .QuadPart{source_pip} };
 			auto wire_in{ v.LowPart };
 			auto wire_out{ v.HighPart };
 			auto node_out{ dev.wire_to_node[wire_out] };
