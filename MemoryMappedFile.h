@@ -31,6 +31,16 @@ public:
   PVOID fp{ nullptr };
 
   template<typename T>
+  __forceinline std::span<T> get_span(size_t byte_offset, size_t element_count) const noexcept {
+      return std::span<T>{ reinterpret_cast<T*>(reinterpret_cast<uint8_t *>(fp) + byte_offset), (fsize - byte_offset) / sizeof(T) }.subspan(0, element_count);
+  }
+
+  template<typename T>
+  __forceinline std::span<T> get_span(size_t byte_offset) const noexcept {
+      return { reinterpret_cast<T*>(reinterpret_cast<uint8_t *>(fp) + byte_offset), (fsize - byte_offset) / sizeof(T) };
+  }
+
+  template<typename T>
   __forceinline std::span<T> get_span() const noexcept {
       return { reinterpret_cast<T*>(fp), fsize / sizeof(T)};
   }

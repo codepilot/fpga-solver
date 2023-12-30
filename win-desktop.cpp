@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <numeric>
 #include <span>
 #include <queue>
 #include <optional>
@@ -48,6 +49,7 @@ namespace {
 #include <winioctl.h>
 #include "MemoryMappedFile.h"
 #include "cached_node_lookup.h"
+#include "MMF_Dense_Sets.h"
 #include "dev.h"
 #include "Physnet.h"
 

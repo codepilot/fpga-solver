@@ -70,8 +70,33 @@ public:
     std::unordered_map<uint64_t, uint32_t> site_pin_wires;
 
     std::unordered_multimap<uint32_t, uint32_t> wire_idx_pip_wire_idx;
+    std::vector<std::vector<uint32_t>> vv_wire_idx_pip_wire_idx;
 
     std::unordered_multimap<uint32_t, uint64_t> node_idx_pip_wire_idx_wire_idx;
+    std::vector<std::vector<uint64_t>> vv_node_idx_pip_wire_idx_wire_idx;
+
+    __forceinline static std::vector<std::vector<uint64_t>> make_vv_node_idx_pip_wire_idx_wire_idx(decltype(wire_to_node)& wire_to_node, decltype(wire_idx_pip_wire_idx)& wire_idx_pip_wire_idx) {
+        OutputDebugStringA("start make_vv_node_idx_pip_wire_idx_wire_idx\n");
+
+        std::vector<std::vector<uint64_t>> ret{ wire_to_node.size() };
+
+        for (auto&& item : wire_idx_pip_wire_idx) {
+            auto wire_in{ item.first };
+            auto wire_out{ item.second };
+            ULARGE_INTEGER v{ .u{.LowPart{wire_in}, .HighPart{wire_out}} };
+            auto node_idx{ wire_to_node[wire_in] };
+            ret[node_idx].emplace_back(v.QuadPart);
+        }
+
+        OutputDebugStringA("finish make_vv_node_idx_pip_wire_idx_wire_idx\n");
+
+        MMF_Dense_Sets_u64::make(L"vv_node_idx_pip_wire_idx_wire_idx.bin", ret);
+        auto alt{ MMF_Dense_Sets_u64{L"vv_node_idx_pip_wire_idx_wire_idx.bin"} };
+        alt.test(ret);
+
+
+        return ret;
+    }
 
     __forceinline static decltype(node_idx_pip_wire_idx_wire_idx) make_node_idx_pip_wire_idx_wire_idx(decltype(wire_to_node) &wire_to_node, decltype(wire_idx_pip_wire_idx)& wire_idx_pip_wire_idx) {
         OutputDebugStringA("start make_node_idx_pip_wire_idx_wire_idx\n");
@@ -86,6 +111,44 @@ public:
         }
 
         OutputDebugStringA("finish make_node_idx_pip_wire_idx_wire_idx\n");
+
+        return ret;
+    }
+
+    __forceinline static std::vector<std::vector<uint32_t>> make_vv_wire_idx_pip_wire_idx(decltype(wires)& wires, decltype(tiles)& tiles, decltype(tileTypes)& tileTypes, decltype(siteTypeList)& siteTypeList, decltype(tile_strIdx_wire_strIdx_to_wire_idx)& tile_strIdx_wire_strIdx_to_wire_idx) {
+
+        std::vector<std::vector<uint32_t>> ret{ static_cast<size_t>(wires.size()) };
+
+        OutputDebugStringA("start make_vv_wire_idx_pip_wire_idx\n");
+
+        for (auto&& tile : tiles) {
+            auto tile_strIdx{ tile.getName() };
+            auto tileType{ tileTypes[tile.getType()] };
+            auto tileType_wires{ tileType.getWires() };
+            for (auto&& pip : tileType.getPips()) {
+                auto wire0_strIdx{ tileType_wires[pip.getWire0()] };
+                auto wire1_strIdx{ tileType_wires[pip.getWire1()] };
+                ULARGE_INTEGER key0{ .u{.LowPart{wire0_strIdx}, .HighPart{tile_strIdx}} };
+                ULARGE_INTEGER key1{ .u{.LowPart{wire1_strIdx}, .HighPart{tile_strIdx}} };
+                auto wire0_idx{ tile_strIdx_wire_strIdx_to_wire_idx.at(key0.QuadPart) };
+                auto wire1_idx{ tile_strIdx_wire_strIdx_to_wire_idx.at(key1.QuadPart) };
+                if (pip.getDirectional()) {
+                    //ret.insert({ wire0_idx, wire1_idx });
+                    ret[wire0_idx].push_back(wire1_idx);
+                }
+                else {
+//                    ret.insert({ wire0_idx, wire1_idx });
+//                    ret.insert({ wire1_idx, wire0_idx });
+                    ret[wire0_idx].push_back(wire1_idx);
+                    ret[wire1_idx].push_back(wire0_idx);
+                }
+            }
+        }
+
+        OutputDebugStringA("finish make_vv_wire_idx_pip_wire_idx\n");
+        MMF_Dense_Sets_u32::make(L"vv_wire_idx_pip_wire_idx.bin", ret);
+        auto alt{ MMF_Dense_Sets_u32{L"vv_wire_idx_pip_wire_idx.bin"} };
+        alt.test(ret);
 
         return ret;
     }
@@ -367,25 +430,6 @@ public:
 #endif
     }
 
-    __forceinline uint32_t site_pin_in_wire() const noexcept {
-        return 0;
-    }
-
-    __forceinline uint32_t get_wire_to_node() const noexcept {
-        return 0;
-    }
-
-    __forceinline std::span<uint32_t> node_to_wires() const noexcept {
-        return {};
-    }
-
-    __forceinline std::span<uint64_t> wire_to_pips() const noexcept {
-        // x 16 bit
-        // y 16 bit
-        // pip 16 bit
-        return {};
-    }
-
     //MemoryMappedFile mmf_indirect;
     //MemoryMappedFile mmf_direct;
     //MemoryMappedFile mmf_direct_value;
@@ -428,7 +472,9 @@ public:
         tile_strIdx_wire_strIdx_to_wire_idx{ get_tile_strIdx_wire_strIdx_to_wire_idx(wires) },
         site_pin_wires{ make_site_pin_wires(wires, tiles, tileTypes, siteTypeList, tile_strIdx_wire_strIdx_to_wire_idx) },
         wire_idx_pip_wire_idx{ make_wire_idx_pip_wire_idx(wires, tiles, tileTypes, siteTypeList, tile_strIdx_wire_strIdx_to_wire_idx) },
-        node_idx_pip_wire_idx_wire_idx{ make_node_idx_pip_wire_idx_wire_idx(wire_to_node, wire_idx_pip_wire_idx) }
+        vv_wire_idx_pip_wire_idx{ make_vv_wire_idx_pip_wire_idx(wires, tiles, tileTypes, siteTypeList, tile_strIdx_wire_strIdx_to_wire_idx) },
+        node_idx_pip_wire_idx_wire_idx{ make_node_idx_pip_wire_idx_wire_idx(wire_to_node, wire_idx_pip_wire_idx) },
+        vv_node_idx_pip_wire_idx_wire_idx{ make_vv_node_idx_pip_wire_idx_wire_idx(wire_to_node, wire_idx_pip_wire_idx) }
     {
         // cached_node_lookup::make_cached_node_lookup(nodes, wires);
 #if 0
