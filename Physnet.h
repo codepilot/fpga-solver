@@ -94,7 +94,58 @@ public:
 
 	uint32_t fully_routed{};
 
+	class route_options {
+	public:
+		class route_option {
+		public:
+			__m128i v;
+			__forceinline uint32_t get_wire0_idx() const noexcept { return v.m128i_u32[0]; }
+			__forceinline uint32_t get_wire1_idx() const noexcept { return v.m128i_u32[1]; }
+			__forceinline uint32_t get_previous() const noexcept { return v.m128i_u32[2]; }
+			__forceinline uint16_t get_past_cost() const noexcept { return v.m128i_u16[6]; }
+			__forceinline uint16_t get_future_cost() const noexcept { return v.m128i_u16[7]; }
+			__forceinline uint32_t get_total_cost() const noexcept { return static_cast<uint32_t>(get_past_cost()) + static_cast<uint32_t>(get_future_cost()); }
+		};
+
+		class RouteComparison {
+		public:
+			std::vector<route_option> &storage;
+			RouteComparison(std::vector<route_option> &storage) : storage{ storage } {}
+			bool operator() (uint32_t left, uint32_t right) {
+				return storage[left].get_total_cost() > storage[right].get_total_cost();
+			}
+		};
+
+		std::vector<route_option> storage;
+		std::priority_queue<uint32_t, std::vector<uint32_t>, RouteComparison> q5;
+		__forceinline uint32_t append(route_option ro) {
+			uint32_t ret{ static_cast<uint32_t>(storage.size()) };
+			storage.emplace_back(ro);
+			q5.emplace(ret);
+			return ret;
+		}
+		__forceinline uint32_t append(uint32_t wire0_idx, uint32_t wire1_idx, uint32_t previous, uint16_t past_cost, uint16_t future_cost) {
+			__m128i v{};
+			v.m128i_u32[0] = wire0_idx;
+			v.m128i_u32[1] = wire1_idx;
+			v.m128i_u32[2] = previous;
+			v.m128i_u16[6] = past_cost;
+			v.m128i_u16[7] = future_cost;
+
+			return append({ .v{v} });
+		}
+		route_options() : q5{RouteComparison{ storage }} {
+			append(0, 0, 0, 0, 0xffff);
+		}
+	};
+
+
 	DECLSPEC_NOINLINE bool assign_stub(uint32_t nameIdx, branch_builder branch, branch_reader stub) {
+		// std::vector<route_option> route_options;
+		// auto route_option_cmp = [&](uint32_t left, uint32_t right) -> bool { return route_options[left].get_total_cost() < route_options[right].get_total_cost(); };
+		// std::priority_queue<uint32_t, std::vector<uint32_t>, decltype(route_option_cmp)> q5(route_option_cmp);
+		route_options ro;
+
 		// return;
 		auto site_pin_optional{ source_site_pin(nameIdx, branch) };
 		if (!site_pin_optional.has_value()) {
@@ -188,71 +239,16 @@ public:
 					auto node_wire_out_colDiff{ static_cast<int32_t>(stub_node_tile.getCol()) - static_cast<int32_t>(node_wire_out_tile.getCol()) };
 					auto node_wire_out_rowDiff{ static_cast<int32_t>(stub_node_tile.getRow()) - static_cast<int32_t>(node_wire_out_tile.getRow()) };
 					auto dist{ abs(node_wire_out_colDiff) + abs(node_wire_out_rowDiff) };
+					ro.append(wire_in, wire_out, 0, 0, dist);
 					// OutputDebugStringA(std::format("node pip {} => {} => {}, dist: {}\n", it->first, it->second, node_wire_out, dist).c_str());
 				}
 			}
 			// OutputDebugStringA("\n");
 		}
 		// OutputDebugStringA("\n\n");
+		auto top{ ro.q5.top() };
+		OutputDebugStringA(std::format("top:{}, total_cost:{}\n", top, ro.storage[top].get_total_cost()).c_str());
 
-
-#if 0
-		auto name{ strList[nameIdx] };
-		auto branch_rs{ branch.getRouteSegment() };
-		auto branch_branches{ branch.getBranches() };
-		auto branch_rs_which{ branch_rs.which() };
-		OutputDebugStringA(std::format("{} branches({}) which {}\n", name.cStr(), branch_branches.size(), static_cast<uint16_t>(branch_rs_which)).c_str());
-		switch (branch_rs_which) {
-		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::BEL_PIN: {
-			OutputDebugStringA("BEL_PIN\n");
-			if (branch_branches.size()) {
-				for (auto&& subbranch : branch_branches) {
-					assign_stub(nameIdx, subbranch, stub);
-				}
-			}
-			else {
-				DebugBreak();
-			}
-			break;
-		}
-		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_PIN: {
-			OutputDebugStringA("SITE_PIN\n");
-			DebugBreak();
-			break;
-		}
-		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::PIP: {
-			OutputDebugStringA("PIP\n");
-			DebugBreak();
-			break;
-		}
-		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_P_I_P: {
-			OutputDebugStringA("SITE_P_I_P\n");
-			DebugBreak();
-			break;
-		}
-		default: {
-			DebugBreak();
-			std::unreachable();
-		}
-		}
-#endif
-
-#if 0
-		for (auto&& branch : branches) {
-			auto branch_location{ get_rs_location(branch.getRouteSegment()) };
-			branch_list_builder branch_branches{ branch.getBranches() };
-			uint32_t branch_branches_size{ branch_branches.size() };
-			if (branch_branches_size == 0) {
-				branch.setBranches(stubs);
-				return;
-			}
-			else {
-				assign_stubs(branch_branches, stubs);
-				return;
-			}
-			break;
-		}
-#endif
 		return false;
 	}
 
