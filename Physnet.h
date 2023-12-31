@@ -204,7 +204,7 @@ public:
 		}
 		// OutputDebugStringA(std::format("count:{}, topID:{}, total_cost:{} fail\n", ro.q5.size(), ro.q5.top(), ro.storage[ro.q5.top()].get_total_cost()).c_str());
 		// OutputDebugStringA("\n\n");
-
+		return false;
 	}
 
 	DECLSPEC_NOINLINE bool assign_stub(uint32_t nameIdx, branch_builder branch, branch_reader stub) {
