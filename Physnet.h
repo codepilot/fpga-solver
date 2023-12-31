@@ -94,6 +94,7 @@ public:
 
 	uint32_t fully_routed{};
 	std::unordered_set<uint32_t> stored_wires{};
+	std::vector<bool> stored_nodes{};
 
 	DECLSPEC_NOINLINE void store_route(branch_builder branch, branch_reader stub, route_options &ro, uint32_t route_index) {
 		std::vector<uint32_t> route_ids{};
@@ -113,6 +114,9 @@ public:
 
 			stored_wires.insert(ro.storage[current_route_index].get_wire0_idx());
 			stored_wires.insert(ro.storage[current_route_index].get_wire1_idx());
+
+			stored_nodes[dev.wire_to_node[ro.storage[current_route_index].get_wire0_idx()]] = true;
+			stored_nodes[dev.wire_to_node[ro.storage[current_route_index].get_wire1_idx()]] = true;
 
 			auto psi_tile{ get_phys_strIdx_from_dev_strIdx(dev.wires[ro.storage[current_route_index].get_wire0_idx()].getTile()) };
 			auto psi_wire0{ get_phys_strIdx_from_dev_strIdx(dev.wires[ro.storage[current_route_index].get_wire0_idx()].getWire()) };
@@ -171,6 +175,8 @@ public:
 				if (stored_wires.contains(wire_out)) continue;
 
 				auto node_out{ dev.wire_to_node[wire_out] };
+
+				if (stored_nodes[node_out]) continue;
 
 				for (auto&& node_wire_out : dev.nodes[node_out].getWires()) {
 					auto node_wire_out_tile_idx{ dev.tile_strIndex_to_tile.at(dev.wires[node_wire_out].getTile()) };
@@ -481,6 +487,8 @@ public:
 		strList{ phys.reader.getStrList() },
 		phys_stridx_to_dev_stridx{}
 	{
+		stored_nodes.resize(dev.nodes_size);
+
 		{
 			phys_stridx_to_dev_stridx.reserve(static_cast<size_t>(strList.size()));
 
