@@ -118,6 +118,11 @@ public:
         return ret;
     }
 
+    __forceinline uint32_t get_wire_idx_from_tile_wire(uint32_t tile_str_idx, uint32_t wire_str_idx) const noexcept {
+        ULARGE_INTEGER key0{ .u{.LowPart{wire_str_idx}, .HighPart{tile_str_idx}} };
+        return tile_strIdx_wire_strIdx_to_wire_idx.at(key0.QuadPart);
+    }
+
     __forceinline static std::vector<std::vector<uint32_t>> make_vv_wire_idx_pip_wire_idx(decltype(wires)& wires, decltype(tiles)& tiles, decltype(tileTypes)& tileTypes, decltype(siteTypeList)& siteTypeList, decltype(tile_strIdx_wire_strIdx_to_wire_idx)& tile_strIdx_wire_strIdx_to_wire_idx) {
 
         std::vector<std::vector<uint32_t>> ret{ static_cast<size_t>(wires.size()) };
@@ -375,7 +380,7 @@ public:
         std::unreachable();
     }
 
-    __forceinline uint32_t get_site_pin_index(DeviceResources::Device::SiteType::Reader siteType, uint32_t site_pin_strIdx) const noexcept {
+    DECLSPEC_NOINLINE uint32_t get_site_pin_index(DeviceResources::Device::SiteType::Reader siteType, uint32_t site_pin_strIdx) const noexcept {
         auto pins{ siteType.getPins() };
         for (uint32_t pin_index{}; pin_index < pins.size(); pin_index++) {
             auto pin{ pins[pin_index] };
@@ -383,17 +388,47 @@ public:
                 return pin_index;
             }
         }
+        for (auto&& pin : pins) {
+            auto name{ pin.getName() };
+            OutputDebugStringA(std::format("pin:{}\n", strList[name].cStr()).c_str());
+        }
         DebugBreak();
         std::unreachable();
     }
 
-    __forceinline uint32_t get_site_pin_wire(uint32_t site_strIdx, uint32_t pin_strIdx) const noexcept {
+    DECLSPEC_NOINLINE std::optional<uint32_t> get_site_pin_wire(uint32_t site_strIdx, uint32_t pin_strIdx) const noexcept {
 
         ULARGE_INTEGER site_pin{ .u{.LowPart{site_strIdx}, .HighPart{pin_strIdx}} };
-        auto alt_wire_idx{ site_pin_wires.at(site_pin.QuadPart) };
+        if (site_pin_wires.contains(site_pin.QuadPart)) {
+            auto alt_wire_idx{ site_pin_wires.at(site_pin.QuadPart) };
+            return alt_wire_idx;
+        }
+        else {
+            OutputDebugStringA(std::format("site:{} pin:{}\n",
+                strList[site_strIdx].cStr(),
+                strList[pin_strIdx].cStr()
+                ).c_str());
+
+            auto tileIdx{ site_strIndex_to_tile[site_strIdx] };
+            auto siteIdx{ get_site_index(site_strIdx) };
+            auto tile{ tiles[tileIdx] };
+            auto tile_strIdx{ tile.getName() };
+            auto tileType{ tileTypes[tile.getType()] };
+            auto siteTypeInTileTypes{ tileType.getSiteTypes() };
+            auto siteTypeInTileType{ siteTypeInTileTypes[tile.getSites()[siteIdx].getType()] };
+            auto siteType{ dev.reader.getSiteTypeList()[siteTypeInTileType.getPrimaryType()] };
+            auto pin_index{ get_site_pin_index(siteType, pin_strIdx) };
+            auto wire_strIdx{ siteTypeInTileType.getPrimaryPinsToTileWires()[pin_index] };
+
+            ULARGE_INTEGER key{ .u{.LowPart{wire_strIdx}, .HighPart{tile_strIdx}} };
+            auto wire_idx{ tile_strIdx_wire_strIdx_to_wire_idx.at(key.QuadPart) };
+
+
+            DebugBreak();
+            return wire_idx;
+        }
 
 #if 1
-        return alt_wire_idx;
 #else
 
         auto tileIdx{ site_strIndex_to_tile[site_strIdx] };
@@ -484,6 +519,11 @@ public:
         // node_idx_pip_wire_idx_wire_idx{ make_node_idx_pip_wire_idx_wire_idx(wire_to_node, wire_idx_pip_wire_idx) },
         // vv_node_idx_pip_wire_idx_wire_idx{ make_vv_node_idx_pip_wire_idx_wire_idx(wire_to_node, wire_idx_pip_wire_idx) }
     {
+
+        for (auto&& wireType : dev.reader.getWireTypes()) {
+            OutputDebugStringA(std::format("{}: {}\n", strList[wireType.getName()].cStr(), static_cast<uint16_t>(wireType.getCategory())).c_str());
+        }
+
         // cached_node_lookup::make_cached_node_lookup(nodes, wires);
 #if 0
         {

@@ -273,26 +273,72 @@ public:
 		return false;
 	}
 
+	DECLSPEC_NOINLINE void block_site_pin(::PhysicalNetlist::PhysNetlist::PhysSitePin::Reader sitePin) {
+		auto ps_source_site{ sitePin.getSite() };
+		auto ps_source_pin{ sitePin.getPin() };
+		// OutputDebugStringA(std::format("block_site_pin({}, {})\n", strList[ps_source_site].cStr(), strList[ps_source_pin].cStr()).c_str());
+		auto ds_source_site{ phys_stridx_to_dev_stridx[ps_source_site] };
+		auto ds_source_pin{ phys_stridx_to_dev_stridx[ps_source_pin] };
+		// OutputDebugStringA(std::format("block_site_pin({}, {})\n", dev.strList[ds_source_site].cStr(), dev.strList[ds_source_pin].cStr()).c_str());
+		auto source_wire_idx{ dev.get_site_pin_wire(ds_source_site, ds_source_pin) };
+		if (source_wire_idx.has_value()) {
+			auto source_node_idx{ dev.wire_to_node[source_wire_idx.value()]};
+			stored_nodes[source_node_idx] = true;
+		}
+	}
+
+	DECLSPEC_NOINLINE void block_pip(::PhysicalNetlist::PhysNetlist::PhysPIP::Reader pip) {
+		auto ps_tile{ pip.getTile() };
+		auto ps_wire0{ pip.getWire0() };
+		auto ps_wire1{ pip.getWire1() };
+
+		auto ds_tile{ phys_stridx_to_dev_stridx[ps_tile] };
+		auto ds_wire0{ phys_stridx_to_dev_stridx[ps_wire0] };
+		auto ds_wire1{ phys_stridx_to_dev_stridx[ps_wire1] };
+
+		auto wire0_idx{ dev.get_wire_idx_from_tile_wire(ds_tile, ds_wire0) };
+		auto wire1_idx{ dev.get_wire_idx_from_tile_wire(ds_tile, ds_wire1) };
+
+
+		auto node0_idx{ dev.wire_to_node[wire0_idx] };
+		auto node1_idx{ dev.wire_to_node[wire1_idx] };
+
+		stored_nodes[node0_idx] = true;
+		stored_nodes[node1_idx] = true;
+	}
+
+	DECLSPEC_NOINLINE void block_source_resource(PhysicalNetlist::PhysNetlist::RouteBranch::Reader branch) {
+		auto rs{ branch.getRouteSegment() };
+		switch (rs.which()) {
+		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::BEL_PIN: {
+			auto belPin{ rs.getBelPin() };
+			break;
+		}
+		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::SITE_PIN: {
+			auto sitePin{ rs.getSitePin() };
+			block_site_pin(sitePin);
+			break;
+		}
+		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::PIP: {
+			auto pip{ rs.getPip() };
+			block_pip(pip);
+			break;
+		}
+		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::SITE_P_I_P: {
+			auto sitePip{ rs.getSitePIP() };
+			break;
+		}
+		default:
+			DebugBreak();
+		}
+		for (auto&& sub_branch : branch.getBranches()) {
+			block_source_resource(sub_branch);
+		}
+	}
+
 	DECLSPEC_NOINLINE void block_resources(PhysicalNetlist::PhysNetlist::PhysNet::Reader physNet) {
 		for (auto&& src_branch : physNet.getSources()) {
-			auto site_pin_optional{ source_site_pin(physNet.getName(), src_branch)};
-			if (!site_pin_optional.has_value()) {
-//				OutputDebugStringA(std::format("source lacking site_pin {}\n", strList[physNet.getName()].cStr()).c_str());
-				continue;
-				DebugBreak();
-			}
-			auto site_pin{ site_pin_optional.value() };
-			if (site_pin.getBranches().size()) {
-				OutputDebugStringA("site_pin.getBranches().size()\n");
-				DebugBreak();
-			}
-			auto ps_source_site{ site_pin.getRouteSegment().getSitePin().getSite() };
-			auto ps_source_pin{ site_pin.getRouteSegment().getSitePin().getPin() };
-			auto ds_source_site{ phys_stridx_to_dev_stridx[ps_source_site] };
-			auto ds_source_pin{ phys_stridx_to_dev_stridx[ps_source_pin] };
-			auto source_wire_idx{ dev.get_site_pin_wire(ds_source_site, ds_source_pin) };
-			auto source_node_idx{ dev.wire_to_node[source_wire_idx] };
-			stored_nodes[source_node_idx] = true;
+			block_source_resource(src_branch);
 		}
 		for (auto&& stub_branch : physNet.getStubs()) {
 			if (!stub_branch.getRouteSegment().isSitePin()) {
@@ -305,10 +351,12 @@ public:
 			auto ds_stub_site{ phys_stridx_to_dev_stridx[ps_stub_site] };
 			auto ds_stub_pin{ phys_stridx_to_dev_stridx[ps_stub_pin] };
 			auto stub_wire_idx{ dev.get_site_pin_wire(ds_stub_site, ds_stub_pin) };
-			auto stub_tile{ dev.tiles[dev.tile_strIndex_to_tile.at(dev.wires[stub_wire_idx].getTile())] };
+			if (stub_wire_idx.has_value()) {
+				auto stub_tile{ dev.tiles[dev.tile_strIndex_to_tile.at(dev.wires[stub_wire_idx.value()].getTile())]};
 
-			auto stub_node_idx{ dev.wire_to_node[stub_wire_idx] };
-			stored_nodes[stub_node_idx] = true;
+				auto stub_node_idx{ dev.wire_to_node[stub_wire_idx.value()] };
+				stored_nodes[stub_node_idx] = true;
+			}
 		}
 
 
@@ -357,8 +405,8 @@ public:
 		).c_str());
 #endif
 
-		auto source_wire_idx{ dev.get_site_pin_wire(ds_source_site, ds_source_pin) };
-		auto stub_wire_idx{ dev.get_site_pin_wire(ds_stub_site, ds_stub_pin) };
+		auto source_wire_idx{ dev.get_site_pin_wire(ds_source_site, ds_source_pin).value() };
+		auto stub_wire_idx{ dev.get_site_pin_wire(ds_stub_site, ds_stub_pin).value() };
 		auto stub_tile{ dev.tiles[dev.tile_strIndex_to_tile.at(dev.wires[stub_wire_idx].getTile())] };
 
 		auto source_node_idx{ dev.wire_to_node[source_wire_idx] };
