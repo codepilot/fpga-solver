@@ -51,6 +51,7 @@ namespace {
 #include "cached_node_lookup.h"
 #include "MMF_Dense_Sets.h"
 #include "dev.h"
+#include "route_options.h"
 #include "Physnet.h"
 
 #include "GL46.h"

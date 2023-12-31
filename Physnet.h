@@ -94,57 +94,110 @@ public:
 
 	uint32_t fully_routed{};
 
-	class route_options {
-	public:
-		class route_option {
-		public:
-			__m128i v;
-			__forceinline uint32_t get_wire0_idx() const noexcept { return v.m128i_u32[0]; }
-			__forceinline uint32_t get_wire1_idx() const noexcept { return v.m128i_u32[1]; }
-			__forceinline uint32_t get_previous() const noexcept { return v.m128i_u32[2]; }
-			__forceinline uint16_t get_past_cost() const noexcept { return v.m128i_u16[6]; }
-			__forceinline uint16_t get_future_cost() const noexcept { return v.m128i_u16[7]; }
-			__forceinline uint32_t get_total_cost() const noexcept { return static_cast<uint32_t>(get_past_cost()) + static_cast<uint32_t>(get_future_cost()); }
-		};
+	DECLSPEC_NOINLINE void store_route(branch_builder branch, branch_reader stub, route_options &ro, uint32_t route_index) {
+		std::vector<uint32_t> route_ids{};
+		route_ids.reserve(ro.storage[route_index].get_past_cost());
+		for (uint32_t current_route_index{ route_index }; current_route_index != 0; current_route_index = ro.storage[current_route_index].get_previous()) {
+			route_ids.emplace_back(current_route_index);
+			// OutputDebugStringA(std::format("current_route_index: {}, past_cost: {}\n", current_route_index, ro.storage[current_route_index].get_past_cost()).c_str());
+		}
+		// OutputDebugStringA(std::format("route_ids.size: {}\n", route_ids.size()).c_str());
 
-		class RouteComparison {
-		public:
-			std::vector<route_option> &storage;
-			RouteComparison(std::vector<route_option> &storage) : storage{ storage } {}
-			bool operator() (uint32_t left, uint32_t right) {
-				return storage[left].get_total_cost() > storage[right].get_total_cost();
+		auto current_branches{ branch.initBranches(1) };
+		for (auto&& it{ route_ids.crbegin() }; it != route_ids.crend(); it++) {
+			auto current_route_index{ *it };
+			// OutputDebugStringA(std::format("current_route_index: {}, past_cost: {}\n", current_route_index, ro.storage[current_route_index].get_past_cost()).c_str());
+
+			//OutputDebugStringA("Wire match\n");
+			auto psi_tile{ get_phys_strIdx_from_dev_strIdx(dev.wires[ro.storage[current_route_index].get_wire0_idx()].getTile()) };
+			auto psi_wire0{ get_phys_strIdx_from_dev_strIdx(dev.wires[ro.storage[current_route_index].get_wire0_idx()].getWire()) };
+			auto psi_wire1{ get_phys_strIdx_from_dev_strIdx(dev.wires[ro.storage[current_route_index].get_wire1_idx()].getWire()) };
+			// return;
+			auto sub_rs{ current_branches[0].initRouteSegment()};
+			auto sub_pip{ sub_rs.initPip() };
+
+			sub_pip.setTile(psi_tile);
+			sub_pip.setWire0(psi_wire0);
+			sub_pip.setWire1(psi_wire1);
+			sub_pip.setForward(true);
+			sub_pip.setIsFixed(false);
+
+			current_branches = current_branches[0].initBranches(1);
+
+		}
+
+		current_branches.setWithCaveats(0, stub);
+		fully_routed++;
+		OutputDebugStringA(std::format("fully_routed: {}, route_ids.size: {}\n", fully_routed, route_ids.size()).c_str());
+
+	}
+
+	DECLSPEC_NOINLINE bool route_stub(branch_builder branch, branch_reader stub, uint32_t source_wire_idx, uint32_t stub_wire_idx, std::vector<uint32_t> stub_node_tiles) {
+		route_options ro;
+		ro.append(source_wire_idx, source_wire_idx, 0, 0, 0xffff);
+		std::unordered_set<uint32_t> used_wires{};
+
+		for (uint32_t attempts{}; attempts < 1000; attempts++) {
+			auto top{ ro.q5.top() };
+			auto top_info{ ro.storage[top] };
+
+#if 0
+			OutputDebugStringA(std::format("attempts: {}, count:{}, topID:{}, wire0:{}, wire1:{}, p:{}, f:{}, t:{}\n",
+				attempts, ro.q5.size(), top,
+				top_info.get_wire0_idx(),
+				top_info.get_wire1_idx(),
+				top_info.get_past_cost(),
+				top_info.get_future_cost(),
+				top_info.get_total_cost()
+			).c_str());
+#endif
+
+			ro.q5.pop();
+			auto current_wire0{ top_info.get_wire1_idx() };
+			used_wires.insert(current_wire0);
+			auto current_node0{ dev.wire_to_node[current_wire0] };
+			auto current_pips{ dev.vv_node_idx_pip_wire_idx_wire_idx[current_node0] };
+
+			for (auto&& source_pip : current_pips) {
+				ULARGE_INTEGER v{ .QuadPart{source_pip} };
+				auto wire_in{ v.LowPart };
+				auto wire_out{ v.HighPart };
+				if (used_wires.contains(wire_out)) continue;
+				auto node_out{ dev.wire_to_node[wire_out] };
+
+				for (auto&& node_wire_out : dev.nodes[node_out].getWires()) {
+					auto node_wire_out_tile_idx{ dev.tile_strIndex_to_tile.at(dev.wires[node_wire_out].getTile()) };
+					auto node_wire_out_tile{ dev.tiles[node_wire_out_tile_idx] };
+					auto node_wire_out_tileCol{ node_wire_out_tile.getCol() };
+					auto node_wire_out_tileRow{ node_wire_out_tile.getRow() };
+					if (stub_wire_idx == node_wire_out) {
+						auto rs_index{ ro.append(wire_in, wire_out, top, top_info.get_past_cost() + 1, 0) };
+						store_route(branch, stub, ro, rs_index);
+
+						return true;
+					}
+					for (auto&& stub_node_tile_idx : stub_node_tiles) {
+						auto stub_node_tile{ dev.tiles[stub_node_tile_idx] };
+						auto node_wire_out_colDiff{ static_cast<int32_t>(stub_node_tile.getCol()) - static_cast<int32_t>(node_wire_out_tile.getCol()) };
+						auto node_wire_out_rowDiff{ static_cast<int32_t>(stub_node_tile.getRow()) - static_cast<int32_t>(node_wire_out_tile.getRow()) };
+						auto dist{ abs(node_wire_out_colDiff) + abs(node_wire_out_rowDiff) };
+						auto rs_index{ ro.append(wire_in, wire_out, top, top_info.get_past_cost() + 1, dist) };
+						// ro.append(wire_in, wire_out, 0, 0, dist);
+						// OutputDebugStringA(std::format("node pip {} => {} => {}, dist: {}\n", it->first, it->second, node_wire_out, dist).c_str());
+					}
+				}
+				// OutputDebugStringA("\n");
 			}
-		};
-
-		std::vector<route_option> storage;
-		std::priority_queue<uint32_t, std::vector<uint32_t>, RouteComparison> q5;
-		__forceinline uint32_t append(route_option ro) {
-			uint32_t ret{ static_cast<uint32_t>(storage.size()) };
-			storage.emplace_back(ro);
-			q5.emplace(ret);
-			return ret;
 		}
-		__forceinline uint32_t append(uint32_t wire0_idx, uint32_t wire1_idx, uint32_t previous, uint16_t past_cost, uint16_t future_cost) {
-			__m128i v{};
-			v.m128i_u32[0] = wire0_idx;
-			v.m128i_u32[1] = wire1_idx;
-			v.m128i_u32[2] = previous;
-			v.m128i_u16[6] = past_cost;
-			v.m128i_u16[7] = future_cost;
+		OutputDebugStringA(std::format("count:{}, topID:{}, total_cost:{} fail\n", ro.q5.size(), ro.q5.top(), ro.storage[ro.q5.top()].get_total_cost()).c_str());
+		// OutputDebugStringA("\n\n");
 
-			return append({ .v{v} });
-		}
-		route_options() : q5{RouteComparison{ storage }} {
-			append(0, 0, 0, 0, 0xffff);
-		}
-	};
-
+	}
 
 	DECLSPEC_NOINLINE bool assign_stub(uint32_t nameIdx, branch_builder branch, branch_reader stub) {
 		// std::vector<route_option> route_options;
 		// auto route_option_cmp = [&](uint32_t left, uint32_t right) -> bool { return route_options[left].get_total_cost() < route_options[right].get_total_cost(); };
 		// std::priority_queue<uint32_t, std::vector<uint32_t>, decltype(route_option_cmp)> q5(route_option_cmp);
-		route_options ro;
 
 		// return;
 		auto site_pin_optional{ source_site_pin(nameIdx, branch) };
@@ -200,55 +253,7 @@ public:
 			stub_node_tiles.push_back(stub_node_wire_tile);
 		}
 
-		for (auto &&source_pip: dev.vv_node_idx_pip_wire_idx_wire_idx[source_node_idx]) {
-			ULARGE_INTEGER v{ .QuadPart{source_pip} };
-			auto wire_in{ v.LowPart };
-			auto wire_out{ v.HighPart };
-			auto node_out{ dev.wire_to_node[wire_out] };
-
-			for (auto&& node_wire_out : dev.nodes[node_out].getWires()) {
-				auto node_wire_out_tile_idx{ dev.tile_strIndex_to_tile.at(dev.wires[node_wire_out].getTile()) };
-				auto node_wire_out_tile{ dev.tiles[node_wire_out_tile_idx] };
-				auto node_wire_out_tileCol{ node_wire_out_tile.getCol() };
-				auto node_wire_out_tileRow{ node_wire_out_tile.getRow() };
-				if (stub_wire_idx == node_wire_out) {
-					//OutputDebugStringA("Wire match\n");
-					auto psi_tile{ get_phys_strIdx_from_dev_strIdx(dev.wires[wire_in].getTile()) };
-					auto psi_wire0{ get_phys_strIdx_from_dev_strIdx(dev.wires[wire_in].getWire()) };
-					auto psi_wire1{ get_phys_strIdx_from_dev_strIdx(dev.wires[wire_out].getWire()) };
-					// return;
-					auto sub_branches{ branch.initBranches(1) };
-					auto sub_branch{ sub_branches[0] };
-					auto sub_rs{ sub_branch.initRouteSegment() };
-					auto sub_pip{ sub_rs.initPip() };
-
-					sub_pip.setTile(psi_tile);
-					sub_pip.setWire0(psi_wire0);
-					sub_pip.setWire1(psi_wire1);
-					sub_pip.setForward(true);
-					sub_pip.setIsFixed(false);
-					auto sub_sub_branches{ sub_branch.initBranches(1) };
-					sub_sub_branches.setWithCaveats(0, stub);
-					fully_routed++;
-
-					return true;
-				}
-				for (auto&& stub_node_tile_idx : stub_node_tiles) {
-					auto stub_node_tile{ dev.tiles[stub_node_tile_idx] };
-					auto node_wire_out_colDiff{ static_cast<int32_t>(stub_node_tile.getCol()) - static_cast<int32_t>(node_wire_out_tile.getCol()) };
-					auto node_wire_out_rowDiff{ static_cast<int32_t>(stub_node_tile.getRow()) - static_cast<int32_t>(node_wire_out_tile.getRow()) };
-					auto dist{ abs(node_wire_out_colDiff) + abs(node_wire_out_rowDiff) };
-					ro.append(wire_in, wire_out, 0, 0, dist);
-					// OutputDebugStringA(std::format("node pip {} => {} => {}, dist: {}\n", it->first, it->second, node_wire_out, dist).c_str());
-				}
-			}
-			// OutputDebugStringA("\n");
-		}
-		// OutputDebugStringA("\n\n");
-		auto top{ ro.q5.top() };
-		OutputDebugStringA(std::format("top:{}, total_cost:{}\n", top, ro.storage[top].get_total_cost()).c_str());
-
-		return false;
+		return route_stub(branch, stub, source_wire_idx, stub_wire_idx, stub_node_tiles);
 	}
 
 	void assign_stubs(branch_list_builder branches, branch_list_reader stubs) {
@@ -348,8 +353,7 @@ public:
 			phyBuilder.setNullNet(phys.reader.getNullNet());
 
 			auto fa{ messageToFlatArray(message) };
-			auto r0{ reinterpret_cast<uint64_t *>(fa.begin())[0] };
-			OutputDebugStringA(std::format("tab {:x}\nfully_routed: {}\n", r0, fully_routed).c_str());
+			OutputDebugStringA(std::format("fully_routed: {}\n", fully_routed).c_str());
 			auto fa_bytes{ fa.asBytes() };
 			msgSize = fa_bytes.size();
 			//memcpy(dst_written.fp, fa.begin(), msgSize);

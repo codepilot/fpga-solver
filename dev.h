@@ -218,6 +218,7 @@ public:
     }
 
     __forceinline static std::unordered_map<uint64_t, uint32_t> get_tile_strIdx_wire_strIdx_to_wire_idx(decltype(wires) &wires) {
+        OutputDebugStringA("make tile_strIdx_wire_strIdx_to_wire_idx start\n");
         std::unordered_map<uint64_t, uint32_t> tile_strIdx_wire_strIdx_to_wire_idx;
         tile_strIdx_wire_strIdx_to_wire_idx.reserve(wires.size());
         for (uint32_t wireIdx{}; wireIdx < wires.size(); wireIdx++) {
@@ -225,6 +226,7 @@ public:
             ULARGE_INTEGER key{ .u{.LowPart{wire.getWire()}, .HighPart{wire.getTile()}}};
             tile_strIdx_wire_strIdx_to_wire_idx.insert({ key.QuadPart, wireIdx });
         }
+        OutputDebugStringA("make tile_strIdx_wire_strIdx_to_wire_idx finish\n");
         return tile_strIdx_wire_strIdx_to_wire_idx;
     }
 
