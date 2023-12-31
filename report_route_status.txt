@@ -1,15 +1,15 @@
                                                :      # nets :
    ------------------------------------------- : ----------- :
    # of logical nets.......................... :      435577 :
-       # of nets not needing routing.......... :      165652 :
-           # of internally routed nets........ :      155247 :
-           # of nets with no loads............ :       10204 :
-           # of implicitly routed ports....... :         201 :
-       # of routable nets..................... :      269925 :
-           # of unrouted nets................. :      116410 :
-           # of fully routed nets............. :       82466 :
-       # of nets with routing errors.......... :       72409 :
-           # of nets with some unrouted pins.. :       35764 :
-           # of nets with resource conflicts.. :       61115 :
-           # of nets with antennas/islands.... :       28845 :
+       # of nets not needing routing.......... :      167544 :
+           # of internally routed nets........ :      156774 :
+           # of nets with no loads............ :       10583 :
+           # of implicitly routed ports....... :         187 :
+       # of routable nets..................... :      268033 :
+           # of unrouted nets................. :      115935 :
+           # of fully routed nets............. :       93095 :
+       # of nets with routing errors.......... :       60774 :
+           # of nets with some unrouted pins.. :       38893 :
+           # of nets with resource conflicts.. :       47340 :
+           # of nets with antennas/islands.... :       30247 :
    ------------------------------------------- : ----------- :

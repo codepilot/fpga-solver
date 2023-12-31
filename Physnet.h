@@ -93,6 +93,7 @@ public:
 	}
 
 	uint32_t fully_routed{};
+	std::unordered_set<uint32_t> stored_wires{};
 
 	DECLSPEC_NOINLINE void store_route(branch_builder branch, branch_reader stub, route_options &ro, uint32_t route_index) {
 		std::vector<uint32_t> route_ids{};
@@ -109,6 +110,10 @@ public:
 			// OutputDebugStringA(std::format("current_route_index: {}, past_cost: {}\n", current_route_index, ro.storage[current_route_index].get_past_cost()).c_str());
 
 			//OutputDebugStringA("Wire match\n");
+
+			stored_wires.insert(ro.storage[current_route_index].get_wire0_idx());
+			stored_wires.insert(ro.storage[current_route_index].get_wire1_idx());
+
 			auto psi_tile{ get_phys_strIdx_from_dev_strIdx(dev.wires[ro.storage[current_route_index].get_wire0_idx()].getTile()) };
 			auto psi_wire0{ get_phys_strIdx_from_dev_strIdx(dev.wires[ro.storage[current_route_index].get_wire0_idx()].getWire()) };
 			auto psi_wire1{ get_phys_strIdx_from_dev_strIdx(dev.wires[ro.storage[current_route_index].get_wire1_idx()].getWire()) };
@@ -128,7 +133,7 @@ public:
 
 		current_branches.setWithCaveats(0, stub);
 		fully_routed++;
-		OutputDebugStringA(std::format("fully_routed: {}, route_ids.size: {}\n", fully_routed, route_ids.size()).c_str());
+		// OutputDebugStringA(std::format("fully_routed: {}, route_ids.size: {}\n", fully_routed, route_ids.size()).c_str());
 
 	}
 
@@ -163,6 +168,8 @@ public:
 				auto wire_in{ v.LowPart };
 				auto wire_out{ v.HighPart };
 				if (used_wires.contains(wire_out)) continue;
+				if (stored_wires.contains(wire_out)) continue;
+
 				auto node_out{ dev.wire_to_node[wire_out] };
 
 				for (auto&& node_wire_out : dev.nodes[node_out].getWires()) {
@@ -189,7 +196,7 @@ public:
 				// OutputDebugStringA("\n");
 			}
 		}
-		OutputDebugStringA(std::format("count:{}, topID:{}, total_cost:{} fail\n", ro.q5.size(), ro.q5.top(), ro.storage[ro.q5.top()].get_total_cost()).c_str());
+		// OutputDebugStringA(std::format("count:{}, topID:{}, total_cost:{} fail\n", ro.q5.size(), ro.q5.top(), ro.storage[ro.q5.top()].get_total_cost()).c_str());
 		// OutputDebugStringA("\n\n");
 
 	}
