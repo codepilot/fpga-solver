@@ -2,6 +2,8 @@
 
 #include "canon_reader.h"
 
+// #define REBUILD_DENSE_SETS
+
 class Dev {
 public:
     struct tile_info {
@@ -69,31 +71,46 @@ public:
 
     std::unordered_map<uint64_t, uint32_t> site_pin_wires;
 
+    std::unordered_map<uint64_t, uint32_t> site_bel_pin_wires;
+
     // std::unordered_multimap<uint32_t, uint32_t> wire_idx_pip_wire_idx;
-    // std::vector<std::vector<uint32_t>> vv_wire_idx_pip_wire_idx;
-    MMF_Dense_Sets_u32 vv_wire_idx_pip_wire_idx{ L"vv_wire_idx_pip_wire_idx.bin"};
+#ifdef REBUILD_DENSE_SETS
+    std::vector<std::vector<uint32_t>> temp_vv_wire_idx_pip_wire_idx;
+#endif
+    MMF_Dense_Sets_u32 vv_wire_idx_pip_wire_idx;
 
 
     // std::unordered_multimap<uint32_t, uint64_t> node_idx_pip_wire_idx_wire_idx;
-    // std::vector<std::vector<uint64_t>> vv_node_idx_pip_wire_idx_wire_idx;
-    MMF_Dense_Sets_u64 vv_node_idx_pip_wire_idx_wire_idx{L"vv_node_idx_pip_wire_idx_wire_idx.bin"};
+#ifdef REBUILD_DENSE_SETS
+    std::vector<std::vector<uint64_t>> temp_vv_node_idx_pip_wire_idx_wire_idx;
+#endif
+    MMF_Dense_Sets_u64 vv_node_idx_pip_wire_idx_wire_idx;
 
-    __forceinline static std::vector<std::vector<uint64_t>> make_vv_node_idx_pip_wire_idx_wire_idx(decltype(wire_to_node)& wire_to_node, std::unordered_multimap<uint32_t, uint32_t> &wire_idx_pip_wire_idx) {
+    __forceinline static uint64_t combine_3_strIdx(uint64_t a_strIdx, uint64_t b_strIdx, uint64_t c_strIdx) {
+        return (0xfffffui64 & a_strIdx) | ((0xfffffui64 & b_strIdx) << 20ui64) | ((0xfffffui64 & c_strIdx) << 40ui64);
+    }
+
+    __forceinline static uint64_t combine_2_strIdx(uint64_t a_strIdx, uint64_t b_strIdx) {
+        return (0xfffffui64 & a_strIdx) | ((0xfffffui64 & b_strIdx) << 20ui64);
+    }
+
+    __forceinline static std::vector<std::vector<uint64_t>> make_vv_node_idx_pip_wire_idx_wire_idx(decltype(wire_to_node)& wire_to_node, std::vector<std::vector<uint32_t>> &temp_vv_wire_idx_pip_wire_idx) {
         OutputDebugStringA("start make_vv_node_idx_pip_wire_idx_wire_idx\n");
 
         std::vector<std::vector<uint64_t>> ret{ wire_to_node.size() };
 
-        for (auto&& item : wire_idx_pip_wire_idx) {
-            auto wire_in{ item.first };
-            auto wire_out{ item.second };
-            ULARGE_INTEGER v{ .u{.LowPart{wire_in}, .HighPart{wire_out}} };
-            auto node_idx{ wire_to_node[wire_in] };
-            ret[node_idx].emplace_back(v.QuadPart);
+        for (uint32_t wire_in{}; wire_in < temp_vv_wire_idx_pip_wire_idx.size(); wire_in++) {
+            auto wires_out{ temp_vv_wire_idx_pip_wire_idx[wire_in] };
+            for (auto&& wire_out : wires_out) {
+                ULARGE_INTEGER v{ .u{.LowPart{wire_in}, .HighPart{wire_out}} };
+                auto node_idx{ wire_to_node[wire_in] };
+                ret[node_idx].emplace_back(v.QuadPart);
+            }
         }
 
         OutputDebugStringA("finish make_vv_node_idx_pip_wire_idx_wire_idx\n");
 
-        // MMF_Dense_Sets_u64::make(L"vv_node_idx_pip_wire_idx_wire_idx.bin", ret);
+        MMF_Dense_Sets_u64::make(L"vv_node_idx_pip_wire_idx_wire_idx.bin", ret);
         auto alt{ MMF_Dense_Sets_u64{L"vv_node_idx_pip_wire_idx_wire_idx.bin"} };
         alt.test(ret);
 
@@ -134,6 +151,8 @@ public:
             auto tileType{ tileTypes[tile.getType()] };
             auto tileType_wires{ tileType.getWires() };
             for (auto&& pip : tileType.getPips()) {
+                if (pip.isPseudoCells()) continue;
+
                 auto wire0_strIdx{ tileType_wires[pip.getWire0()] };
                 auto wire1_strIdx{ tileType_wires[pip.getWire1()] };
                 ULARGE_INTEGER key0{ .u{.LowPart{wire0_strIdx}, .HighPart{tile_strIdx}} };
@@ -154,7 +173,7 @@ public:
         }
 
         OutputDebugStringA("finish make_vv_wire_idx_pip_wire_idx\n");
-        // MMF_Dense_Sets_u32::make(L"vv_wire_idx_pip_wire_idx.bin", ret);
+        MMF_Dense_Sets_u32::make(L"vv_wire_idx_pip_wire_idx.bin", ret);
         auto alt{ MMF_Dense_Sets_u32{L"vv_wire_idx_pip_wire_idx.bin"} };
         alt.test(ret);
 
@@ -189,6 +208,64 @@ public:
 
         OutputDebugStringA("finish make_wire_idx_pip_wire_idx\n");
 
+        return ret;
+    }
+
+    DECLSPEC_NOINLINE static decltype(site_bel_pin_wires) make_site_bel_pin_wires(decltype(wires)& wires, decltype(tiles)& tiles, decltype(tileTypes)& tileTypes, decltype(siteTypeList)& siteTypeList, decltype(tile_strIdx_wire_strIdx_to_wire_idx)& tile_strIdx_wire_strIdx_to_wire_idx) {
+        OutputDebugStringA("make_site_bel_pin_wires start\n");
+        decltype(site_bel_pin_wires) ret;
+
+        ret.reserve(wires.size());
+        for (auto&& tile : tiles) {
+            auto tile_strIdx{ tile.getName() };
+            auto tileType{ tileTypes[tile.getType()] };
+            for (auto&& site : tile.getSites()) {
+                auto site_strIdx{ site.getName() };
+                auto site_type_idx{ site.getType() };
+                auto site_tile_type{ tileType.getSiteTypes()[site_type_idx] };
+                auto site_type{ siteTypeList[site_tile_type.getPrimaryType()] };
+                auto site_pins{ site_type.getPins() };
+                auto bel_pins{ site_type.getBelPins() };
+                auto site_wires{ site_type.getSiteWires() };
+
+                for (auto&& site_wire : site_wires) {
+                    auto site_wire_name{ site_wire.getName() };
+                    for (auto&& bel_pin_idx : site_wire.getPins()) {
+                        auto bel_pin{ bel_pins[bel_pin_idx] };
+                        auto bel_pin_name{ bel_pin.getName() };
+                        auto bel_name{ bel_pin.getBel() };
+
+                        ULARGE_INTEGER tile_wire{ .u{.LowPart{site_wire_name}, .HighPart{tile_strIdx}} };
+                        if (tile_strIdx_wire_strIdx_to_wire_idx.contains(tile_wire.QuadPart)) {
+                            // OutputDebugStringA(std::format("site_wire: {} found\n", site_wire_name).c_str());
+                            auto wire_idx{ tile_strIdx_wire_strIdx_to_wire_idx.at(tile_wire.QuadPart) };
+
+                            uint64_t k{ combine_3_strIdx(site_strIdx, bel_name, bel_pin_name) };
+                            ret.insert({ k, wire_idx });
+                        }
+                        else {
+                            //OutputDebugStringA(std::format("site_wire: {} not found\n", site_wire_name).c_str());
+                            // DebugBreak();
+                        }
+                    }
+                }
+
+#if 0
+                auto site_tile_type_wires{ site_tile_type.getPrimaryPinsToTileWires() };
+                for (uint32_t pin_idx{}; pin_idx < site_pins.size(); pin_idx++) {
+                    auto wire_strIdx{ site_tile_type_wires[pin_idx] };
+                    auto sitePin{ site_pins[pin_idx] };
+                    auto site_pin_strIdx{ sitePin.getName() };
+                    ULARGE_INTEGER site_pin{ .u{.LowPart{site_strIdx}, .HighPart{site_pin_strIdx}} };
+                    ULARGE_INTEGER tile_wire{ .u{.LowPart{wire_strIdx}, .HighPart{tile_strIdx}} };
+                    auto wire_idx{ tile_strIdx_wire_strIdx_to_wire_idx.at(tile_wire.QuadPart) };
+                    ret.insert({ site_pin.QuadPart, wire_idx });
+                }
+#endif
+            }
+        }
+
+        OutputDebugStringA("make_site_bel_pin_wires finish\n");
         return ret;
     }
 
@@ -513,11 +590,19 @@ public:
         //mmf_direct_value{ L"direct_value.bin" },
         //cnl{ cached_node_lookup::open_cached_node_lookup(mmf_indirect, mmf_direct, mmf_direct_value) }
         tile_strIdx_wire_strIdx_to_wire_idx{ get_tile_strIdx_wire_strIdx_to_wire_idx(wires) },
-        site_pin_wires{ make_site_pin_wires(wires, tiles, tileTypes, siteTypeList, tile_strIdx_wire_strIdx_to_wire_idx) }
+        site_pin_wires{ make_site_pin_wires(wires, tiles, tileTypes, siteTypeList, tile_strIdx_wire_strIdx_to_wire_idx) },
+        site_bel_pin_wires{ make_site_bel_pin_wires(wires, tiles, tileTypes, siteTypeList, tile_strIdx_wire_strIdx_to_wire_idx) },
         // wire_idx_pip_wire_idx{ make_wire_idx_pip_wire_idx(wires, tiles, tileTypes, siteTypeList, tile_strIdx_wire_strIdx_to_wire_idx) },
-        // vv_wire_idx_pip_wire_idx{ make_vv_wire_idx_pip_wire_idx(wires, tiles, tileTypes, siteTypeList, tile_strIdx_wire_strIdx_to_wire_idx) },
+#ifdef REBUILD_DENSE_SETS
+        temp_vv_wire_idx_pip_wire_idx{ make_vv_wire_idx_pip_wire_idx(wires, tiles, tileTypes, siteTypeList, tile_strIdx_wire_strIdx_to_wire_idx) },
+#endif
+        vv_wire_idx_pip_wire_idx{ L"vv_wire_idx_pip_wire_idx.bin" },
+
         // node_idx_pip_wire_idx_wire_idx{ make_node_idx_pip_wire_idx_wire_idx(wire_to_node, wire_idx_pip_wire_idx) },
-        // vv_node_idx_pip_wire_idx_wire_idx{ make_vv_node_idx_pip_wire_idx_wire_idx(wire_to_node, wire_idx_pip_wire_idx) }
+#ifdef REBUILD_DENSE_SETS
+        temp_vv_node_idx_pip_wire_idx_wire_idx{ make_vv_node_idx_pip_wire_idx_wire_idx(wire_to_node, temp_vv_wire_idx_pip_wire_idx) },
+#endif
+        vv_node_idx_pip_wire_idx_wire_idx{ L"vv_node_idx_pip_wire_idx_wire_idx.bin" }
     {
 
         for (auto&& wireType : dev.reader.getWireTypes()) {

@@ -307,11 +307,54 @@ public:
 		stored_nodes[node1_idx] = true;
 	}
 
+	DECLSPEC_NOINLINE void block_bel_pin(::PhysicalNetlist::PhysNetlist::PhysBelPin::Reader belPin) {
+		auto ps_site{ belPin.getSite() };
+		auto ps_bel{ belPin.getBel() };
+		auto ps_pin{ belPin.getPin() };
+
+		auto ds_site{ phys_stridx_to_dev_stridx[ps_site] };
+		auto ds_bel{ phys_stridx_to_dev_stridx[ps_bel] };
+		auto ds_pin{ phys_stridx_to_dev_stridx[ps_pin] };
+
+		uint64_t k{ ::Dev::combine_3_strIdx(ds_site, ds_bel, ds_pin) };
+		if (dev.site_bel_pin_wires.contains(k)) {
+			auto wire_idx{ dev.site_bel_pin_wires[k] };
+			auto node_idx{ dev.wire_to_node[wire_idx] };
+			stored_nodes[node_idx] = true;
+			OutputDebugStringA(std::format("block_bel_pin(site:{}, bel:{}, pin:{}) found\n", strList[ps_site].cStr(), strList[ps_bel].cStr(), strList[ps_pin].cStr()).c_str());
+		}
+		else {
+			// OutputDebugStringA(std::format("block_bel_pin(site:{}, bel:{}, pin:{}) not found\n", strList[ps_site].cStr(), strList[ps_bel].cStr(), strList[ps_pin].cStr()).c_str());
+		}
+	}
+
+	DECLSPEC_NOINLINE void block_site_pip(::PhysicalNetlist::PhysNetlist::PhysSitePIP::Reader sitePip) {
+		auto ps_site{ sitePip.getSite() };
+		auto ps_bel{ sitePip.getBel() };
+		auto ps_pin{ sitePip.getPin() };
+
+		auto ds_site{ phys_stridx_to_dev_stridx[ps_site] };
+		auto ds_bel{ phys_stridx_to_dev_stridx[ps_bel] };
+		auto ds_pin{ phys_stridx_to_dev_stridx[ps_pin] };
+
+		uint64_t k{ ::Dev::combine_3_strIdx(ds_site, ds_bel, ds_pin) };
+		if (dev.site_bel_pin_wires.contains(k)) {
+			auto wire_idx{ dev.site_bel_pin_wires[k] };
+			auto node_idx{ dev.wire_to_node[wire_idx] };
+			stored_nodes[node_idx] = true;
+			OutputDebugStringA(std::format("block_site_pip(site:{}, bel:{}, pin:{}) found\n", strList[ps_site].cStr(), strList[ps_bel].cStr(), strList[ps_pin].cStr()).c_str());
+		}
+		else {
+			// OutputDebugStringA(std::format("block_site_pip(site:{}, bel:{}, pin:{}) not found\n", strList[ps_site].cStr(), strList[ps_bel].cStr(), strList[ps_pin].cStr()).c_str());
+		}
+	}
+
 	DECLSPEC_NOINLINE void block_source_resource(PhysicalNetlist::PhysNetlist::RouteBranch::Reader branch) {
 		auto rs{ branch.getRouteSegment() };
 		switch (rs.which()) {
 		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::BEL_PIN: {
 			auto belPin{ rs.getBelPin() };
+			block_bel_pin(belPin);
 			break;
 		}
 		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::SITE_PIN: {
@@ -326,6 +369,7 @@ public:
 		}
 		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::SITE_P_I_P: {
 			auto sitePip{ rs.getSitePIP() };
+			block_site_pip(sitePip);
 			break;
 		}
 		default:
