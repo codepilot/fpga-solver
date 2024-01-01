@@ -162,6 +162,7 @@ public:
 	}
 
 	uint32_t fully_routed{};
+	uint32_t failed_route{};
 	std::vector<bool> stored_nodes{};
 
 	DECLSPEC_NOINLINE void store_route(branch_builder branch, branch_reader stub, route_options &ro, uint32_t route_index) {
@@ -212,7 +213,7 @@ public:
 		std::unordered_set<uint32_t> used_wires{};
 		auto stub_node_idx{ dev.wire_to_node[stub_wire_idx] };
 
-		for (uint32_t attempts{}; attempts < 1000; attempts++) {
+		for (uint32_t attempts{}; attempts < 100000; attempts++) {
 			auto top{ ro.q5.top() };
 			auto top_info{ ro.storage[top] };
 
@@ -276,7 +277,16 @@ public:
 				// OutputDebugStringA("\n");
 			}
 		}
-		// OutputDebugStringA(std::format("count:{}, topID:{}, total_cost:{} fail\n", ro.q5.size(), ro.q5.top(), ro.storage[ro.q5.top()].get_total_cost()).c_str());
+
+		failed_route++;
+		OutputDebugStringA(std::format("fully_routed: {}, failed_route: {}, success_rate: {}, count:{}, past_cost:{}, future_cost:{} fail\n",
+			fully_routed,
+			failed_route,
+			static_cast<double_t>(fully_routed * 100ui32) / static_cast<double_t>(fully_routed + failed_route),
+			ro.q5.size(),
+			ro.storage[ro.q5.top()].get_past_cost(),
+			ro.storage[ro.q5.top()].get_future_cost()).c_str());
+
 		// OutputDebugStringA("\n\n");
 		return false;
 	}
