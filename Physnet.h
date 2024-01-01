@@ -341,6 +341,8 @@ public:
 			block_source_resource(src_branch);
 		}
 		for (auto&& stub_branch : physNet.getStubs()) {
+			block_source_resource(stub_branch);
+#if 0
 			if (!stub_branch.getRouteSegment().isSitePin()) {
 //				OutputDebugStringA(std::format("not stub site pin {}\n", strList[physNet.getName()].cStr()).c_str());
 				continue;
@@ -357,6 +359,7 @@ public:
 				auto stub_node_idx{ dev.wire_to_node[stub_wire_idx.value()] };
 				stored_nodes[stub_node_idx] = true;
 			}
+#endif
 		}
 
 
