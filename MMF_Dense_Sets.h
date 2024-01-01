@@ -80,25 +80,31 @@ public:
         return header + body;
     }
 
-    static void make(std::wstring dst, std::vector<std::vector<T>> &src) noexcept {
-        auto file_size{ calc_file_size(src) };
-        OutputDebugStringA(std::format("file_size: {}\n", file_size).c_str());
-        MemoryMappedFile mmf{ dst, file_size };
-        auto count{ mmf.get_span<uint32_t>(0, 2ui64) };
-        OutputDebugStringA(std::format("count.data: 0x{:x}, count.size: {}\n", reinterpret_cast<uintptr_t>(count.data()), count.size()).c_str());
-        
-        count[0] = src.size();
-        count[1] = calc_body_count(src);
-        auto header{ mmf.get_span<uint32_t>(sizeof(uint64_t), src.size() * 2ui64)};
-        auto body{ mmf.get_span<T>(calc_header_size(src), calc_body_count(src) ) };
-        size_t item_offset{};
-        size_t item_index{};
-        for (auto&& n : src) {
-            header[item_index] = n.size();
-            header[item_index + 1ui64] = item_offset;
-            std::copy(n.begin(), n.end(), body.begin() + item_offset);
-            item_index += 2ui64;
-            item_offset += n.size();
+    static void make(std::wstring dst, std::vector<std::vector<T>>& src) noexcept {
+        {
+            auto file_size{ calc_file_size(src) };
+            OutputDebugStringA(std::format("file_size: {}\n", file_size).c_str());
+            MemoryMappedFile mmf{ dst, file_size };
+            auto count{ mmf.get_span<uint32_t>(0, 2ui64) };
+            OutputDebugStringA(std::format("count.data: 0x{:x}, count.size: {}\n", reinterpret_cast<uintptr_t>(count.data()), count.size()).c_str());
+
+            count[0] = src.size();
+            count[1] = calc_body_count(src);
+            auto header{ mmf.get_span<uint32_t>(sizeof(uint64_t), src.size() * 2ui64) };
+            auto body{ mmf.get_span<T>(calc_header_size(src), calc_body_count(src)) };
+            size_t item_offset{};
+            size_t item_index{};
+            for (auto&& n : src) {
+                header[item_index] = n.size();
+                header[item_index + 1ui64] = item_offset;
+                std::copy(n.begin(), n.end(), body.begin() + item_offset);
+                item_index += 2ui64;
+                item_offset += n.size();
+            }
+        }
+        {
+            MMF_Dense_Sets<T> mds{ dst };
+            mds.test(src);
         }
     }
 };

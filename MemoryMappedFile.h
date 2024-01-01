@@ -5,6 +5,30 @@ public:
   using api_MapViewOfFile3 = decltype(MapViewOfFile3)*;
   using api_CreateFileMapping2 = decltype(CreateFileMapping2)*;
 
+  __forceinline void zero() {
+#if 0
+      memset(fp, 0, fsize);
+#else
+      FILE_ZERO_DATA_INFORMATION InBuffer{ .FileOffset{}, .BeyondFinalZero{.QuadPart{ static_cast<LONGLONG>( fsize ) }} };
+      DWORD lpBytesReturned{};
+      auto success{ DeviceIoControl(
+          fh,                         // handle to a file
+          FSCTL_SET_ZERO_DATA,                         // dwIoControlCode
+          (PFILE_ZERO_DATA_INFORMATION)&InBuffer,     // input buffer
+          (DWORD)sizeof(InBuffer),                    // size of input buffer
+          NULL,                                     // lpOutBuffer
+          0,                                        // nOutBufferSize
+          (LPDWORD)&lpBytesReturned,                // number of bytes returned
+          (LPOVERLAPPED)nullptr               // OVERLAPPED structure
+      ) };
+
+      if (!success) {
+          DebugBreak();
+      }
+
+#endif
+  }
+
   static inline HMODULE getDllHandle(std::wstring dllName) {
     HMODULE ret{ nullptr };
     GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, dllName.c_str(), &ret);
