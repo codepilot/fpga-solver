@@ -165,6 +165,14 @@ public:
 	uint32_t failed_route{};
 	std::vector<bool> stored_nodes{};
 
+	DECLSPEC_NOINLINE void display_route_status() {
+		OutputDebugStringA(std::format("fully_routed: {}, failed_route: {}, success_rate: {}\n",
+			fully_routed,
+			failed_route,
+			static_cast<double_t>(fully_routed * 100ui32) / static_cast<double_t>(fully_routed + failed_route)).c_str());
+
+	}
+
 	DECLSPEC_NOINLINE void store_route(branch_builder branch, branch_reader stub, route_options &ro, uint32_t route_index) {
 		std::vector<uint32_t> route_ids{};
 		route_ids.reserve(ro.storage[route_index].get_past_cost());
@@ -203,6 +211,7 @@ public:
 
 		current_branches.setWithCaveats(0, stub);
 		fully_routed++;
+		if (!(fully_routed % 1000ui32)) display_route_status();
 		// OutputDebugStringA(std::format("fully_routed: {}, route_ids.size: {}\n", fully_routed, route_ids.size()).c_str());
 
 	}
@@ -213,7 +222,16 @@ public:
 		std::unordered_set<uint32_t> used_wires{};
 		auto stub_node_idx{ dev.wire_to_node[stub_wire_idx] };
 
-		for (uint32_t attempts{}; attempts < 100000; attempts++) {
+		for (uint32_t attempts{}; attempts < UINT32_MAX; attempts++) {
+			if (attempts > 0 && !(attempts % 1000000)) OutputDebugStringA(std::format("attempts: {}, storage: {}, q: {}\n", attempts, ro.storage.size(), ro.q5.size()).c_str());
+			if (!ro.q5.size()) {
+				OutputDebugStringA("Empty\n");
+				break;
+			}
+			if (ro.storage.size() >= UINT32_MAX) {
+				OutputDebugStringA("Full\n");
+				break;
+			}
 			auto top{ ro.q5.top() };
 			auto top_info{ ro.storage[top] };
 
@@ -279,13 +297,21 @@ public:
 		}
 
 		failed_route++;
-		OutputDebugStringA(std::format("fully_routed: {}, failed_route: {}, success_rate: {}, count:{}, past_cost:{}, future_cost:{} fail\n",
-			fully_routed,
-			failed_route,
-			static_cast<double_t>(fully_routed * 100ui32) / static_cast<double_t>(fully_routed + failed_route),
-			ro.q5.size(),
-			ro.storage[ro.q5.top()].get_past_cost(),
-			ro.storage[ro.q5.top()].get_future_cost()).c_str());
+		if (ro.q5.empty()) {
+			OutputDebugStringA(std::format("fully_routed: {}, failed_route: {}, success_rate: {} empty\n",
+				fully_routed,
+				failed_route,
+				static_cast<double_t>(fully_routed * 100ui32) / static_cast<double_t>(fully_routed + failed_route)).c_str());
+		}
+		else {
+			OutputDebugStringA(std::format("fully_routed: {}, failed_route: {}, success_rate: {}, count:{}, past_cost:{}, future_cost:{} fail\n",
+				fully_routed,
+				failed_route,
+				static_cast<double_t>(fully_routed * 100ui32) / static_cast<double_t>(fully_routed + failed_route),
+				ro.q5.size(),
+				ro.storage[ro.q5.top()].get_past_cost(),
+				ro.storage[ro.q5.top()].get_future_cost()).c_str());
+		}
 
 		// OutputDebugStringA("\n\n");
 		return false;

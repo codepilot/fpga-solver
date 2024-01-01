@@ -17,6 +17,10 @@ public:
         return count[0];
     }
 
+    size_t get_offset(size_t b) {
+        size_t offset{ header[b * 2ui64 + 1ui64] };
+        return offset;
+    }
     std::span<T> operator[](size_t b) {
         size_t count{ header[b * 2ui64] };
         size_t offset{ header[b * 2ui64 + 1ui64] };

@@ -83,6 +83,17 @@ target_link_libraries(show_phys_nets PRIVATE zlibstatic)
 target_link_libraries(show_phys_nets PRIVATE Kernel32.lib)
 target_link_libraries(show_phys_nets PRIVATE WindowsApp.lib)
 
+add_executable(make_pips make_pips.cpp)
+target_include_directories(make_pips PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" ${PROJECT_BINARY_DIR}/interchange)
+target_include_directories(make_pips PRIVATE ${ZLIB_INCLUDE_DIR})
+target_include_directories(make_pips PUBLIC capnproto/c++/src)
+target_compile_definitions(make_pips PRIVATE NOMINMAX)
+target_compile_features(make_pips PUBLIC cxx_std_23)
+target_compile_options(make_pips PRIVATE $<$<BOOL:${MSVC}>:/arch:AVX2 /Zc:__cplusplus /MP /GR->)
+target_link_libraries(make_pips PRIVATE capnp)
+target_link_libraries(make_pips PRIVATE zlibstatic)
+target_link_libraries(make_pips PRIVATE Kernel32.lib)
+target_link_libraries(make_pips PRIVATE WindowsApp.lib)
 
 file(GLOB_RECURSE GLSL_SOURCE_FILES
     "shaders/*.frag"
