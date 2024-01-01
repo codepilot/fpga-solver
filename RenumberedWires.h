@@ -2,8 +2,17 @@
 
 class RenumberedWires {
 public:
-    MMF_Dense_Sets_u64 alt_wires{ L"wires2.bin" };
-    MMF_Dense_Sets_u32 alt_nodes{ L"nodes2.bin" };
+    MMF_Dense_Sets_u64 alt_wires{ L"wires2.bin" }; //tested
+    MMF_Dense_Sets_u32 alt_nodes{ L"nodes2.bin" }; //tested
+    MemoryMappedFile wire_to_node_mmf{ L"wire_to_node2.bin" }; //tested
+    std::span<uint32_t> alt_wire_to_node{ wire_to_node_mmf.get_span<uint32_t>() }; //tested
+
+    MMF_Dense_Sets_u32 alt_wire_to_pips{ L"wire_to_pips2.bin" };
+    MMF_Dense_Sets_u32 alt_node_to_pips{ L"node_to_pips2.bin" };
+
+    MemoryMappedFile pips_mmf{ L"pips2.bin" };
+    std::span<uint64_t> alt_pips{ pips_mmf.get_span<uint64_t>() };
+
 
     DECLSPEC_NOINLINE uint32_t find_wire(uint32_t tile_strIdx, uint32_t wire_strIdx) {
         ULARGE_INTEGER key{ .u{.LowPart{wire_strIdx}, .HighPart{tile_strIdx}} };
@@ -17,7 +26,7 @@ public:
                 return offset;
             }
         }
-        DebugBreak();
+        // DebugBreak();
         return UINT32_MAX;
     }
 
@@ -92,6 +101,9 @@ public:
                 auto wire_idx{ node_wires[node_wire_idx] };
                 auto wire{ wires[wire_idx] };
                 auto alt_wire_offset{ alt_node[node_wire_idx] };
+                if (alt_wire_to_node[alt_wire_offset] != nodeIdx) {
+                    DebugBreak();
+                }
 
                 ULARGE_INTEGER wire_found{ .QuadPart{alt_wires.body[alt_wire_offset]} };
                 auto wire_found_wire_str{ wire_found.LowPart };

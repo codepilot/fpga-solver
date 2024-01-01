@@ -30,48 +30,133 @@
 
 #include "RenumberedWires.h"
 
-DECLSPEC_NOINLINE std::vector<std::vector<uint32_t>> make_vv_wire_idx_pip_wire_idx(DeviceResources::Device::Reader dev, std::unordered_map<uint64_t, uint32_t> tile_strIdx_wire_strIdx_to_wire_idx) {
+DECLSPEC_NOINLINE std::vector<std::vector<uint32_t>> make_pips(DeviceResources::Device::Reader dev) {
 
-    auto wires{ dev.getWires() };
+    RenumberedWires wr;
+
+    auto alt_wires{ wr.alt_wires.body };
     auto tiles{ dev.getTileList() };
     auto tileTypes{ dev.getTileTypeList() };
 
-    std::vector<std::vector<uint32_t>> ret{ static_cast<size_t>(wires.size()) };
+    std::vector<std::vector<uint32_t>> wire_to_pips{ static_cast<size_t>(alt_wires.size()) };
+    
+    MemoryMappedFile pips_mmf{ L"pips2.bin", 4294967296ui64 };
 
-    puts("start make_vv_wire_idx_pip_wire_idx\n");
+    auto pips_span{ pips_mmf.get_span<uint64_t>() };
 
-    for (auto&& tile : tiles) {
-        auto tile_strIdx{ tile.getName() };
-        auto tileType{ tileTypes[tile.getType()] };
-        auto tileType_wires{ tileType.getWires() };
-        for (auto&& pip : tileType.getPips()) {
-            if (pip.isPseudoCells()) continue;
+    // std::vector<std::vector<uint64_t>> pips{ 1ui64 };
 
-            auto wire0_strIdx{ tileType_wires[pip.getWire0()] };
-            auto wire1_strIdx{ tileType_wires[pip.getWire1()] };
-            ULARGE_INTEGER key0{ .u{.LowPart{wire0_strIdx}, .HighPart{tile_strIdx}} };
-            ULARGE_INTEGER key1{ .u{.LowPart{wire1_strIdx}, .HighPart{tile_strIdx}} };
-            auto wire0_idx{ tile_strIdx_wire_strIdx_to_wire_idx.at(key0.QuadPart) };
-            auto wire1_idx{ tile_strIdx_wire_strIdx_to_wire_idx.at(key1.QuadPart) };
-            if (pip.getDirectional()) {
-                //ret.insert({ wire0_idx, wire1_idx });
-                ret[wire0_idx].push_back(wire1_idx);
+    puts("start make_pips\n");
+
+    uint32_t pips_size{};
+    {
+        uint32_t pip_idx{};
+
+        for (auto&& tile : tiles) {
+            auto tile_strIdx{ tile.getName() };
+            auto tileType{ tileTypes[tile.getType()] };
+            auto tileType_wires{ tileType.getWires() };
+            for (auto&& pip : tileType.getPips()) {
+                if (pip.isPseudoCells()) continue;
+
+                auto wire0_strIdx{ tileType_wires[pip.getWire0()] };
+                auto wire1_strIdx{ tileType_wires[pip.getWire1()] };
+
+
+                // ULARGE_INTEGER key0{ .u{.LowPart{wire0_strIdx}, .HighPart{tile_strIdx}} };
+                // ULARGE_INTEGER key1{ .u{.LowPart{wire1_strIdx}, .HighPart{tile_strIdx}} };
+                // auto wire0_idx{ tile_strIdx_wire_strIdx_to_wire_idx.at(key0.QuadPart) };
+                // auto wire1_idx{ tile_strIdx_wire_strIdx_to_wire_idx.at(key1.QuadPart) };
+                auto wire0_idx{ wr.find_wire(tile_strIdx, wire0_strIdx) };
+                if (wire0_idx == UINT32_MAX) continue;
+
+                auto wire1_idx{ wr.find_wire(tile_strIdx, wire1_strIdx) };
+                if (wire1_idx == UINT32_MAX) continue;
+
+                // ULARGE_INTEGER pipInfo{ .u{.LowPart{wire0_strIdx}, .HighPart{tile_strIdx}} };
+
+                if (pip_idx && !(pip_idx % 1000000)) {
+                    std::print("pip_idx: {}M\n", pip_idx / 1000000);
+                }
+
+                uint32_t pip_idx_forward{ pip_idx | 0x80000000ui32 };
+                uint32_t pip_idx_reverse{ pip_idx };
+
+                uint64_t pip_info{
+                    (static_cast<uint64_t>(wire0_idx) & 0xfffffffui64) |
+                    ((static_cast<uint64_t>(wire1_idx) & 0xfffffffui64) << 32ui64) |
+                    (pip.getDirectional() << 63ui64) //is directional
+                };
+
+                pips_span[pip_idx] = pip_info;
+                pip_idx++;
+
+                if (pip.getDirectional()) {
+                    wire_to_pips[wire0_idx].push_back(pip_idx_forward);
+                }
+                else {
+                    wire_to_pips[wire0_idx].push_back(pip_idx_forward);
+                    wire_to_pips[wire1_idx].push_back(pip_idx_reverse);
+                }
             }
-            else {
-                //                    ret.insert({ wire0_idx, wire1_idx });
-                //                    ret.insert({ wire1_idx, wire0_idx });
-                ret[wire0_idx].push_back(wire1_idx);
-                // ret[wire1_idx].push_back(wire0_idx);
-            }
+        }
+        pips_size = static_cast<uint64_t>(pip_idx) * sizeof(uint64_t);
+    }
+
+    auto pips_mmf_shrunk{ pips_mmf.shrink(pips_size) };
+
+    puts("finish make_pips\n");
+
+    MMF_Dense_Sets_u32::make(L"wire_to_pips2.bin", wire_to_pips);
+    // MMF_Dense_Sets_u64::make(L"pips2.bin", pips);
+    auto alt_wire_to_pips{ MMF_Dense_Sets_u32{L"wire_to_pips2.bin"} };
+    // auto alt_pips{ MMF_Dense_Sets_u64{L"pips2.bin"} };
+    alt_wire_to_pips.test(wire_to_pips);
+    // alt_pips.test(pips);
+
+    
+    MemoryMappedFile wire_to_node_mmf{ L"wire_to_node2.bin", wr.alt_wires.body.size() * sizeof(uint32_t)};
+    auto wire_to_node_span{ wire_to_node_mmf.get_span<uint32_t>() };
+    for (uint32_t node_idx{}; node_idx < wr.alt_nodes.size(); node_idx++) {
+        if (node_idx && !(node_idx % 1000000)) {
+            std::print("node_idx: {}M\n", node_idx / 1000000);
+        }
+        for (auto wire_idx : wr.alt_nodes[node_idx]) {
+            wire_to_node_span[wire_idx] = node_idx;
         }
     }
 
-    puts("finish make_vv_wire_idx_pip_wire_idx\n");
-    MMF_Dense_Sets_u32::make(L"vv_wire_idx_pip_wire_idx.bin", ret);
-    auto alt{ MMF_Dense_Sets_u32{L"vv_wire_idx_pip_wire_idx.bin"} };
-    alt.test(ret);
+    auto pips_shrunk{ pips_mmf_shrunk.get_span<uint64_t>() };
 
-    return ret;
+    OutputDebugStringA("start node_to_pips2\n");
+    std::vector<std::vector<uint32_t>> node_to_pips{ wr.alt_nodes.size() };
+
+    for (uint32_t pip_idx{}; pip_idx < pips_shrunk.size(); pip_idx++) {
+        if (pip_idx && !(pip_idx % 1000000)) {
+            std::print("pip_idx: {}M\n", pip_idx / 1000000);
+        }
+
+        auto pip_info{ pips_shrunk[pip_idx] };
+        auto wire0{ _bextr_u64(pip_info, 0, 28) };
+        auto wire1{ _bextr_u64(pip_info, 32, 28) };
+        bool directional{ static_cast<bool>( _bextr_u64(pip_info, 63, 1)) };
+
+        auto node0_idx{ wire_to_node_span[wire0] };
+        auto node1_idx{ wire_to_node_span[wire1] };
+
+        node_to_pips[node0_idx].emplace_back(pip_idx);
+        if (!directional) {
+            node_to_pips[node1_idx].emplace_back(pip_idx);
+        }
+    }
+
+    OutputDebugStringA("finish node_to_pips2\n");
+
+    MMF_Dense_Sets_u32::make(L"node_to_pips2.bin", node_to_pips);
+    auto alt_node_to_pips{ MMF_Dense_Sets_u32{L"node_to_pips2.bin"} };
+    alt_node_to_pips.test(node_to_pips);
+
+    return wire_to_pips;
 }
 
 DECLSPEC_NOINLINE auto get_tile_strIdx_wire_strIdx_to_wire_idx(DeviceResources::Device::Reader dev) {
@@ -209,10 +294,11 @@ DECLSPEC_NOINLINE void make_pips(std::wstring gzPath) {
 
     // auto tile_strIdx_wire_strIdx_to_wire_idx{ get_tile_strIdx_wire_strIdx_to_wire_idx(dev) };
 
+    // make_pips(dev);
+
     RenumberedWires wr;
     wr.test_nodes(dev);
     wr.test_wires(dev);
-    // make_vv_wire_idx_pip_wire_idx(dev, );
 }
 
 int main(int argc, char* argv[]) {
