@@ -149,7 +149,6 @@ public:
 	}
 
 	uint32_t fully_routed{};
-	std::unordered_set<uint32_t> stored_wires{};
 	std::vector<bool> stored_nodes{};
 
 	DECLSPEC_NOINLINE void store_route(branch_builder branch, branch_reader stub, route_options &ro, uint32_t route_index) {
@@ -167,9 +166,6 @@ public:
 			// OutputDebugStringA(std::format("current_route_index: {}, past_cost: {}\n", current_route_index, ro.storage[current_route_index].get_past_cost()).c_str());
 
 			//OutputDebugStringA("Wire match\n");
-
-			stored_wires.insert(ro.storage[current_route_index].get_wire0_idx());
-			stored_wires.insert(ro.storage[current_route_index].get_wire1_idx());
 
 			stored_nodes[dev.wire_to_node[ro.storage[current_route_index].get_wire0_idx()]] = true;
 			stored_nodes[dev.wire_to_node[ro.storage[current_route_index].get_wire1_idx()]] = true;
@@ -229,7 +225,6 @@ public:
 				auto wire_in{ v.LowPart };
 				auto wire_out{ v.HighPart };
 				if (used_wires.contains(wire_out)) continue;
-				if (stored_wires.contains(wire_out)) continue;
 
 				auto node_out{ dev.wire_to_node[wire_out] };
 
