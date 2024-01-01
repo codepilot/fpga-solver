@@ -6,10 +6,7 @@
            # of nets with no loads............ :        8884 :
            # of implicitly routed ports....... :         215 :
        # of routable nets..................... :      273506 :
-           # of unrouted nets................. :      144786 :
-           # of fully routed nets............. :      110333 :
-       # of nets with routing errors.......... :       18387 :
-           # of nets with some unrouted pins.. :       12193 :
-           # of nets with resource conflicts.. :        2665 :
-           # of nets with antennas/islands.... :       18387 :
+           # of unrouted nets................. :      145429 :
+           # of fully routed nets............. :      128077 :
+       # of nets with routing errors.......... :           0 :
    ------------------------------------------- : ----------- :

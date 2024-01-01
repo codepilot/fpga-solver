@@ -167,7 +167,7 @@ public:
 //                    ret.insert({ wire0_idx, wire1_idx });
 //                    ret.insert({ wire1_idx, wire0_idx });
                     ret[wire0_idx].push_back(wire1_idx);
-                    ret[wire1_idx].push_back(wire0_idx);
+                    // ret[wire1_idx].push_back(wire0_idx);
                 }
             }
         }
