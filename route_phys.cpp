@@ -12,15 +12,22 @@
 #include <string>
 #include <codecvt>
 #include <format>
+#include <vector>
+#ifdef _WIN32
 #include <print>
+#endif
 #include <algorithm>
 #include <unordered_map>
 
+#ifdef _WIN32
 #include "constexpr_intrinsics.h"
 #include "constexpr_siphash.h"
+#endif
 #include "Trivial_Span.h"
 
+#ifdef _WIN32
 #include <Windows.h>
+#endif
 #include "MemoryMappedFile.h"
 #include <numeric>
 #include <algorithm>
@@ -31,7 +38,9 @@
 
 #include "RenumberedWires.h"
 
+#ifdef _WIN32
 #include <safeint.h>
+#endif
 #include "InterchangeGZ.h"
 
 #include "Route_Phys.h"

@@ -1,5 +1,9 @@
 #pragma once
 
+#include "DeviceResources.capnp.h"
+#include "LogicalNetlist.capnp.h"
+#include "PhysicalNetlist.capnp.h"
+
 class Route_Phys {
 	using branch = ::PhysicalNetlist::PhysNetlist::RouteBranch;
 	using branch_reader = ::PhysicalNetlist::PhysNetlist::RouteBranch::Reader;
@@ -9,8 +13,8 @@ class Route_Phys {
 	using branch_list_reader = branch_list::Reader;
 
 public:
-	DevGZ dev{ L"_deps/device-file-src/xcvu3p.device" };
-	PhysGZ phys{ L"_deps/benchmark-files-src/boom_soc_unrouted.phys" };
+	DevGZ dev{ "_deps/device-file-src/xcvu3p.device" };
+	PhysGZ phys{ "_deps/benchmark-files-src/boom_soc_unrouted.phys" };
 	DeviceResources::Device::Reader devRoot{ dev.root };
 	PhysicalNetlist::PhysNetlist::Reader physRoot{ phys.root };
 	::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader devStrs{ devRoot.getStrList() };
@@ -50,7 +54,7 @@ public:
 			auto phyNetReader{ readerPhysNets[n] };
 			auto phyNetBuilder{ listPhysNets[n] };
 			phyNetBuilder.setName(phyNetReader.getName());
-			if (phyNetReader.getSources().size() == 1ui32 && phyNetReader.getStubs().size() == 1ui32) {
+			if (phyNetReader.getSources().size() == 1u && phyNetReader.getStubs().size() == 1u) {
 				phyNetBuilder.setSources(phyNetReader.getSources());
 				// assign_stubs(phyNetBuilder.getSources(), phyNetReader.getStubs());
 				if (!assign_stub(phyNetReader.getName(), phyNetBuilder.getSources()[0], phyNetReader.getStubs()[0])) {
