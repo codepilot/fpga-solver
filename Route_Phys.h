@@ -127,7 +127,6 @@ public:
 	}
 
 	bool route_stub(branch_builder branch, branch_reader stub, uint32_t source_wire_idx, uint32_t stub_wire_idx, std::vector<uint32_t> stub_node_tiles) {
-		return false;
 		rw.clear_routes();
 
 		auto stub_node_idx{ rw.alt_wire_to_node[stub_wire_idx] };
