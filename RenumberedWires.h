@@ -25,7 +25,7 @@ public:
     std::span<::Route_Info> alt_route_storage;
     Route_Info_Comparison(std::span<::Route_Info> alt_route_storage) : alt_route_storage{ alt_route_storage } {}
     bool operator() (uint32_t left, uint32_t right) {
-        return alt_route_storage[left].get_total_cost() > alt_route_storage[right].get_total_cost();
+        return alt_route_storage[left & 0x7fffffff].get_total_cost() > alt_route_storage[right & 0x7fffffff].get_total_cost();
     }
 };
 
@@ -55,9 +55,9 @@ public:
     RoutePriorityQueue alt_route_options{ ric };
 
     inline void append(uint32_t pip_idx, uint32_t previous, uint16_t past_cost, uint16_t future_cost) {
-        alt_route_storage[pip_idx].previous = previous;
-        alt_route_storage[pip_idx].past_cost = past_cost;
-        alt_route_storage[pip_idx].future_cost = future_cost;
+        alt_route_storage[pip_idx & 0x7fffffffu].previous = previous;
+        alt_route_storage[pip_idx & 0x7fffffffu].past_cost = past_cost;
+        alt_route_storage[pip_idx & 0x7fffffffu].future_cost = future_cost;
 
         alt_route_options.emplace(pip_idx);
     }
@@ -72,47 +72,47 @@ public:
     }
 
     inline uint32_t get_pip_wire0(uint32_t pip_idx) {
-        auto pip_info{ alt_pips[pip_idx] };
+        auto pip_info{ alt_pips[pip_idx & 0x7fffffffu] };
         auto wire0{ _bextr_u64(pip_info, 0, 28) };
         return static_cast<uint32_t>(wire0);
     }
 
     inline uint32_t get_pip_wire1(uint32_t pip_idx) {
-        auto pip_info{ alt_pips[pip_idx] };
+        auto pip_info{ alt_pips[pip_idx & 0x7fffffffu] };
         auto wire1{ _bextr_u64(pip_info, 32, 28) };
         return static_cast<uint32_t>(wire1);
     }
 
     inline bool get_pip_directional(uint32_t pip_idx) {
-        auto pip_info{ alt_pips[pip_idx] };
+        auto pip_info{ alt_pips[pip_idx & 0x7fffffffu] };
         bool directional{ static_cast<bool>(_bextr_u64(pip_info, 63, 1)) };
         return directional;
     }
 
     inline uint32_t get_pip_node0(uint32_t pip_idx) {
-        auto wire0{ get_pip_wire0(pip_idx) };
+        auto wire0{ get_pip_wire0(pip_idx & 0x7fffffffu) };
         return alt_wire_to_node[wire0];
     }
 
     inline uint32_t get_pip_node1(uint32_t pip_idx) {
-        auto wire1{ get_pip_wire1(pip_idx) };
+        auto wire1{ get_pip_wire1(pip_idx & 0x7fffffffu) };
         return alt_wire_to_node[wire1];
     }
 
     inline uint32_t get_pip_wire0_str(uint32_t pip_idx) {
-        auto wire0{ get_pip_wire0(pip_idx) };
+        auto wire0{ get_pip_wire0(pip_idx & 0x7fffffffu) };
         auto wire0_info{ alt_wires.body[wire0] };
         return static_cast<uint32_t>(_bextr_u64(wire0_info, 0, 32));
     }
 
     inline uint32_t get_pip_wire1_str(uint32_t pip_idx) {
-        auto wire1{ get_pip_wire1(pip_idx) };
+        auto wire1{ get_pip_wire1(pip_idx & 0x7fffffffu) };
         auto wire1_info{ alt_wires.body[wire1] };
         return static_cast<uint32_t>(_bextr_u64(wire1_info, 0, 32));
     }
 
     inline uint32_t get_pip_tile0_str(uint32_t pip_idx) {
-        auto wire0{ get_pip_wire0(pip_idx) };
+        auto wire0{ get_pip_wire0(pip_idx & 0x7fffffffu) };
         auto wire0_info{ alt_wires.body[wire0] };
         return static_cast<uint32_t>(_bextr_u64(wire0_info, 32, 32));
     }
@@ -632,9 +632,12 @@ public:
             auto node0_idx{ alt_wire_to_node[wire0] };
             auto node1_idx{ alt_wire_to_node[wire1] };
 
-            node_to_pips[node0_idx].emplace_back(pip_idx);
+            uint32_t pip_idx_forward{ pip_idx | 0x80000000u };
+            uint32_t pip_idx_reverse{ pip_idx };
+
+            node_to_pips[node0_idx].emplace_back(pip_idx_forward);
             if (!directional) {
-                node_to_pips[node1_idx].emplace_back(pip_idx);
+                node_to_pips[node1_idx].emplace_back(pip_idx_reverse);
             }
         }
 

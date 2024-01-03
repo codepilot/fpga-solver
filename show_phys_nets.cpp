@@ -34,19 +34,38 @@
 #include <zlib/zlib.h>
 
 void debug_belpin(uint32_t indent, PhysicalNetlist::PhysNetlist::Reader physRoot, ::PhysicalNetlist::PhysNetlist::PhysBelPin::Reader belpin) {
-	puts(std::format("{:>{}}BelPin", "", indent).c_str());
+	puts(std::format("{:>{}}BelPin Site:{} Bel:{} Pin:{}",
+		"", indent,
+		physRoot.getStrList()[belpin.getSite()].cStr(),
+		physRoot.getStrList()[belpin.getBel()].cStr(),
+		physRoot.getStrList()[belpin.getPin()].cStr()
+	).c_str());
 }
 
 void debug_sitepin(uint32_t indent, PhysicalNetlist::PhysNetlist::Reader physRoot, ::PhysicalNetlist::PhysNetlist::PhysSitePin::Reader sitePin) {
-	puts(std::format("{:>{}}SitePin", "", indent).c_str());
+	puts(std::format("{:>{}}SitePin Site:{} Pin:{}",
+		"", indent,
+		physRoot.getStrList()[sitePin.getSite()].cStr(),
+		physRoot.getStrList()[sitePin.getPin()].cStr()
+	).c_str());
 }
 
 void debug_pip(uint32_t indent, PhysicalNetlist::PhysNetlist::Reader physRoot, ::PhysicalNetlist::PhysNetlist::PhysPIP::Reader pip) {
-	puts(std::format("{:>{}}PIP", "", indent).c_str());
+	puts(std::format("{:>{}}PIP tile:{} wire0:{} wire1:{} forward:{}", "", indent,
+		physRoot.getStrList()[pip.getTile()].cStr(),
+		physRoot.getStrList()[pip.getWire0()].cStr(),
+		physRoot.getStrList()[pip.getWire1()].cStr(),
+		pip.getForward()
+	).c_str());
 }
 
 void debug_sitepip(uint32_t indent, PhysicalNetlist::PhysNetlist::Reader physRoot, ::PhysicalNetlist::PhysNetlist::PhysSitePIP::Reader sitePip) {
-	puts(std::format("{:>{}}SitePIP", "", indent).c_str());
+	puts(std::format("{:>{}}SitePIP Site:{} Bel:{} Pin:{}",
+		"", indent,
+		physRoot.getStrList()[sitePip.getSite()].cStr(),
+		physRoot.getStrList()[sitePip.getBel()].cStr(),
+		physRoot.getStrList()[sitePip.getPin()].cStr()
+	).c_str());
 }
 
 void debug_branch(uint32_t indent, PhysicalNetlist::PhysNetlist::Reader physRoot, ::PhysicalNetlist::PhysNetlist::RouteBranch::Reader branch) {
@@ -67,57 +86,76 @@ void debug_branches(uint32_t indent, PhysicalNetlist::PhysNetlist::Reader physRo
 	}
 }
 
-void debug_net(PhysicalNetlist::PhysNetlist::Reader physRoot) {
-	auto strList{ physRoot.getStrList() };
+void debug_net(PhysicalNetlist::PhysNetlist::Reader physRootUnrouted, PhysicalNetlist::PhysNetlist::Reader physRootRouted) {
+	auto strListUnrouted{ physRootUnrouted.getStrList() };
+	auto strListRouted{ physRootRouted.getStrList() };
 
-	std::string_view search_name{ "ram_reg_bram_0_i_51__4_n_0" };
+	auto physNetsUnrouted{ physRootUnrouted.getPhysNets() };
+	auto physNetsRouted{ physRootRouted.getPhysNets() };
+	auto physNetsUnrouted_size{ physNetsUnrouted.size() };
+	uint32_t no_load{};
 
-	for (auto&& net : physRoot.getPhysNets()) {
-		std::string_view net_name{ strList[net.getName()].cStr() };
-		if (search_name != net_name) continue;
-		puts(std::format("{}", net_name).c_str());
-		if (net.getSources().size()) {
+	// std::string_view search_name{ "ram_reg_bram_0_i_51__4_n_0" };
+
+	for (uint32_t netIdx{}; netIdx != physNetsUnrouted_size; netIdx++) {
+		auto netUnrouted{ physNetsUnrouted[netIdx] };
+		auto netRouted{ physNetsRouted[netIdx] };
+		auto sourcesUnrouted{ netUnrouted.getSources() };
+		auto sourcesRouted{ netRouted.getSources() };
+		auto stubsUnrouted{ netUnrouted.getStubs() };
+		auto stubsRouted{ netRouted.getStubs() };
+		if (sourcesUnrouted.size() && !stubsUnrouted.size()) {
+			no_load++;
+			continue;
+		}
+
+		if (stubsRouted.size()) continue;
+
+		std::string_view net_name{ strListRouted[netRouted.getName()].cStr() };
+		// if (search_name != net_name) continue;
+
+		puts(std::format("sources:{}, stubs:{}, name: {}", sourcesUnrouted.size(), stubsUnrouted.size(), net_name).c_str());
+
+		if (sourcesUnrouted.size()) {
 			puts(std::format(" sources:").c_str());
-			debug_branches(2, physRoot, net.getSources());
+			debug_branches(2, physRootUnrouted, sourcesUnrouted);
 		}
 
-		if (net.getStubs().size()) {
+		if (stubsUnrouted.size()) {
 			puts(std::format(" stubs:").c_str());
-			debug_branches(2, physRoot, net.getStubs());
+			debug_branches(2, physRootUnrouted, stubsUnrouted);
 		}
+
+		puts(std::format("sources:{}, stubs:{}, name: {}", sourcesRouted.size(), stubsRouted.size(), net_name).c_str());
+
+		if (sourcesRouted.size()) {
+			puts(std::format(" sources:").c_str());
+			debug_branches(2, physRootRouted, sourcesRouted);
+		}
+
+		if (stubsRouted.size()) {
+			puts(std::format(" stubs:").c_str());
+			debug_branches(2, physRootRouted, stubsRouted);
+		}
+
+
 	}
+	puts(std::format("no_load: {}", no_load).c_str());
 }
 
-void debug_phys(std::string gzPath) {
-	MemoryMappedFile mmf_phys_gz{ gzPath };
-	MemoryMappedFile mmf_phys{ gzPath + ".unzipped", 4294967296ull };
 
-	auto read_span{ mmf_phys_gz.get_span<Bytef>() };
-	auto write_span{ mmf_phys.get_span<Bytef>() };
-	z_stream strm{
-		.next_in{read_span.data()},
-		.avail_in{static_cast<uint32_t>(read_span.size())},
-		.next_out{write_span.data()},
-		.avail_out{UINT32_MAX},
-	};
+#include "InterchangeGZ.h"
 
-	auto init_result{ inflateInit2(&strm, 15 + 16) };
-	auto inflate_result{ inflate(&strm, Z_FINISH) };
-	auto end_result{ inflateEnd(&strm) };
-	puts(std::format("init_result: {}\ninflate_result: {}\nend_result: {}\n", init_result, inflate_result, end_result).c_str());
+void debug_phys(std::string gzPathUnrouted, std::string gzPathRouted) {
 
+	PhysGZ igzUnrouted{ gzPathUnrouted };
+	PhysGZ igzRouted{ gzPathRouted };
 
-	auto span_words{ mmf_phys.get_span<capnp::word>().subspan(0, static_cast<size_t>(strm.total_out) / sizeof(capnp::word)) };
-	kj::ArrayPtr<capnp::word> words{ span_words.data(), span_words.size() };
-	capnp::FlatArrayMessageReader famr{ words, {.traversalLimitInWords = UINT64_MAX, .nestingLimit = INT32_MAX} };
-	auto phys{ famr.getRoot<PhysicalNetlist::PhysNetlist>() };
-
-	debug_net(phys);
+	debug_net(igzUnrouted.root, igzRouted.root);
 
 }
 
 int main(int argc, char* argv[]) {
-	debug_phys("_deps/benchmark-files-src/boom_soc_unrouted.phys");
-	debug_phys("dst_written.phy.gz");
+	debug_phys("_deps/benchmark-files-src/boom_soc_unrouted.phys", "dst_written.phy.gz");
 	return 0;
 }

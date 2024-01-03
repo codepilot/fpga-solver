@@ -23,19 +23,22 @@ public:
 	std::vector<uint32_t> extra_dev_strIdx;
 	uint32_t fully_routed{};
 	uint32_t failed_route{};
-	std::vector<bool> stored_nodes{};
 
 	RenumberedWires rw;
+	std::vector<bool> stored_nodes;
 	::capnp::MallocMessageBuilder message{/* words */ };
 	PhysicalNetlist::PhysNetlist::Builder physBuilder{ message.initRoot<PhysicalNetlist::PhysNetlist>() };
 
 	std::vector<uint32_t> phys_stridx_to_dev_stridx;
+	std::unordered_map<uint32_t, uint32_t> dev_strIdx_to_phys_strIdx;
 	std::vector<uint32_t> dev_tile_strIndex_to_tile;
 
 	Route_Phys() :
 		phys_stridx_to_dev_stridx{ std::vector<uint32_t>( static_cast<size_t>(physStrs.size()), UINT32_MAX ) },
 		dev_tile_strIndex_to_tile{ std::vector<uint32_t>(static_cast<size_t>(devStrs.size()), UINT32_MAX) }
 	{
+		stored_nodes.resize(rw.alt_nodes.size());
+
 		puts(std::format("Route_Phys() start").c_str());
 
 		for (uint32_t tile_idx{}; tile_idx < tiles.size(); tile_idx++) {
@@ -53,8 +56,10 @@ public:
 			if (dev_strmap.contains(phys_str)) {
 				auto dev_strIdx{ dev_strmap.at(phys_str) };
 				phys_stridx_to_dev_stridx[phys_strIdx] = dev_strIdx;
+				dev_strIdx_to_phys_strIdx.insert({ dev_strIdx, phys_strIdx });
 			}
 		}
+
 		puts(std::format("Route_Phys() finish").c_str());
 	}
 
@@ -69,70 +74,110 @@ public:
 		auto branch_rs_which{ branch_rs.which() };
 		// OutputDebugStringA(std::format("{} branches({}) which {}\n", name.cStr(), branch_branches.size(), static_cast<uint16_t>(branch_rs_which)).c_str());
 		switch (branch_rs_which) {
-		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::BEL_PIN: {
-			// OutputDebugStringA("BEL_PIN\n");
-			if (branch_branches.size()) {
+			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::BEL_PIN: {
+				if (!branch_branches.size()) return std::nullopt;
 				for (auto&& subbranch : branch_branches) {
 					auto ret{ branch_site_pin(nameIdx, subbranch) };
 					if (ret.has_value()) return ret;
 				}
 				return std::nullopt;
 			}
-			else {
-				// OutputDebugStringA("BEL_PIN Empty\n");
-				return std::nullopt;
-			}
-			break;
-		}
-		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_PIN: {
-			// OutputDebugStringA("SITE_PIN\n");
-			if (branch_branches.size()) {
+			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_PIN: {
+				if (!branch_branches.size()) return branch;
 				for (auto&& subbranch : branch_branches) {
 					auto ret{ branch_site_pin(nameIdx, subbranch) };
 					if (ret.has_value()) return ret;
 				}
 				return std::nullopt;
 			}
-			else {
-				// OutputDebugStringA("BEL_PIN Empty\n");
-				return branch;
+			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::PIP: {
+				puts("PIP");
+				abort();
+				break;
 			}
-		}
-		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::PIP: {
-			puts("PIP");
-			abort();
-			break;
-		}
-		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_P_I_P: {
-			// OutputDebugStringA("SITE_P_I_P\n");
-			if (branch_branches.size()) {
+			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_P_I_P: {
+				if(!branch_branches.size()) return std::nullopt;
 				for (auto&& subbranch : branch_branches) {
 					auto ret{ branch_site_pin(nameIdx, subbranch) };
 					if (ret.has_value()) return ret;
 				}
 				return std::nullopt;
-			}
-			else {
-				// OutputDebugStringA("SITE_P_I_P Empty\n");
-				return std::nullopt;
-			}
 
-		}
-		default: {
-			puts("unreachable");
-			abort();
-		}
+			}
+			default: {
+				puts("unreachable");
+				abort();
+			}
 		}
 		return std::nullopt;
+	}
+
+	uint32_t get_phys_strIdx_from_dev_strIdx(uint32_t dev_strIdx) {
+		if (dev_strIdx_to_phys_strIdx.contains(dev_strIdx)) {
+			return dev_strIdx_to_phys_strIdx.at(dev_strIdx);
+		}
+		uint32_t ret{ static_cast<uint32_t>(physStrs.size() + extra_dev_strIdx.size()) };
+		extra_dev_strIdx.emplace_back(dev_strIdx);
+		phys_stridx_to_dev_stridx.emplace_back(dev_strIdx);
+		dev_strIdx_to_phys_strIdx.insert({ dev_strIdx, ret });
+		return ret;
+	}
+
+	void store_route(branch_builder branch, branch_reader stub, uint32_t route_index) {
+		std::vector<uint32_t> route_ids{};
+		route_ids.reserve(rw.alt_route_storage[route_index & 0x7fffffff].past_cost);
+		for (uint32_t current_route_index{ route_index }; current_route_index != UINT32_MAX; current_route_index = rw.alt_route_storage[current_route_index & 0x7fffffff].previous) {
+			route_ids.emplace_back(current_route_index);
+			// OutputDebugStringA(std::format("current_route_index: {}, past_cost: {}\n", current_route_index, ro.storage[current_route_index].get_past_cost()).c_str());
+		}
+		// OutputDebugStringA(std::format("route_ids.size: {}\n", route_ids.size()).c_str());
+
+		auto current_branches{ branch.initBranches(1) };
+		for (auto&& it{ route_ids.crbegin() }; it != route_ids.crend(); it++) {
+			auto current_route_index{ *it };
+			// OutputDebugStringA(std::format("current_route_index: {}, past_cost: {}\n", current_route_index, ro.storage[current_route_index].get_past_cost()).c_str());
+
+			//OutputDebugStringA("Wire match\n");
+			
+			stored_nodes[rw.get_pip_node0(current_route_index)] = true;
+			stored_nodes[rw.get_pip_node1(current_route_index)] = true;
+
+			
+			auto psi_tile{ get_phys_strIdx_from_dev_strIdx(rw.get_pip_tile0_str(current_route_index)) };
+			auto psi_wire0{ get_phys_strIdx_from_dev_strIdx(rw.get_pip_wire0_str(current_route_index)) };
+			auto psi_wire1{ get_phys_strIdx_from_dev_strIdx(rw.get_pip_wire1_str(current_route_index)) };
+			// return;
+			auto sub_rs{ current_branches[0].initRouteSegment() };
+			auto sub_pip{ sub_rs.initPip() };
+
+			sub_pip.setTile(psi_tile);
+			sub_pip.setWire0(psi_wire0);
+			sub_pip.setWire1(psi_wire1);
+			sub_pip.setForward(current_route_index >> 31);
+			sub_pip.setIsFixed(false);
+
+			current_branches = current_branches[0].initBranches(1);
+
+		}
+
+		current_branches.setWithCaveats(0, stub);
+		fully_routed++;
+		// if (!(fully_routed % 1000ui32)) display_route_status();
+		// OutputDebugStringA(std::format("fully_routed: {}, route_ids.size: {}\n", fully_routed, route_ids.size()).c_str());
+
 	}
 
 	bool route_stub(branch_builder branch, branch_reader stub, uint32_t source_wire_idx, uint32_t stub_wire_idx, std::vector<uint32_t> stub_node_tiles) {
 		rw.clear_routes();
 
+		auto source_node_idx{ rw.alt_wire_to_node[source_wire_idx] };
 		auto stub_node_idx{ rw.alt_wire_to_node[stub_wire_idx] };
-		auto stub_node_pips{ rw.alt_node_to_pips[stub_node_idx] };
-		for (auto pip_idx : stub_node_pips) {
-			rw.append(pip_idx, UINT32_MAX, 0, 0xffff);
+
+		puts(std::format("s").c_str());
+
+		auto source_node_pips{ rw.alt_node_to_pips[source_node_idx] };
+		for (auto pip_idx : source_node_pips) {
+			rw.append(pip_idx, UINT32_MAX, 0, 0);
 		}
 		const uint32_t chunk_size{ 1000 };
 		for (uint32_t attempts{}; attempts <= chunk_size; attempts++) {
@@ -143,7 +188,7 @@ public:
 			}
 			uint32_t top{ rw.alt_route_options.top() };
 			rw.alt_route_options.pop();
-			auto top_info{ rw.alt_route_storage[top] };
+			auto top_info{ rw.alt_route_storage[top & 0x7fffffffu] };
 			auto wire0_idx{ rw.get_pip_wire0(top) };
 			auto wire1_idx{ rw.get_pip_wire1(top) };
 
@@ -171,48 +216,35 @@ public:
 
 
 			for (auto&& source_pip : current_pips) {
-				if (rw.alt_route_storage[source_pip].is_used()) continue;
+				if (rw.alt_route_storage[source_pip & 0x7fffffff].is_used()) continue;
 				auto wire_in{ rw.get_pip_wire0(source_pip) };
 				auto wire_out{ rw.get_pip_wire1(source_pip) };
 				auto node_out{ rw.get_pip_node1(source_pip) };
 
 				if (node_out == stub_node_idx) {
 					rw.append(source_pip, top, top_info.past_cost + 1, 0);
-					// store_route(branch, stub, ro, source_pip);
+					store_route(branch, stub, source_pip);
 					// puts("store_route");
-					puts(std::format("fully_routed: {}, failed_route: {}", fully_routed, failed_route).c_str());
+					// puts(std::format("fully_routed: {}, failed_route: {}", fully_routed, failed_route).c_str());
 					return true;
 				}
-#if 0 // start
-
 
 				if (stored_nodes[node_out]) continue;
-
-				for (auto&& node_wire_out : dev.nodes[node_out].getWires()) {
-					auto node_wire_out_tile_idx{ dev.tile_strIndex_to_tile.at(dev.wires[node_wire_out].getTile()) };
-					auto node_wire_out_tile{ dev.tiles[node_wire_out_tile_idx] };
+				
+				for (auto&& node_wire_out : rw.alt_nodes[node_out]) {
+					auto node_wire_out_tile_idx{ dev_tile_strIndex_to_tile.at(rw.get_wire_tile_str(node_wire_out)) };
+					auto node_wire_out_tile{ tiles[node_wire_out_tile_idx] };
 					auto node_wire_out_tileCol{ node_wire_out_tile.getCol() };
 					auto node_wire_out_tileRow{ node_wire_out_tile.getRow() };
-#if 0
-					if (stub_wire_idx == node_wire_out) {
-						auto rs_index{ ro.append(wire_in, wire_out, top, top_info.get_past_cost() + 1, 0) };
-						store_route(branch, stub, ro, rs_index);
 
-						return true;
-					}
-#endif
 					for (auto&& stub_node_tile_idx : stub_node_tiles) {
-						auto stub_node_tile{ dev.tiles[stub_node_tile_idx] };
+						auto stub_node_tile{ tiles[stub_node_tile_idx] };
 						auto node_wire_out_colDiff{ static_cast<int32_t>(stub_node_tile.getCol()) - static_cast<int32_t>(node_wire_out_tile.getCol()) };
 						auto node_wire_out_rowDiff{ static_cast<int32_t>(stub_node_tile.getRow()) - static_cast<int32_t>(node_wire_out_tile.getRow()) };
 						auto dist{ abs(node_wire_out_colDiff) + abs(node_wire_out_rowDiff) };
-						auto rs_index{ ro.append(wire_in, wire_out, top, top_info.get_past_cost() + 1, dist) };
-						// ro.append(wire_in, wire_out, 0, 0, dist);
-						// OutputDebugStringA(std::format("node pip {} => {} => {}, dist: {}\n", it->first, it->second, node_wire_out, dist).c_str());
+						rw.append(source_pip, top, top_info.past_cost + 1, dist);
 					}
 				}
-				// OutputDebugStringA("\n");
-#endif
 			}
 		}
 
@@ -328,6 +360,10 @@ public:
 				puts(std::format("n: {} of {}, fully_routed: {}, failed_route: {}", n, readerPhysNets_size, fully_routed, failed_route).c_str());
 			}
 			auto phyNetReader{ readerPhysNets[n] };
+
+#if 0
+			listPhysNets.setWithCaveats(n, phyNetReader);
+#else
 			auto phyNetBuilder{ listPhysNets[n] };
 			phyNetBuilder.setName(phyNetReader.getName());
 
@@ -337,14 +373,11 @@ public:
 			phyNetBuilder.setSources(r_sources);
 			auto b_sources{ phyNetBuilder.getSources() };
 
-			if (r_sources.size() == 1u && r_stubs.size() == 1u) {
+			if (r_sources.size() == 1u && r_stubs.size() == 1u && fully_routed == 0) {
 				// assign_stubs(b_sources, r_stubs);
 				if (!assign_stub(phyNetReader.getName(), b_sources[0], r_stubs[0])) {
 					phyNetBuilder.setStubs(r_stubs);
 					failed_route++;
-				}
-				else {
-					fully_routed++;
 				}
 				//phyNetBuilder.initStubs(0);
 			}
@@ -354,6 +387,7 @@ public:
 
 			phyNetBuilder.setType(phyNetReader.getType());
 			phyNetBuilder.setStubNodes(phyNetReader.getStubNodes());
+#endif
 		}
 
 		physBuilder.setPhysCells(physRoot.getPhysCells());
