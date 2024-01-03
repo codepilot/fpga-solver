@@ -118,6 +118,6 @@ void debug_phys(std::string gzPath) {
 
 int main(int argc, char* argv[]) {
 	debug_phys("_deps/benchmark-files-src/boom_soc_unrouted.phys");
-	// debug_phys("dst_written.phy.gz");
+	debug_phys("dst_written.phy.gz");
 	return 0;
 }
