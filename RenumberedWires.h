@@ -144,7 +144,7 @@ public:
     }
 
     static uint64_t combine_u32_u32_to_u64(uint32_t a, uint32_t b) {
-        uint64_t ret{static_cast<uint64_t>(a) | (static_cast<uint64_t>(a) << 32ull)};
+        uint64_t ret{static_cast<uint64_t>(a) | (static_cast<uint64_t>(b) << 32ull)};
         return ret;
     }
 

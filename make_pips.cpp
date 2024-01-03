@@ -66,9 +66,9 @@ void make_pips(std::string gzPath) {
 	auto dev{ famr.getRoot<DeviceResources::Device>() };
 	mmf_unzipped.reopen_delete();
 
-    puts(std::format("tile_count: {}, bit_count: {}\n", dev.getTileList().size(), ceil(log2(dev.getTileList().size()))).c_str());
-    puts(std::format("wire_count: {}, bit_count: {}\n", dev.getWires().size(), ceil(log2(dev.getWires().size()))).c_str());
-    puts(std::format("node_count: {}, bit_count: {}\n", dev.getNodes().size(), ceil(log2(dev.getNodes().size()))).c_str());
+    puts(std::format("tile_count: {}, bit_count: {}", dev.getTileList().size(), ceil(log2(dev.getTileList().size()))).c_str());
+    puts(std::format("wire_count: {}, bit_count: {}", dev.getWires().size(), ceil(log2(dev.getWires().size()))).c_str());
+    puts(std::format("node_count: {}, bit_count: {}", dev.getNodes().size(), ceil(log2(dev.getNodes().size()))).c_str());
 
 	RenumberedWires::make_pips(dev);
 	RenumberedWires::test(dev);
