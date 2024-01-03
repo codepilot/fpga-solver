@@ -337,7 +337,6 @@ public:
 			phyNetBuilder.setSources(r_sources);
 			auto b_sources{ phyNetBuilder.getSources() };
 
-#if 0
 			if (r_sources.size() == 1ui32 && r_stubs.size() == 1ui32) {
 				// assign_stubs(b_sources, r_stubs);
 				if (!assign_stub(phyNetReader.getName(), b_sources[0], r_stubs[0])) {
@@ -350,11 +349,8 @@ public:
 				//phyNetBuilder.initStubs(0);
 			}
 			else {
-#endif
 				phyNetBuilder.setStubs(r_stubs);
-#if 0
 			}
-#endif
 
 			phyNetBuilder.setType(phyNetReader.getType());
 			phyNetBuilder.setStubNodes(phyNetReader.getStubNodes());
