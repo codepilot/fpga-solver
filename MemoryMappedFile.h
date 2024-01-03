@@ -56,6 +56,11 @@ public:
       puts("failed FSCTL_SET_ZERO_DATA");
       abort();
     }
+#elif 1
+    if(fallocate64(fh, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, 0, fsize)) {
+      puts(std::format("failed fallocate64 errno:{}", errno).c_str());
+      abort();
+    }
 #else
     memset(fp, 0, fsize);
 #endif
@@ -175,11 +180,8 @@ public:
         (LPDWORD)&lpBytesReturned,                // number of bytes returned
         (LPOVERLAPPED)nullptr               // OVERLAPPED structure
     ) };
-
-    return true;
-#else
-    return true;
 #endif
+    return true;
   }
 
   inline MemoryMappedFile(std::string fn):
@@ -205,6 +207,7 @@ public:
     fm{create_readwrite_file_mapping(fh, fsize)},
     fp{mmap_readwrite(fh, fsize, fm)} {
       puts(std::format("fn:{} requestedSize:{} fh:{} fsize:{} fp:{}", fn, requestedSize, fh, fsize, fp).c_str());
+      zero();
   }
 
   template<typename T>
