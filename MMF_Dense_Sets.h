@@ -30,6 +30,7 @@ public:
     void test(std::vector<std::vector<T>>& src) {
         puts("test start");
         if (size() != src.size()) {
+            puts("size() != src.size()");
             abort();
         }
 

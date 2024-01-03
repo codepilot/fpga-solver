@@ -257,6 +257,7 @@ public:
             auto alt_node{ alt_nodes[nodeIdx] };
 
             if (alt_node.size() != node_wires.size()) {
+                puts("alt_node.size() != node_wires.size()");
                 abort();
             }
 
@@ -281,10 +282,12 @@ public:
                 auto wire_tile_str{ wire.getTile() };
                 if (wire_found_wire_str != wire_str) {
                     // std::print("nodeIdx:{} node_wire_idx:{} alt_wire_offset:{} wire_found_wire_str:{}:{} != wire_str:{}:{}\n", nodeIdx, node_wire_idx, alt_wire_offset, wire_found_wire_str, dev.getStrList()[wire_found_wire_str].cStr(), wire_str, dev.getStrList()[wire_str].cStr());
+                    puts("wire_found_wire_str != wire_str");
                     abort();
                 }
                 if (wire_found_tile_str != wire_tile_str) {
                     // std::print("nodeIdx:{} node_wire_idx:{} alt_wire_offset:{} wire_found_tile_str:{}:{} != wire_tile_str:{}:{}\n", nodeIdx, node_wire_idx, alt_wire_offset, wire_found_tile_str, dev.getStrList()[wire_found_tile_str].cStr(), wire_tile_str, dev.getStrList()[wire_tile_str].cStr());
+                    puts("wire_found_tile_str != wire_tile_str");
                     abort();
                 }
             }

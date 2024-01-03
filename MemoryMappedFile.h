@@ -26,7 +26,10 @@ public:
   }
 
   static inline size_t setFileSize(decltype(fh) fh, uint64_t newSize) {
-    ftruncate64(fh, newSize);
+    if(ftruncate64(fh, newSize)) {
+      puts("failed to truncate");
+      abort();
+    }
     return newSize;
   }
 
