@@ -36,7 +36,7 @@ public:
 		phys_stridx_to_dev_stridx{ std::vector<uint32_t>( static_cast<size_t>(physStrs.size()), UINT32_MAX ) },
 		dev_tile_strIndex_to_tile{ std::vector<uint32_t>(static_cast<size_t>(devStrs.size()), UINT32_MAX) }
 	{
-		std::print("Route_Phys() start\n");
+		puts(std::format("Route_Phys() start").c_str());
 
 		for (uint32_t tile_idx{}; tile_idx < tiles.size(); tile_idx++) {
 			auto tile{ tiles[tile_idx] };
@@ -55,7 +55,7 @@ public:
 				phys_stridx_to_dev_stridx[phys_strIdx] = dev_strIdx;
 			}
 		}
-		std::print("Route_Phys() finish\n");
+		puts(std::format("Route_Phys() finish").c_str());
 	}
 
 	void block_resources(PhysicalNetlist::PhysNetlist::PhysNet::Reader physNet) {
@@ -99,8 +99,8 @@ public:
 			}
 		}
 		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::PIP: {
-			OutputDebugStringA("PIP\n");
-			DebugBreak();
+			puts("PIP");
+			abort();
 			break;
 		}
 		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_P_I_P: {
@@ -117,12 +117,10 @@ public:
 				return std::nullopt;
 			}
 
-			DebugBreak();
-			break;
 		}
 		default: {
-			DebugBreak();
-			std::unreachable();
+			puts("unreachable");
+			abort();
 		}
 		}
 		return std::nullopt;
@@ -139,7 +137,7 @@ public:
 		}
 		const uint32_t chunk_size{ 1000 };
 		for (uint32_t attempts{}; attempts <= chunk_size; attempts++) {
-			if (attempts > 0 && !(attempts % chunk_size)) std::print("attempts: {}, q: {}\n", attempts, rw.alt_route_options.size());
+			if (attempts > 0 && !(attempts % chunk_size)) puts(std::format("attempts: {}, q: {}", attempts, rw.alt_route_options.size()).c_str());
 			if (!rw.alt_route_options.size()) {
 				// puts("Empty");
 				break;
@@ -183,7 +181,7 @@ public:
 					rw.append(source_pip, top, top_info.past_cost + 1, 0);
 					// store_route(branch, stub, ro, source_pip);
 					// puts("store_route");
-					std::print("fully_routed: {}, failed_route: {}\n", fully_routed, failed_route);
+					puts(std::format("fully_routed: {}, failed_route: {}", fully_routed, failed_route).c_str());
 					return true;
 				}
 #if 0 // start
@@ -245,17 +243,17 @@ public:
 	bool assign_stub(uint32_t nameIdx, branch_builder branch, branch_reader stub) {
 		auto site_pin_optional{ branch_site_pin(nameIdx, branch) };
 		if (!site_pin_optional.has_value()) {
-			OutputDebugStringA("source lacking site_pin\n");
-			DebugBreak();
+			puts("source lacking site_pin");
+			abort();
 		}
 		auto site_pin{ site_pin_optional.value() };
 		if (site_pin.getBranches().size()) {
-			OutputDebugStringA("site_pin.getBranches().size()\n");
-			DebugBreak();
+			puts("site_pin.getBranches().size()");
+			abort();
 		}
 		if (!stub.getRouteSegment().isSitePin()) {
-			OutputDebugStringA("not stub site pin\n");
-			DebugBreak();
+			puts("not stub site pin");
+			abort();
 		}
 		auto ps_source_site{ site_pin.getRouteSegment().getSitePin().getSite() };
 		auto ps_source_pin{ site_pin.getRouteSegment().getSitePin().getPin() };
@@ -315,7 +313,7 @@ public:
 	}
 
 	void route() {
-		std::print("route start\n");
+		puts(std::format("route start").c_str());
 
 		physBuilder.setPart(physRoot.getPart());
 		physBuilder.setPlacements(physRoot.getPlacements());
@@ -328,7 +326,7 @@ public:
 		}
 		for (uint32_t n{}; n != readerPhysNets_size; n++) {
 			if (!(n % 1000)) {
-				std::print("n: {} of {}, fully_routed: {}, failed_route: {}\n", n, readerPhysNets_size, fully_routed, failed_route);
+				puts(std::format("n: {} of {}, fully_routed: {}, failed_route: {}", n, readerPhysNets_size, fully_routed, failed_route).c_str());
 			}
 			auto phyNetReader{ readerPhysNets[n] };
 			auto phyNetBuilder{ listPhysNets[n] };
@@ -383,7 +381,7 @@ public:
 		// debug_net(phyBuilder, "system/clint/time_00[5]");
 		phys.write(message);
 
-		std::print("route finish\n");
+		puts("route finish");
 
 	}
 };

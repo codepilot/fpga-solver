@@ -113,4 +113,4 @@ public:
 
 using MMF_Dense_Sets_u32 = MMF_Dense_Sets<uint32_t>;
 using MMF_Dense_Sets_u64 = MMF_Dense_Sets<uint64_t>;
-using MMF_Dense_Sets_m128 = MMF_Dense_Sets<__m128i>;
+using MMF_Dense_Sets_4xu32 = MMF_Dense_Sets<std::array<uint32_t, 4>>;

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstdint>
+#include <span>
+
 class Route_Info {
 public:
     union {
@@ -41,7 +44,7 @@ public:
 
     // MMF_Dense_Sets_u32 alt_site_pin_wires{ "site_pin_wires2.bin" };
     // MMF_Dense_Sets_u32 alt_site_pin_nodes{ "site_pin_nodes2.bin" };
-    MMF_Dense_Sets_m128 alt_site_pins{ "site_pin2.bin" };
+    MMF_Dense_Sets_4xu32 alt_site_pins{ "site_pin2.bin" };
 
 
     ::MemoryMappedFile route_storage_mmf{ "route_storage2.bin", alt_pips.size() * sizeof(::Route_Info)};
@@ -164,26 +167,26 @@ public:
         return static_cast<uint32_t>(ret_index);
     }
 
-    inline static uint32_t find_site_pin_wire(MMF_Dense_Sets_m128& alt_site_pins, uint32_t site_strIdx, uint32_t site_pin_strIdx) {
+    inline static uint32_t find_site_pin_wire(MMF_Dense_Sets_4xu32& alt_site_pins, uint32_t site_strIdx, uint32_t site_pin_strIdx) {
         auto key{ key_site_pin(site_strIdx, site_pin_strIdx) };
         auto ret_index{ hash_site_pin(alt_site_pins.size(), key)};
         auto bucket{ alt_site_pins[ret_index] };
         for (auto&& q : bucket) {
-            if (q.m128i_u64[0] == key) {
-                return q.m128i_u32[2];
+            if (combine_u32_u32_to_u64(q[0], q[1]) == key) {
+                return q[2];
             }
         }
         // abort();
         return UINT32_MAX;
     }
 
-    inline static uint32_t find_site_pin_node(MMF_Dense_Sets_m128& alt_site_pins, uint32_t site_strIdx, uint32_t site_pin_strIdx) {
+    inline static uint32_t find_site_pin_node(MMF_Dense_Sets_4xu32& alt_site_pins, uint32_t site_strIdx, uint32_t site_pin_strIdx) {
         auto key{ key_site_pin(site_strIdx, site_pin_strIdx) };
         auto ret_index{ hash_site_pin(alt_site_pins.size(), key) };
         auto bucket{ alt_site_pins[ret_index] };
         for (auto&& q : bucket) {
-            if (q.m128i_u64[0] == key) {
-                return q.m128i_u32[3];
+            if (combine_u32_u32_to_u64(q[0], q[1]) == key) {
+                return q[3];
             }
         }
         // abort();
@@ -312,9 +315,9 @@ public:
         auto wires{ dev.getWires() };
         auto nodes{ dev.getNodes() };
 
-        size_t hash_size{ 1ui64 << (64ui64 - _lzcnt_u64(wires.size())) };
-        size_t hash_mask{ hash_size - 1ui64 };
-        std::print("hash_size: {}, hash_mask: 0x{:x}\n", hash_size, hash_mask);
+        size_t hash_size{ 1ull << (64ull - _lzcnt_u64(wires.size())) };
+        size_t hash_mask{ hash_size - 1ull };
+        puts(std::format("hash_size: {}, hash_mask: 0x{:x}", hash_size, hash_mask).c_str());
 
         size_t good_wires{};
         size_t good_nodes{};
@@ -335,7 +338,7 @@ public:
                     auto wire_strIdx{ site_tile_type_wires[pin_idx] };
                     auto sitePin{ site_pins[pin_idx] };
                     auto site_pin_strIdx{ sitePin.getName() };
-                    ULARGE_INTEGER site_pin{ .u{.LowPart{site_strIdx}, .HighPart{site_pin_strIdx}} };
+                    uint64_t site_pin{ combine_u32_u32_to_u64(site_strIdx, site_pin_strIdx) };
                     //ULARGE_INTEGER tile_wire{ .u{.LowPart{wire_strIdx}, .HighPart{tile_strIdx}} };
                     // auto wire_idx{ tile_strIdx_wire_strIdx_to_wire_idx.at(tile_wire.QuadPart) };
                     auto wire_idx{ find_wire(alt_wires, tile_strIdx, wire_strIdx) };
@@ -345,15 +348,17 @@ public:
                     auto node_idx{ alt_wire_to_node[wire_idx] };
 
                     auto key{ key_site_pin(site_strIdx, site_pin_strIdx) };
-                    if (site_pin.QuadPart != key) {
-                        DebugBreak();
+                    if (site_pin != key) {
+                        puts("site_pin != key");
+                        abort();
                     }
 
                     auto hkey{ hash_site_pin(hash_size, key) };
-                    auto h{ _mm_crc32_u64(0, site_pin.QuadPart) };
+                    auto h{ _mm_crc32_u64(0, site_pin) };
                     auto ret_index{ h & hash_mask };
                     if (hkey != ret_index) {
-                        DebugBreak();
+                        puts("hkey != ret_index");
+                        abort();
                     }
 
                     auto found_wire_idx{ find_site_pin_wire(site_strIdx, site_pin_strIdx) };
@@ -380,7 +385,7 @@ public:
                 }
             }
         }
-        std::print("test_site_pin_wires wire {}:{}, node {}:{} finish", good_wires, bad_wires, good_nodes, bad_nodes);
+        puts(std::format("test_site_pin_wires wire {}:{}, node {}:{} finish", good_wires, bad_wires, good_nodes, bad_nodes).c_str());
 
     }
 
@@ -656,7 +661,7 @@ public:
         size_t hash_mask{ hash_size - 1ull };
         puts(std::format("hash_size: {}, hash_mask: 0x{:x}", hash_size, hash_mask).c_str());
 
-        std::vector<std::vector<__m128i>> site_pin_wires_kv(hash_size);
+        std::vector<std::vector<std::array<uint32_t, 4>>> site_pin_wires_kv(hash_size);
 
         for (auto&& tile : tiles) {
             auto tile_strIdx{ tile.getName() };
@@ -683,14 +688,14 @@ public:
 
                     auto h{ _mm_crc32_u64(0, site_pin) };
                     auto ret_index{ h & hash_mask };
-                    __m128i kv{ .m128i_u32{site_strIdx, site_pin_strIdx, wire_idx, node_idx} };
+                    std::array<uint32_t, 4> kv{ site_strIdx, site_pin_strIdx, wire_idx, node_idx };
                     site_pin_wires_kv.at(ret_index).emplace_back(kv);
                 }
             }
         }
 
         puts("make_site_pin_wires finish");
-        MMF_Dense_Sets_m128::make("site_pin2.bin", site_pin_wires_kv);
+        MMF_Dense_Sets_4xu32::make("site_pin2.bin", site_pin_wires_kv);
     }
 
     static void test(DeviceResources::Device::Reader dev) {
