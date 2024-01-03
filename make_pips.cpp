@@ -71,6 +71,7 @@ void make_pips(std::string gzPath) {
     puts(std::format("node_count: {}, bit_count: {}\n", dev.getNodes().size(), ceil(log2(dev.getNodes().size()))).c_str());
 
 	RenumberedWires::make_pips(dev);
+	RenumberedWires::test(dev);
 }
 
 int main(int argc, char* argv[]) {

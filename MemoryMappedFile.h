@@ -160,11 +160,13 @@ public:
       if (!fp) DebugBreak();
   }
 
-  MemoryMappedFile(std::wstring fn) : fh{ CreateFile2(
+  MemoryMappedFile(std::string fn) : fh{ CreateFileA(
     fn.c_str(),
     GENERIC_READ,
     or_reduce<DWORD>({FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_SHARE_DELETE}),
+    nullptr,
     OPEN_EXISTING,
+    FILE_ATTRIBUTE_NORMAL,
     nullptr
     ) },
     fsize{ getFileSize(fh) },
@@ -194,11 +196,13 @@ public:
       return true;
   }
 
-  MemoryMappedFile(std::wstring fn, uint64_t requestedSize) : fh{ CreateFile2(
+  MemoryMappedFile(std::string fn, uint64_t requestedSize) : fh{ CreateFileA(
     fn.c_str(),
     FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE,
     or_reduce<DWORD>({FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_SHARE_DELETE}),
+    nullptr,
     CREATE_ALWAYS,
+    FILE_ATTRIBUTE_NORMAL,
     nullptr
     ) },
     sparse{ make_sparse(fh) },

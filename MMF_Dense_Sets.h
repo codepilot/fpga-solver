@@ -42,8 +42,8 @@ public:
                 abort();
             }
             for (size_t j{}; j < n.size(); j++) {
-                if (n[j] != rn[j]) {
-                    puts(std::format("this[{}][{}]({}) != src[{}][{}]({})", i, j, n[j], i, j, rn[j]).c_str());
+                if (memcmp(&n[j], &rn[j], sizeof(T)) != 0) {
+                    // puts(std::format("this[{}][{}]({}) != src[{}][{}]({})", i, j, n[j], i, j, rn[j]).c_str());
                     abort();
                 }
             }
@@ -113,4 +113,4 @@ public:
 
 using MMF_Dense_Sets_u32 = MMF_Dense_Sets<uint32_t>;
 using MMF_Dense_Sets_u64 = MMF_Dense_Sets<uint64_t>;
-
+using MMF_Dense_Sets_m128 = MMF_Dense_Sets<__m128i>;

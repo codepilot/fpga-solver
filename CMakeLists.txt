@@ -13,9 +13,9 @@ set(ZLIB_INCLUDE_DIRS "$<TARGET_PROPERTY:zlib,SOURCE_DIR>;$<TARGET_PROPERTY:zlib
 
 add_subdirectory(zlib)
 target_include_directories(example PRIVATE ${ZLIB_INCLUDE_DIR})
-target_include_directories(example64 PRIVATE ${ZLIB_INCLUDE_DIR})
+# target_include_directories(example64 PRIVATE ${ZLIB_INCLUDE_DIR})
 target_include_directories(minigzip PRIVATE ${ZLIB_INCLUDE_DIR})
-target_include_directories(minigzip64 PRIVATE ${ZLIB_INCLUDE_DIR})
+# target_include_directories(minigzip64 PRIVATE ${ZLIB_INCLUDE_DIR})
 set(ZLIB_LIBRARY zlibstatic)
 
 
@@ -90,8 +90,8 @@ target_compile_options(show_phys_nets PRIVATE -march=native -std=c++2b $<$<BOOL:
 target_link_libraries(show_phys_nets PRIVATE capnp)
 target_link_libraries(show_phys_nets PRIVATE zlibstatic)
 if(MSVC)
-  target_link_libraries(show_phys_nets PRIVATE Kernel32.lib)
-  target_link_libraries(show_phys_nets PRIVATE WindowsApp.lib)
+target_link_libraries(show_phys_nets PRIVATE Kernel32.lib)
+target_link_libraries(show_phys_nets PRIVATE WindowsApp.lib)
 endif()
 
 add_executable(make_pips make_pips.cpp)
@@ -104,8 +104,8 @@ target_compile_options(make_pips PRIVATE -march=native -std=c++2b $<$<BOOL:${MSV
 target_link_libraries(make_pips PRIVATE capnp)
 target_link_libraries(make_pips PRIVATE zlibstatic)
 if(MSVC)
-  target_link_libraries(make_pips PRIVATE Kernel32.lib)
-  target_link_libraries(make_pips PRIVATE WindowsApp.lib)
+target_link_libraries(make_pips PRIVATE Kernel32.lib)
+target_link_libraries(make_pips PRIVATE WindowsApp.lib)
 endif()
 
 add_executable(route_phys route_phys.cpp)
@@ -118,8 +118,8 @@ target_compile_options(route_phys PRIVATE -march=native -std=c++2b $<$<BOOL:${MS
 target_link_libraries(route_phys PRIVATE capnp)
 target_link_libraries(route_phys PRIVATE zlibstatic)
 if(MSVC)
-  target_link_libraries(route_phys PRIVATE Kernel32.lib)
-  target_link_libraries(route_phys PRIVATE WindowsApp.lib)
+target_link_libraries(route_phys PRIVATE Kernel32.lib)
+target_link_libraries(route_phys PRIVATE WindowsApp.lib)
 endif()
 
 # file(GLOB_RECURSE GLSL_SOURCE_FILES
@@ -211,7 +211,7 @@ foreach(CAPNP ${CAPNP_SOURCE_FILES})
     WORKING_DIRECTORY "${PROJECT_BINARY_DIR}/interchange"
     COMMAND $<TARGET_FILE:capnp_tool> compile --import-path="${CMAKE_CURRENT_SOURCE_DIR}/capnproto-java/compiler/src/main/schema" --import-path="${CMAKE_CURRENT_SOURCE_DIR}/capnproto/c++/src" --output="$<TARGET_FILE:capnpc_cpp>" --src-prefix=${PROJECT_BINARY_DIR}/interchange ${CAPNP_SRC}
     # DEPENDS ${CAPNP_SRC}
-    DEPENDS "${PROJECT_BINARY_DIR}/interchange"
+DEPENDS "${PROJECT_BINARY_DIR}/interchange"
     DEPENDS capnp_tool)
   list(APPEND CAPNPH_FILES ${CAPNPH})
   list(APPEND CAPNPH_FILES ${CAPNPCPP})
@@ -224,8 +224,7 @@ add_custom_command(TARGET interchange-files PRE_BUILD
         "${PROJECT_BINARY_DIR}/interchange")
 
 
-
-
+# add_dependencies(${PROJECT_NAME} Shaders interchange-files)
 # add_dependencies(${PROJECT_NAME} Shaders cache-files prepared-benchmark-files interchange-files)
 # add_dependencies(build-cache interchange-files)
 add_dependencies(show_phys_nets interchange-files)

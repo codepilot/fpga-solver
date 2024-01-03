@@ -42,6 +42,7 @@
 #include <safeint.h>
 #endif
 #include "InterchangeGZ.h"
+#include <unordered_set>
 
 #include "Route_Phys.h"
 

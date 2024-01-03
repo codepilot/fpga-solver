@@ -110,8 +110,8 @@ public:
 
         OutputDebugStringA("finish make_vv_node_idx_pip_wire_idx_wire_idx\n");
 
-        MMF_Dense_Sets_u64::make(L"vv_node_idx_pip_wire_idx_wire_idx.bin", ret);
-        auto alt{ MMF_Dense_Sets_u64{L"vv_node_idx_pip_wire_idx_wire_idx.bin"} };
+        MMF_Dense_Sets_u64::make("vv_node_idx_pip_wire_idx_wire_idx.bin", ret);
+        auto alt{ MMF_Dense_Sets_u64{"vv_node_idx_pip_wire_idx_wire_idx.bin"} };
         alt.test(ret);
 
 
@@ -173,8 +173,8 @@ public:
         }
 
         OutputDebugStringA("finish make_vv_wire_idx_pip_wire_idx\n");
-        MMF_Dense_Sets_u32::make(L"vv_wire_idx_pip_wire_idx.bin", ret);
-        auto alt{ MMF_Dense_Sets_u32{L"vv_wire_idx_pip_wire_idx.bin"} };
+        MMF_Dense_Sets_u32::make("vv_wire_idx_pip_wire_idx.bin", ret);
+        auto alt{ MMF_Dense_Sets_u32{"vv_wire_idx_pip_wire_idx.bin"} };
         alt.test(ret);
 
         return ret;
@@ -596,13 +596,13 @@ public:
 #ifdef REBUILD_DENSE_SETS
         temp_vv_wire_idx_pip_wire_idx{ make_vv_wire_idx_pip_wire_idx(wires, tiles, tileTypes, siteTypeList, tile_strIdx_wire_strIdx_to_wire_idx) },
 #endif
-        vv_wire_idx_pip_wire_idx{ L"vv_wire_idx_pip_wire_idx.bin" },
+        vv_wire_idx_pip_wire_idx{ "vv_wire_idx_pip_wire_idx.bin" },
 
         // node_idx_pip_wire_idx_wire_idx{ make_node_idx_pip_wire_idx_wire_idx(wire_to_node, wire_idx_pip_wire_idx) },
 #ifdef REBUILD_DENSE_SETS
         temp_vv_node_idx_pip_wire_idx_wire_idx{ make_vv_node_idx_pip_wire_idx_wire_idx(wire_to_node, temp_vv_wire_idx_pip_wire_idx) },
 #endif
-        vv_node_idx_pip_wire_idx_wire_idx{ L"vv_node_idx_pip_wire_idx_wire_idx.bin" }
+        vv_node_idx_pip_wire_idx_wire_idx{ "vv_node_idx_pip_wire_idx_wire_idx.bin" }
     {
 
         for (auto&& wireType : dev.reader.getWireTypes()) {
