@@ -73,7 +73,7 @@ public:
     struct stat64 sb{};
     fstat64(fh, &sb);
     return sb.st_size;
-#endif;
+#endif
   }
 
   static inline size_t setFileSize(decltype(fh) fh, uint64_t newSize) {
@@ -82,10 +82,10 @@ public:
     auto result{ SetFileInformationByHandle(fh, FileEndOfFileInfo, &info, sizeof(info)) };
 #else
     if(ftruncate64(fh, newSize)) {
-      puts("failed to truncate");
+      puts(std::format("ftruncate64(fh:{}, newSize:{}) failed errno:{}", fh, newSize, errno).c_str());
       abort();
     }
-#endif;
+#endif
     return newSize;
   }
 
@@ -115,7 +115,17 @@ public:
     FILE_ATTRIBUTE_NORMAL,
     nullptr);
 #else
-    return open(fn.c_str(), O_CREAT | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
+    int fh{open(fn.c_str(), O_CREAT | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR)};
+    if(fh == -1) {
+      puts(std::format("open create failed errno:{}", errno).c_str());
+      int fh2{open(fn.c_str(), O_TRUNC | O_RDWR)};
+      if(fh2 == -1) {
+        puts(std::format("open rw failed errno:{}", errno).c_str());
+        abort();
+      }
+      return fh2;
+    }
+    return fh;
 #endif
   }
 
@@ -147,11 +157,11 @@ public:
 #ifdef _WIN32
     return MapViewOfFile3(fm, GetCurrentProcess(), nullptr, 0, 0, 0, PAGE_READWRITE, nullptr, 0);
 #else
-    return mmap(nullptr, fsize, PROT_READ | PROT_WRITE, MAP_PRIVATE, fh, 0);
+    return mmap(nullptr, fsize, PROT_READ | PROT_WRITE, MAP_SHARED, fh, 0);
 #endif
   }
 
-  inline static bool make_sparse(HANDLE fh) noexcept {
+  inline static bool make_sparse(decltype(fh) fh) noexcept {
 #ifdef _WIN32
     FILE_SET_SPARSE_BUFFER InBuffer{ .SetSparse{true} };
     DWORD lpBytesReturned{};

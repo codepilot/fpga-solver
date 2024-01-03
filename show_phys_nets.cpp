@@ -90,7 +90,7 @@ void debug_net(PhysicalNetlist::PhysNetlist::Reader physRoot) {
 
 void debug_phys(std::string gzPath) {
 	MemoryMappedFile mmf_phys_gz{ gzPath };
-	MemoryMappedFile mmf_phys{ ".", 4294967296ull };
+	MemoryMappedFile mmf_phys{ gzPath + ".unzipped", 4294967296ull };
 
 	auto read_span{ mmf_phys_gz.get_span<Bytef>() };
 	auto write_span{ mmf_phys.get_span<Bytef>() };
