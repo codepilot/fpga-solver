@@ -28,6 +28,7 @@ public:
 	::capnp::List< ::DeviceResources::Device::Tile, ::capnp::Kind::STRUCT>::Reader tiles{devRoot.getTileList()};
 	std::vector<uint32_t> extra_dev_strIdx;
 	uint32_t fully_routed{};
+	uint32_t skip_route{};
 	uint32_t failed_route{};
 
 	RenumberedWires rw;
@@ -232,7 +233,6 @@ public:
 		uint32_t offset{};
 		if (pip_stubs.contains(pip_idx)) {
 			source_branches.setWithCaveats(offset++, pip_stubs.extract(pip_idx).mapped());
-			fully_routed++;
 		}
 		for (auto route_id_pip : route_id_pips) {
 			store_pip(net_idx, route_id_pip);
@@ -300,9 +300,10 @@ public:
 
 	void store_route(uint32_t net_idx, branch_builder_map& sources, branch_reader_map &pip_stubs) {
 		auto route_ids{ build_route_ids(pip_stubs) };
-		puts(std::format("route_ids.size:{}", route_ids.size()).c_str());
+		// puts(std::format("route_ids.size:{}", route_ids.size()).c_str());
 		build_tree(net_idx, route_ids, sources, pip_stubs);
-		puts("brach_stored");
+		// puts("brach_stored");
+		fully_routed++;
 
 #if 0
 		std::vector<uint32_t> route_ids{};
@@ -494,9 +495,9 @@ public:
 
 		const uint32_t chunk_size{ static_cast<uint32_t>(rw.alt_nodes.size()) };
 		for (uint32_t attempts{}; attempts <= chunk_size; attempts++) {
-			if (attempts > 0 && !(attempts % chunk_size)) puts(std::format("fully_routed: {}, failed_route: {}, attempts: {}, q: {}", fully_routed, failed_route, attempts, rw.alt_route_options.size()).c_str());
+			if (attempts > 0 && !(attempts % chunk_size)) puts(std::format("skip_route: {}, fully_routed: {}, failed_route: {}, attempts: {}, q: {}", skip_route, fully_routed, failed_route, attempts, rw.alt_route_options.size()).c_str());
 			if (!rw.alt_route_options.size()) {
-				puts(std::format("EMPTY fully_routed: {}, failed_route: {}, attempts: {}, q: {}", fully_routed, failed_route, attempts, rw.alt_route_options.size()).c_str());
+				puts(std::format("EMPTY skip_route: {}, fully_routed: {}, failed_route: {}, attempts: {}, q: {}", skip_route, fully_routed, failed_route, attempts, rw.alt_route_options.size()).c_str());
 				break;
 			}
 
@@ -655,7 +656,7 @@ public:
 		}
 		for (uint32_t n{}; n != readerPhysNets_size; n++) {
 			if (!(n % 100)) {
-				puts(std::format("n: {} of {}, fully_routed: {}, failed_route: {}", n, readerPhysNets_size, fully_routed, failed_route).c_str());
+				puts(std::format("n: {} of {}, skip_route: {}, fully_routed: {}, failed_route: {}", n, readerPhysNets_size, skip_route, fully_routed, failed_route).c_str());
 			}
 			auto phyNetReader{ readerPhysNets[n] };
 
@@ -671,7 +672,9 @@ public:
 			phyNetBuilder.setSources(r_sources);
 			auto b_sources{ phyNetBuilder.getSources() };
 
-			if (r_sources.size() > 1u && r_stubs.size() > 1u) {
+			if (r_stubs.size() == 0) {
+				skip_route++;
+			} else if (r_sources.size() > 1u && r_stubs.size() > 1u) {
 				puts(std::format("{} sources:{}, stubs:{}\n", physStrs[phyNetReader.getName()].cStr(), r_sources.size(), r_stubs.size()).c_str());
 			} else if (r_sources.size() == 1u && r_stubs.size() > 0u && fully_routed < 1000) {
 				if (!assign_stubs(n, phyNetReader.getName(), b_sources, r_stubs)) {
