@@ -7,8 +7,8 @@ Design Route Status
            # of nets with no loads............ :        8884 :
            # of implicitly routed ports....... :         215 :
        # of routable nets..................... :      273506 :
-           # of unrouted nets................. :      120066 :
-           # of fully routed nets............. :      153440 :
+           # of unrouted nets................. :      120064 :
+           # of fully routed nets............. :      153442 :
        # of nets with routing errors.......... :           0 :
    ------------------------------------------- : ----------- :
 

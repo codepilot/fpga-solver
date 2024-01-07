@@ -251,6 +251,7 @@ public:
 	}
 
 	inline bool is_pip_stored(uint32_t net_idx, uint32_t pip_idx) const {
+		if (pip_idx == UINT32_MAX) return false;
 		auto pip_node_in{ rw.get_pip_node_in(pip_idx) };
 		auto pip_node_out{ rw.get_pip_node_out(pip_idx) };
 		if (is_node_stored(net_idx, pip_node_in)) return true;
@@ -279,14 +280,72 @@ public:
 
 	std::vector<bool> used_pips;
 
-	void append_pip(uint32_t net_idx, uint32_t pip_idx, uint32_t previous, uint16_t past_cost, uint16_t future_cost) {
-		if (is_pip_stored(net_idx, pip_idx)) return;
-		if (used_pips[pip_idx & 0x7fffffff]) return;
-		rw.append(pip_idx, previous, past_cost, future_cost);
+	bool is_node_used(uint32_t node_idx) {
+		return used_nodes[node_idx];
+	}
+
+	void use_node(uint32_t node_idx) {
+		used_nodes[node_idx] = true;
+	}
+
+	bool is_pip_used(uint32_t pip_idx) {
+		if (pip_idx == UINT32_MAX) return false;
+		return used_pips[pip_idx & 0x7fffffff];
+	}
+
+	void use_pip(uint32_t pip_idx) {
+		if (pip_idx == UINT32_MAX) return;
 		used_pips[pip_idx & 0x7fffffff] = true;
 	}
 
-	bool route_stub(uint32_t net_idx, branch_builder branch, branch_reader stub, uint32_t source_wire_idx, uint32_t stub_wire_idx, std::vector<uint32_t> stub_node_tiles) {
+	void append_pip(uint32_t net_idx, uint32_t pip_idx, uint32_t previous, uint16_t past_cost, uint16_t future_cost) {
+		if (is_pip_stored(net_idx, pip_idx)) return;
+		if (is_pip_used(pip_idx)) return;
+		rw.append(pip_idx, previous, past_cost, future_cost);
+		use_pip(pip_idx);
+	}
+
+	void add_node_pip(uint32_t net_idx, std::span<uint32_t> stub_node_tiles, uint32_t node_idx, uint32_t pip_idx, uint32_t parent_pip_idx) {
+		if (is_pip_stored(net_idx, pip_idx)) return;
+		if (is_pip_used(pip_idx & 0x7fffffff)) return;
+
+		bool pip_idx_forward{ static_cast<bool>(pip_idx >> 31u) };
+
+		auto node_in{ rw.get_pip_node_in(pip_idx) };
+		auto node_out{ rw.get_pip_node_out(pip_idx) };
+
+		if (is_node_used(node_out)) return;
+		use_node(node_out);
+
+		uint32_t best_dist{ UINT32_MAX };
+
+		for (auto&& stub_node_tile_idx : stub_node_tiles) {
+			auto stub_node_tile{ tiles[stub_node_tile_idx] };
+
+			for (auto&& node_wire_out : rw.alt_nodes[node_out]) {
+				auto node_wire_out_tile{ tiles[dev_tile_strIndex_to_tile.at(rw.get_wire_tile_str(node_wire_out))] };
+
+				auto node_wire_out_colDiff{ static_cast<int32_t>(stub_node_tile.getCol()) - static_cast<int32_t>(node_wire_out_tile.getCol()) };
+				auto node_wire_out_rowDiff{ static_cast<int32_t>(stub_node_tile.getRow()) - static_cast<int32_t>(node_wire_out_tile.getRow()) };
+				auto dist{ abs(node_wire_out_colDiff) + abs(node_wire_out_rowDiff) };
+				best_dist = dist < best_dist ? dist : best_dist;
+			}
+		}
+
+		uint16_t past_cost{ (parent_pip_idx == UINT32_MAX) ? static_cast<uint16_t>(0) : static_cast<uint16_t>(rw.alt_route_storage[parent_pip_idx & 0x7fffffffu].past_cost + 1ull) };
+		append_pip(net_idx, pip_idx, parent_pip_idx, past_cost, best_dist);
+
+	}
+
+	void add_node_pips(uint32_t net_idx, uint32_t stub_node_idx, std::span<uint32_t> stub_node_tiles, uint32_t node_idx, uint32_t parent_pip_idx = UINT32_MAX) {
+		if (is_pip_stored(net_idx, parent_pip_idx)) return;
+
+		for (auto&& source_pip : rw.alt_node_to_pips[node_idx]) {
+			add_node_pip(net_idx, stub_node_tiles, node_idx, source_pip, parent_pip_idx);
+		}
+	}
+
+	bool route_stub(uint32_t net_idx, branch_builder branch, branch_reader stub, uint32_t source_wire_idx, uint32_t stub_wire_idx, std::span<uint32_t> stub_node_tiles) {
 		rw.clear_routes();
 		used_nodes.clear(); used_nodes.resize(rw.alt_nodes.size(), false);
 		used_pips.clear();  used_pips.resize(rw.alt_pips.size(), false);
@@ -294,18 +353,14 @@ public:
 		auto source_node_idx{ rw.alt_wire_to_node[source_wire_idx] };
 		auto stub_node_idx{ rw.alt_wire_to_node[stub_wire_idx] };
 
-		used_nodes[source_node_idx] = true;
 		if (is_node_stored(net_idx, source_node_idx)) {
 			puts("stored_nodes_nets[source_node_idx] != net_idx");
 			abort();
 		}
 
-		// puts(std::format("s").c_str());
+		use_node(source_node_idx);
 
-		auto source_node_pips{ rw.alt_node_to_pips[source_node_idx] };
-		for (auto pip_idx : source_node_pips) {
-			append_pip(net_idx, pip_idx, UINT32_MAX, 0, 0);
-		}
+		add_node_pips(net_idx, stub_node_idx, stub_node_tiles, source_node_idx);
 
 		const uint32_t chunk_size{ static_cast<uint32_t>(rw.alt_nodes.size()) };
 		for (uint32_t attempts{}; attempts <= chunk_size; attempts++) {
@@ -314,32 +369,6 @@ public:
 				puts(std::format("EMPTY fully_routed: {}, failed_route: {}, attempts: {}, q: {}", fully_routed, failed_route, attempts, rw.alt_route_options.size()).c_str());
 				break;
 			}
-			uint32_t top{ rw.alt_route_options.top() };
-			bool top_forward{ static_cast<bool>(top >> 31u) };
-			// if (!top_forward) continue;
-			rw.alt_route_options.pop();
-			auto top_info{ rw.alt_route_storage[top & 0x7fffffffu] };
-			auto wire0_idx{ rw.get_pip_wire0(top) };
-			auto wire1_idx{ rw.get_pip_wire1(top) };
-
-			auto node_in_idx{ top_forward?rw.get_pip_node0(top): rw.get_pip_node1(top) };
-			auto node_out_idx{ top_forward?rw.get_pip_node1(top): rw.get_pip_node0(top) };
-
-			if (node_out_idx == stub_node_idx) {
-				if (is_pip_stored(net_idx, top)) {
-					puts("is_pip_stored(net_idx, top) && node_out_idx == stub_node_idx");
-					abort();
-				}
-
-				store_route(net_idx, branch, stub, top);
-				return true;
-			}
-
-			if (is_pip_stored(net_idx, top)) continue;
-
-			if (used_nodes[node_out_idx]) continue;
-
-			used_nodes[node_out_idx] = true;
 
 #if 0
 			std::print("fully_routed: {}, failed_route: {}, attempts: {}, count:{}, topID:{}, wire0:{}, wire1:{}, p:{}, f:{}, t:{}\n",
@@ -356,48 +385,21 @@ public:
 			);
 #endif
 
-			auto current_pips{ rw.alt_node_to_pips[node_out_idx] };
+			uint32_t parent_pip_idx{ rw.alt_route_options.top() };
+			rw.alt_route_options.pop();
 
-			for (auto&& source_pip : current_pips) {
-				if (is_pip_stored(net_idx, source_pip)) continue;
-				if (used_pips[source_pip & 0x7fffffff]) continue;
-				bool source_pip_forward{ static_cast<bool>(source_pip >> 31u) };
-				// if (!source_pip_forward) continue;
-				// auto wire_in{ source_pip_forward?rw.get_pip_wire0(source_pip): rw.get_pip_wire1(source_pip) };
-				// auto wire_out{ source_pip_forward?rw.get_pip_wire1(source_pip): rw.get_pip_wire0(source_pip) };
-				auto node_in{ rw.get_pip_node_in(source_pip) };
-				auto node_out{ rw.get_pip_node_out(source_pip) };
-
-				if (node_out == stub_node_idx) {
-					if (is_pip_stored(net_idx, source_pip)) {
-						puts("is_pip_stored(net_idx, source_pip) && node_out == stub_node_idx");
-						abort();
-					}
-
-					append_pip(net_idx, source_pip, top, top_info.past_cost + 1, 0);
-					store_route(net_idx, branch, stub, source_pip);
-					// puts("store_route");
-					// puts(std::format("STORE fully_routed: {}, failed_route: {}, attempts: {}, q: {}", fully_routed, failed_route, attempts, rw.alt_route_options.size()).c_str());
-					return true;
+			auto node_out_idx{ rw.get_pip_node_out(parent_pip_idx) };
+			if (node_out_idx == stub_node_idx) {
+				if (is_pip_stored(net_idx, parent_pip_idx)) {
+					puts("is_pip_stored(net_idx, parent_pip_idx) && node_out_idx == stub_node_idx");
+					abort();
 				}
 
-				if (is_pip_stored(net_idx, source_pip)) continue;
-
-				for (auto&& node_wire_out : rw.alt_nodes[node_out]) {
-					auto node_wire_out_tile_idx{ dev_tile_strIndex_to_tile.at(rw.get_wire_tile_str(node_wire_out)) };
-					auto node_wire_out_tile{ tiles[node_wire_out_tile_idx] };
-					auto node_wire_out_tileCol{ node_wire_out_tile.getCol() };
-					auto node_wire_out_tileRow{ node_wire_out_tile.getRow() };
-
-					for (auto&& stub_node_tile_idx : stub_node_tiles) {
-						auto stub_node_tile{ tiles[stub_node_tile_idx] };
-						auto node_wire_out_colDiff{ static_cast<int32_t>(stub_node_tile.getCol()) - static_cast<int32_t>(node_wire_out_tile.getCol()) };
-						auto node_wire_out_rowDiff{ static_cast<int32_t>(stub_node_tile.getRow()) - static_cast<int32_t>(node_wire_out_tile.getRow()) };
-						auto dist{ abs(node_wire_out_colDiff) + abs(node_wire_out_rowDiff) };
-						append_pip(net_idx, source_pip, top, top_info.past_cost + 1, dist);
-					}
-				}
+				store_route(net_idx, branch, stub, parent_pip_idx);
+				return true;
 			}
+
+			add_node_pips(net_idx, stub_node_idx, stub_node_tiles, node_out_idx, parent_pip_idx);
 		}
 
 #if 0
