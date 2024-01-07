@@ -71,63 +71,75 @@ public:
 
     }
 
-    inline uint32_t get_pip_wire0(uint32_t pip_idx) {
+    inline uint32_t get_pip_wire0(uint32_t pip_idx) const {
         auto pip_info{ alt_pips[pip_idx & 0x7fffffffu] };
         auto wire0{ _bextr_u64(pip_info, 0, 28) };
         return static_cast<uint32_t>(wire0);
     }
 
-    inline uint32_t get_pip_wire1(uint32_t pip_idx) {
+    inline uint32_t get_pip_wire1(uint32_t pip_idx) const {
         auto pip_info{ alt_pips[pip_idx & 0x7fffffffu] };
         auto wire1{ _bextr_u64(pip_info, 32, 28) };
         return static_cast<uint32_t>(wire1);
     }
 
-    inline bool get_pip_directional(uint32_t pip_idx) {
+    inline bool get_pip_directional(uint32_t pip_idx) const {
         auto pip_info{ alt_pips[pip_idx & 0x7fffffffu] };
         bool directional{ static_cast<bool>(_bextr_u64(pip_info, 63, 1)) };
         return directional;
     }
 
-    inline uint32_t get_pip_node0(uint32_t pip_idx) {
+    inline uint32_t get_pip_node0(uint32_t pip_idx) const {
         auto wire0{ get_pip_wire0(pip_idx & 0x7fffffffu) };
         return alt_wire_to_node[wire0];
     }
 
-    inline uint32_t get_pip_node1(uint32_t pip_idx) {
+    inline uint32_t get_pip_node1(uint32_t pip_idx) const {
         auto wire1{ get_pip_wire1(pip_idx & 0x7fffffffu) };
         return alt_wire_to_node[wire1];
     }
 
-    inline uint32_t get_pip_wire0_str(uint32_t pip_idx) {
+    inline static bool is_pip_forward(uint32_t pip_idx) {
+        return static_cast<bool>(pip_idx >> 31u);
+    }
+
+    inline uint32_t get_pip_node_in(uint32_t pip_idx) const {
+        return is_pip_forward(pip_idx) ? get_pip_node0(pip_idx) : get_pip_node1(pip_idx);
+    }
+
+    inline uint32_t get_pip_node_out(uint32_t pip_idx) const {
+        return is_pip_forward(pip_idx) ? get_pip_node1(pip_idx) : get_pip_node0(pip_idx);
+    }
+
+    inline uint32_t get_pip_wire0_str(uint32_t pip_idx) const {
         auto wire0{ get_pip_wire0(pip_idx & 0x7fffffffu) };
         auto wire0_info{ alt_wires.body[wire0] };
         return static_cast<uint32_t>(_bextr_u64(wire0_info, 0, 32));
     }
 
-    inline uint32_t get_pip_wire1_str(uint32_t pip_idx) {
+    inline uint32_t get_pip_wire1_str(uint32_t pip_idx) const {
         auto wire1{ get_pip_wire1(pip_idx & 0x7fffffffu) };
         auto wire1_info{ alt_wires.body[wire1] };
         return static_cast<uint32_t>(_bextr_u64(wire1_info, 0, 32));
     }
 
-    inline uint32_t get_pip_tile0_str(uint32_t pip_idx) {
+    inline uint32_t get_pip_tile0_str(uint32_t pip_idx) const {
         auto wire0{ get_pip_wire0(pip_idx & 0x7fffffffu) };
         auto wire0_info{ alt_wires.body[wire0] };
         return static_cast<uint32_t>(_bextr_u64(wire0_info, 32, 32));
     }
 
-    inline uint32_t get_wire_str(uint32_t wire_idx) {
+    inline uint32_t get_wire_str(uint32_t wire_idx) const {
         auto wire_info{ alt_wires.body[wire_idx] };
         return static_cast<uint32_t>(_bextr_u64(wire_info, 0, 32));
     }
 
-    inline uint32_t get_wire_tile_str(uint32_t wire_idx) {
+    inline uint32_t get_wire_tile_str(uint32_t wire_idx) const {
         auto wire_info{ alt_wires.body[wire_idx] };
         return static_cast<uint32_t>(_bextr_u64(wire_info, 32, 32));
     }
 
-    inline static uint32_t find_wire(MMF_Dense_Sets_u64 &alt_wires, uint32_t tile_strIdx, uint32_t wire_strIdx) {
+    inline static uint32_t find_wire(const MMF_Dense_Sets_u64 &alt_wires, uint32_t tile_strIdx, uint32_t wire_strIdx) {
         uint64_t key{combine_u32_u32_to_u64(wire_strIdx, tile_strIdx)};
         auto h{ _mm_crc32_u64(0, key) };
         auto mask{ (alt_wires.size() - 1ull) };
@@ -143,16 +155,16 @@ public:
         return UINT32_MAX;
     }
 
-    static uint64_t combine_u32_u32_to_u64(uint32_t a, uint32_t b) {
+    inline static uint64_t combine_u32_u32_to_u64(uint32_t a, uint32_t b) {
         uint64_t ret{static_cast<uint64_t>(a) | (static_cast<uint64_t>(b) << 32ull)};
         return ret;
     }
 
-    static uint32_t extract_low_u32_from_u64(uint64_t k) {
+    inline static uint32_t extract_low_u32_from_u64(uint64_t k) {
         return static_cast<uint32_t>(k);
     }
 
-    static uint32_t extract_high_u32_from_u64(uint64_t k) {
+    inline static uint32_t extract_high_u32_from_u64(uint64_t k) {
         return static_cast<uint32_t>(k >> 32ull);
     }
 
@@ -167,7 +179,7 @@ public:
         return static_cast<uint32_t>(ret_index);
     }
 
-    inline static uint32_t find_site_pin_wire(MMF_Dense_Sets_4xu32& alt_site_pins, uint32_t site_strIdx, uint32_t site_pin_strIdx) {
+    inline static uint32_t find_site_pin_wire(const MMF_Dense_Sets_4xu32& alt_site_pins, uint32_t site_strIdx, uint32_t site_pin_strIdx) {
         auto key{ key_site_pin(site_strIdx, site_pin_strIdx) };
         auto ret_index{ hash_site_pin(alt_site_pins.size(), key)};
         auto bucket{ alt_site_pins[ret_index] };
@@ -180,7 +192,7 @@ public:
         return UINT32_MAX;
     }
 
-    inline static uint32_t find_site_pin_node(MMF_Dense_Sets_4xu32& alt_site_pins, uint32_t site_strIdx, uint32_t site_pin_strIdx) {
+    inline static uint32_t find_site_pin_node(const MMF_Dense_Sets_4xu32& alt_site_pins, uint32_t site_strIdx, uint32_t site_pin_strIdx) {
         auto key{ key_site_pin(site_strIdx, site_pin_strIdx) };
         auto ret_index{ hash_site_pin(alt_site_pins.size(), key) };
         auto bucket{ alt_site_pins[ret_index] };
@@ -193,19 +205,19 @@ public:
         return UINT32_MAX;
     }
 
-    inline uint32_t find_wire(uint32_t tile_strIdx, uint32_t wire_strIdx) {
+    inline uint32_t find_wire(uint32_t tile_strIdx, uint32_t wire_strIdx) const {
         return find_wire(alt_wires, tile_strIdx, wire_strIdx);
     }
 
-    inline uint32_t find_site_pin_wire(uint32_t site_strIdx, uint32_t site_pin_strIdx) {
+    inline uint32_t find_site_pin_wire(uint32_t site_strIdx, uint32_t site_pin_strIdx) const {
         return find_site_pin_wire(alt_site_pins, site_strIdx, site_pin_strIdx);
     }
 
-    inline uint32_t find_site_pin_node(uint32_t site_strIdx, uint32_t site_pin_strIdx) {
+    inline uint32_t find_site_pin_node(uint32_t site_strIdx, uint32_t site_pin_strIdx) const {
         return find_site_pin_node(alt_site_pins, site_strIdx, site_pin_strIdx);
     }
 
-    void test_wires(DeviceResources::Device::Reader dev) {
+    void test_wires(DeviceResources::Device::Reader dev) const {
         auto wires{dev.getWires()};
         uint32_t good_wires{};
         uint32_t bad_wires{};
@@ -256,7 +268,7 @@ public:
         // std::print("good_wires: {}, bad_wires: {}\n", good_wires, bad_wires);
     }
 
-    void test_nodes(DeviceResources::Device::Reader dev) {
+    void test_nodes(DeviceResources::Device::Reader dev) const {
         auto wires{ dev.getWires() };
         auto nodes{ dev.getNodes() };
         for (uint32_t nodeIdx{}; nodeIdx < nodes.size(); nodeIdx++) {
@@ -306,7 +318,7 @@ public:
         }
     }
 
-    void test_site_pin_wires(DeviceResources::Device::Reader dev) {
+    void test_site_pin_wires(DeviceResources::Device::Reader dev) const {
         puts("test_site_pin_wires start");
 
         auto tiles{ dev.getTileList() };

@@ -25,8 +25,8 @@ public:
 	uint32_t failed_route{};
 
 	RenumberedWires rw;
-	std::vector<bool> stored_nodes;
-	::capnp::MallocMessageBuilder message{/* words */ };
+	std::vector<uint32_t> stored_nodes_nets;
+	::capnp::MallocMessageBuilder message{ 0x1FFFFFFFu, ::capnp::AllocationStrategy::FIXED_SIZE };
 	PhysicalNetlist::PhysNetlist::Builder physBuilder{ message.initRoot<PhysicalNetlist::PhysNetlist>() };
 
 	std::vector<uint32_t> phys_stridx_to_dev_stridx;
@@ -37,7 +37,7 @@ public:
 		phys_stridx_to_dev_stridx{ std::vector<uint32_t>( static_cast<size_t>(physStrs.size()), UINT32_MAX ) },
 		dev_tile_strIndex_to_tile{ std::vector<uint32_t>(static_cast<size_t>(devStrs.size()), UINT32_MAX) }
 	{
-		stored_nodes.resize(rw.alt_nodes.size());
+		stored_nodes_nets.resize(rw.alt_nodes.size(), UINT32_MAX);
 
 		puts(std::format("Route_Phys() start").c_str());
 
@@ -63,7 +63,7 @@ public:
 		puts(std::format("Route_Phys() finish").c_str());
 	}
 
-	void block_site_pin(::PhysicalNetlist::PhysNetlist::PhysSitePin::Reader sitePin) {
+	void block_site_pin(uint32_t net_idx, ::PhysicalNetlist::PhysNetlist::PhysSitePin::Reader sitePin) {
 		auto ps_source_site{ sitePin.getSite() };
 		auto ps_source_pin{ sitePin.getPin() };
 		// OutputDebugStringA(std::format("block_site_pin({}, {})\n", strList[ps_source_site].cStr(), strList[ps_source_pin].cStr()).c_str());
@@ -74,11 +74,11 @@ public:
 		auto source_wire_idx{ rw.find_site_pin_wire(ds_source_site, ds_source_pin) };
 		if (source_wire_idx != UINT32_MAX) {
 			auto source_node_idx{ rw.alt_wire_to_node[source_wire_idx] };
-			stored_nodes[source_node_idx] = true;
+			store_node_used(net_idx, source_node_idx);
 		}
 	}
 
-	void block_pip(::PhysicalNetlist::PhysNetlist::PhysPIP::Reader pip) {
+	void block_pip(uint32_t net_idx, ::PhysicalNetlist::PhysNetlist::PhysPIP::Reader pip) {
 		auto ps_tile{ pip.getTile() };
 		auto ps_wire0{ pip.getWire0() };
 		auto ps_wire1{ pip.getWire1() };
@@ -94,47 +94,47 @@ public:
 		auto node0_idx{ rw.alt_wire_to_node[wire0_idx] };
 		auto node1_idx{ rw.alt_wire_to_node[wire1_idx] };
 
-		stored_nodes[node0_idx] = true;
-		stored_nodes[node1_idx] = true;
+		store_node_used(net_idx, node0_idx);
+		store_node_used(net_idx, node1_idx);
 	}
 
-	void block_source_resource(PhysicalNetlist::PhysNetlist::RouteBranch::Reader branch) {
+	void block_source_resource(uint32_t net_idx, PhysicalNetlist::PhysNetlist::RouteBranch::Reader branch) {
 		auto rs{ branch.getRouteSegment() };
 		switch (rs.which()) {
 		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::BEL_PIN: {
 			auto belPin{ rs.getBelPin() };
-			// block_bel_pin(belPin);
+			// block_bel_pin(net_idx, belPin);
 			break;
 		}
 		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::SITE_PIN: {
 			auto sitePin{ rs.getSitePin() };
-			block_site_pin(sitePin);
+			block_site_pin(net_idx, sitePin);
 			break;
 		}
 		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::PIP: {
 			auto pip{ rs.getPip() };
-			block_pip(pip);
+			block_pip(net_idx, pip);
 			break;
 		}
 		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::SITE_P_I_P: {
 			auto sitePip{ rs.getSitePIP() };
-			// block_site_pip(sitePip);
+			// block_site_pip(net_idx, sitePip);
 			break;
 		}
 		default:
 			abort();
 		}
 		for (auto&& sub_branch : branch.getBranches()) {
-			block_source_resource(sub_branch);
+			block_source_resource(net_idx, sub_branch);
 		}
 	}
 
-	void block_resources(PhysicalNetlist::PhysNetlist::PhysNet::Reader physNet) {
+	void block_resources(uint32_t net_idx, PhysicalNetlist::PhysNetlist::PhysNet::Reader physNet) {
 		for (auto&& src_branch : physNet.getSources()) {
-			block_source_resource(src_branch);
+			block_source_resource(net_idx, src_branch);
 		}
 		for (auto&& stub_branch : physNet.getStubs()) {
-			block_source_resource(stub_branch);
+			block_source_resource(net_idx, stub_branch);
 		}
 
 	}
@@ -195,7 +195,7 @@ public:
 		return ret;
 	}
 
-	void store_route(branch_builder branch, branch_reader stub, uint32_t route_index) {
+	void store_route(uint32_t net_idx, branch_builder branch, branch_reader stub, uint32_t route_index) {
 		std::vector<uint32_t> route_ids{};
 		route_ids.reserve(rw.alt_route_storage[route_index & 0x7fffffff].past_cost);
 		for (uint32_t current_route_index{ route_index }; current_route_index != UINT32_MAX; current_route_index = rw.alt_route_storage[current_route_index & 0x7fffffff].previous) {
@@ -205,15 +205,12 @@ public:
 		// OutputDebugStringA(std::format("route_ids.size: {}\n", route_ids.size()).c_str());
 
 		auto current_branches{ branch.initBranches(1) };
+//		size_t it_idx_next{};
 		for (auto&& it{ route_ids.crbegin() }; it != route_ids.crend(); it++) {
+//			it_idx_next++;
 			auto current_route_index{ *it };
-			// OutputDebugStringA(std::format("current_route_index: {}, past_cost: {}\n", current_route_index, ro.storage[current_route_index].get_past_cost()).c_str());
 
-			//OutputDebugStringA("Wire match\n");
-			
-			stored_nodes[rw.get_pip_node0(current_route_index)] = true;
-			stored_nodes[rw.get_pip_node1(current_route_index)] = true;
-
+			store_pip_used(net_idx, current_route_index);
 			
 			auto psi_tile{ get_phys_strIdx_from_dev_strIdx(rw.get_pip_tile0_str(current_route_index)) };
 			auto psi_wire0{ get_phys_strIdx_from_dev_strIdx(rw.get_pip_wire0_str(current_route_index)) };
@@ -229,7 +226,6 @@ public:
 			sub_pip.setIsFixed(false);
 
 			current_branches = current_branches[0].initBranches(1);
-
 		}
 
 		current_branches.setWithCaveats(0, stub);
@@ -239,7 +235,52 @@ public:
 
 	}
 
-	bool route_stub(branch_builder branch, branch_reader stub, uint32_t source_wire_idx, uint32_t stub_wire_idx, std::vector<uint32_t> stub_node_tiles) {
+	inline bool is_node_used(uint32_t net_idx, uint32_t node_idx) const {
+		auto stored_net{ stored_nodes_nets[node_idx] };
+		if (stored_net != UINT32_MAX && stored_net != net_idx) return true;
+		return false;
+	}
+
+	inline void store_node_used(uint32_t net_idx, uint32_t node_idx) {
+		if (stored_nodes_nets[node_idx] != UINT32_MAX && stored_nodes_nets[node_idx] != net_idx) {
+			puts(std::format("store net_idx:{} blocking conflict stored_nodes_nets[node_idx:{}]={}", net_idx, node_idx, stored_nodes_nets[node_idx]).c_str());
+			abort();
+		}
+
+		stored_nodes_nets[node_idx] = net_idx;
+	}
+
+	inline bool is_pip_used(uint32_t net_idx, uint32_t pip_idx) const {
+		auto pip_node_in{ rw.get_pip_node_in(pip_idx) };
+		auto pip_node_out{ rw.get_pip_node_out(pip_idx) };
+		if (is_node_used(net_idx, pip_node_in)) return true;
+		if (is_node_used(net_idx, pip_node_out)) return true;
+		return false;
+	}
+
+	inline void store_pip_used(uint32_t net_idx, uint32_t pip_idx) {
+		auto node_in{ rw.get_pip_node_in(pip_idx) };
+		auto node_out{ rw.get_pip_node_out(pip_idx) };
+
+		if (stored_nodes_nets[node_in] != UINT32_MAX && stored_nodes_nets[node_in] != net_idx) {
+			puts(std::format("store net_idx:{} blocking conflict f:{} stored_nodes_nets[node_in:{}]={}", net_idx, rw.is_pip_forward(pip_idx), node_in, stored_nodes_nets[node_in]).c_str());
+			abort();
+		}
+
+		if (stored_nodes_nets[node_out] != UINT32_MAX && stored_nodes_nets[node_out] != net_idx) {
+			puts(std::format("store net_idx:{} blocking conflict f:{} stored_nodes_nets[node_out:{}]={}", net_idx, rw.is_pip_forward(pip_idx), node_out, stored_nodes_nets[node_out]).c_str());
+			abort();
+		}
+		stored_nodes_nets[node_in] = net_idx;
+		stored_nodes_nets[node_out] = net_idx;
+	}
+
+	void append_pip(uint32_t net_idx, uint32_t pip_idx, uint32_t previous, uint16_t past_cost, uint16_t future_cost) {
+		if (is_pip_used(net_idx, pip_idx)) return;
+		rw.append(pip_idx, previous, past_cost, future_cost);
+	}
+
+	bool route_stub(uint32_t net_idx, branch_builder branch, branch_reader stub, uint32_t source_wire_idx, uint32_t stub_wire_idx, std::vector<uint32_t> stub_node_tiles) {
 		rw.clear_routes();
 
 		std::vector<bool> used_nodes;
@@ -249,23 +290,28 @@ public:
 		auto stub_node_idx{ rw.alt_wire_to_node[stub_wire_idx] };
 
 		used_nodes[source_node_idx] = true;
+		if (is_node_used(net_idx, source_node_idx)) {
+			puts("stored_nodes_nets[source_node_idx] != net_idx");
+			abort();
+		}
 
 		// puts(std::format("s").c_str());
 
 		auto source_node_pips{ rw.alt_node_to_pips[source_node_idx] };
 		for (auto pip_idx : source_node_pips) {
-			rw.append(pip_idx, UINT32_MAX, 0, 0);
+			append_pip(net_idx, pip_idx, UINT32_MAX, 0, 0);
 		}
-		const uint32_t chunk_size{ 1000 };
+
+		const uint32_t chunk_size{ static_cast<uint32_t>(rw.alt_nodes.size()) };
 		for (uint32_t attempts{}; attempts <= chunk_size; attempts++) {
 			if (attempts > 0 && !(attempts % chunk_size)) puts(std::format("fully_routed: {}, failed_route: {}, attempts: {}, q: {}", fully_routed, failed_route, attempts, rw.alt_route_options.size()).c_str());
 			if (!rw.alt_route_options.size()) {
-				// puts("Empty");
+				puts(std::format("EMPTY fully_routed: {}, failed_route: {}, attempts: {}, q: {}", fully_routed, failed_route, attempts, rw.alt_route_options.size()).c_str());
 				break;
 			}
 			uint32_t top{ rw.alt_route_options.top() };
 			bool top_forward{ static_cast<bool>(top >> 31u) };
-			if (!top_forward) continue;
+			// if (!top_forward) continue;
 			rw.alt_route_options.pop();
 			auto top_info{ rw.alt_route_storage[top & 0x7fffffffu] };
 			auto wire0_idx{ rw.get_pip_wire0(top) };
@@ -275,9 +321,17 @@ public:
 			auto node_out_idx{ top_forward?rw.get_pip_node1(top): rw.get_pip_node0(top) };
 
 			if (node_out_idx == stub_node_idx) {
-				store_route(branch, stub, top);
+				if (is_pip_used(net_idx, top)) {
+					puts("is_pip_used(net_idx, top) && node_out_idx == stub_node_idx");
+					abort();
+				}
+
+				store_route(net_idx, branch, stub, top);
 				return true;
 			}
+
+			if (is_pip_used(net_idx, top)) continue;
+
 			if (used_nodes[node_out_idx]) continue;
 
 			used_nodes[node_out_idx] = true;
@@ -301,22 +355,27 @@ public:
 
 			for (auto&& source_pip : current_pips) {
 				bool source_pip_forward{ static_cast<bool>(source_pip >> 31u) };
-				if (!source_pip_forward) continue;
+				// if (!source_pip_forward) continue;
 				if (rw.alt_route_storage[source_pip & 0x7fffffff].is_used()) continue;
-				auto wire_in{ source_pip_forward?rw.get_pip_wire0(source_pip): rw.get_pip_wire1(source_pip) };
-				auto wire_out{ source_pip_forward?rw.get_pip_wire1(source_pip): rw.get_pip_wire0(source_pip) };
-				auto node_out{ source_pip_forward?rw.get_pip_node1(source_pip): rw.get_pip_node0(source_pip) };
+				// auto wire_in{ source_pip_forward?rw.get_pip_wire0(source_pip): rw.get_pip_wire1(source_pip) };
+				// auto wire_out{ source_pip_forward?rw.get_pip_wire1(source_pip): rw.get_pip_wire0(source_pip) };
+				auto node_in{ rw.get_pip_node_in(source_pip) };
+				auto node_out{ rw.get_pip_node_out(source_pip) };
 
 				if (node_out == stub_node_idx) {
-					rw.append(source_pip, top, top_info.past_cost + 1, 0);
-					store_route(branch, stub, source_pip);
+					if (is_pip_used(net_idx, source_pip)) {
+						puts("is_pip_used(net_idx, source_pip) && node_out == stub_node_idx");
+						abort();
+					}
+
+					append_pip(net_idx, source_pip, top, top_info.past_cost + 1, 0);
+					store_route(net_idx, branch, stub, source_pip);
 					// puts("store_route");
-					// puts(std::format("fully_routed: {}, failed_route: {}", fully_routed, failed_route).c_str());
+					puts(std::format("STORE fully_routed: {}, failed_route: {}, attempts: {}, q: {}", fully_routed, failed_route, attempts, rw.alt_route_options.size()).c_str());
 					return true;
 				}
 
-				if (stored_nodes[node_out]) continue;
-				used_nodes[node_out] = true;
+				if (is_pip_used(net_idx, source_pip)) continue;
 
 				for (auto&& node_wire_out : rw.alt_nodes[node_out]) {
 					auto node_wire_out_tile_idx{ dev_tile_strIndex_to_tile.at(rw.get_wire_tile_str(node_wire_out)) };
@@ -329,7 +388,7 @@ public:
 						auto node_wire_out_colDiff{ static_cast<int32_t>(stub_node_tile.getCol()) - static_cast<int32_t>(node_wire_out_tile.getCol()) };
 						auto node_wire_out_rowDiff{ static_cast<int32_t>(stub_node_tile.getRow()) - static_cast<int32_t>(node_wire_out_tile.getRow()) };
 						auto dist{ abs(node_wire_out_colDiff) + abs(node_wire_out_rowDiff) };
-						rw.append(source_pip, top, top_info.past_cost + 1, dist);
+						append_pip(net_idx, source_pip, top, top_info.past_cost + 1, dist);
 					}
 				}
 			}
@@ -358,7 +417,7 @@ public:
 		return false;
 	}
 
-	bool assign_stub(uint32_t nameIdx, branch_builder branch, branch_reader stub) {
+	bool assign_stub(uint32_t net_idx, uint32_t nameIdx, branch_builder branch, branch_reader stub) {
 		auto site_pin_optional{ branch_site_pin(nameIdx, branch) };
 		if (!site_pin_optional.has_value()) {
 			puts("source lacking site_pin");
@@ -421,13 +480,9 @@ public:
 			}
 		}
 
-		return route_stub(site_pin, stub, source_wire_idx, stub_wire_idx, stub_node_tiles);
+		return route_stub(net_idx, site_pin, stub, source_wire_idx, stub_wire_idx, stub_node_tiles);
 #endif
 		return false;
-	}
-
-	void check_conflicts(PhysicalNetlist::PhysNetlist::Builder physBuilder) {
-
 	}
 
 	void route() {
@@ -439,8 +494,8 @@ public:
 		uint32_t readerPhysNets_size{ readerPhysNets.size() };
 		physBuilder.initPhysNets(readerPhysNets_size);
 		auto listPhysNets{ physBuilder.getPhysNets() };
-		for (auto&& phyNetReader : readerPhysNets) {
-			block_resources(phyNetReader);
+		for (uint32_t net_idx{}; net_idx < readerPhysNets.size(); net_idx++) {
+			block_resources(net_idx, readerPhysNets[net_idx]);
 		}
 		for (uint32_t n{}; n != readerPhysNets_size; n++) {
 			if (!(n % 1000)) {
@@ -462,7 +517,7 @@ public:
 
 			if (r_sources.size() == 1u && r_stubs.size() == 1u && fully_routed < 1000) {
 				// assign_stubs(b_sources, r_stubs);
-				if (!assign_stub(phyNetReader.getName(), b_sources[0], r_stubs[0])) {
+				if (!assign_stub(n, phyNetReader.getName(), b_sources[0], r_stubs[0])) {
 					phyNetBuilder.setStubs(r_stubs);
 					failed_route++;
 				}
@@ -493,8 +548,6 @@ public:
 		physBuilder.setProperties(physRoot.getProperties());
 		physBuilder.setNullNet(physRoot.getNullNet());
 
-		check_conflicts(physBuilder);
-		// debug_net(phyBuilder, "system/clint/time_00[5]");
 		phys.write(message);
 
 		puts("route finish");

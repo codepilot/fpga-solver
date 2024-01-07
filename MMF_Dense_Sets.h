@@ -13,21 +13,22 @@ public:
         header{ mmf.get_span<uint32_t>(sizeof(uint64_t), count[0] * 2ull) },
         body{ mmf.get_span<T>(calc_header_size(count[0]), count[1])} { }
 
-    size_t size() const noexcept {
+    inline size_t size() const noexcept {
         return count[0];
     }
 
-    size_t get_offset(size_t b) {
+    inline size_t get_offset(size_t b) const noexcept {
         size_t offset{ header[b * 2ull + 1ull] };
         return offset;
     }
-    std::span<T> operator[](size_t b) {
+
+    inline std::span<T> operator[](size_t b) const noexcept {
         size_t count{ header[b * 2ull] };
         size_t offset{ header[b * 2ull + 1ull] };
         return body.subspan(offset, count);
     }
 
-    void test(std::vector<std::vector<T>>& src) {
+    void test(std::vector<std::vector<T>>& src) const noexcept {
         puts("test start");
         if (size() != src.size()) {
             puts("size() != src.size()");
