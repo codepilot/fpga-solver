@@ -64,7 +64,7 @@ public:
 
     inline void clear_routes() {
         alt_route_options = RoutePriorityQueue{ ric };
-        route_storage_mmf.zero();
+        // route_storage_mmf.zero();
     }
 
     inline void init_routes() {
