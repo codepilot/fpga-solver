@@ -30,6 +30,7 @@ public:
 	uint32_t fully_routed{};
 	uint32_t skip_route{};
 	uint32_t failed_route{};
+	uint32_t total_attempts{};
 
 	RenumberedWires rw;
 	std::vector<uint32_t> stored_nodes_nets;
@@ -452,7 +453,7 @@ public:
 
 					auto node_wire_out_colDiff{ static_cast<int32_t>(stub_node_tile.getCol()) - static_cast<int32_t>(node_wire_out_tile.getCol()) };
 					auto node_wire_out_rowDiff{ static_cast<int32_t>(stub_node_tile.getRow()) - static_cast<int32_t>(node_wire_out_tile.getRow()) };
-					auto dist{ abs(node_wire_out_colDiff) + abs(node_wire_out_rowDiff) };
+					auto dist{ (abs(node_wire_out_colDiff) + abs(node_wire_out_rowDiff)) * 10};
 					best_dist = dist < best_dist ? dist : best_dist;
 				}
 			}
@@ -495,6 +496,7 @@ public:
 
 		const uint32_t chunk_size{ static_cast<uint32_t>(rw.alt_nodes.size()) };
 		for (uint32_t attempts{}; attempts <= chunk_size; attempts++) {
+			total_attempts++;
 			if (attempts > 0 && !(attempts % chunk_size)) puts(std::format("skip_route: {}, fully_routed: {}, failed_route: {}, attempts: {}, q: {}", skip_route, fully_routed, failed_route, attempts, rw.alt_route_options.size()).c_str());
 			if (!rw.alt_route_options.size()) {
 				puts(std::format("EMPTY skip_route: {}, fully_routed: {}, failed_route: {}, attempts: {}, q: {}", skip_route, fully_routed, failed_route, attempts, rw.alt_route_options.size()).c_str());
@@ -656,7 +658,7 @@ public:
 		}
 		for (uint32_t n{}; n != readerPhysNets_size; n++) {
 			if (!(n % 100)) {
-				puts(std::format("n: {} of {}, skip_route: {}, fully_routed: {}, failed_route: {}", n, readerPhysNets_size, skip_route, fully_routed, failed_route).c_str());
+				puts(std::format("n: {} of {}, total_attempts: {}, skip_route: {}, fully_routed: {}, failed_route: {}", n, readerPhysNets_size, total_attempts, skip_route, fully_routed, failed_route).c_str());
 			}
 			auto phyNetReader{ readerPhysNets[n] };
 

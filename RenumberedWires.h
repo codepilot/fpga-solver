@@ -25,7 +25,13 @@ public:
     std::span<::Route_Info> alt_route_storage;
     Route_Info_Comparison(std::span<::Route_Info> alt_route_storage) : alt_route_storage{ alt_route_storage } {}
     bool operator() (uint32_t left, uint32_t right) {
-        return alt_route_storage[left & 0x7fffffff].get_total_cost() > alt_route_storage[right & 0x7fffffff].get_total_cost();
+        auto left_pip{ alt_route_storage[left & 0x7fffffff] };
+        auto right_pip{ alt_route_storage[right & 0x7fffffff] };
+        if (left_pip.get_total_cost() > right_pip.get_total_cost()) return true;
+        if (left_pip.get_total_cost() == right_pip.get_total_cost()) {
+            if (left_pip.past_cost < right_pip.past_cost) return true;
+        }
+        return false;
     }
 };
 
