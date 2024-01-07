@@ -122,7 +122,7 @@ public:
 			break;
 		}
 		default:
-			DebugBreak();
+			abort();
 		}
 		for (auto&& sub_branch : branch.getBranches()) {
 			block_source_resource(sub_branch);
