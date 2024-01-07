@@ -63,7 +63,79 @@ public:
 		puts(std::format("Route_Phys() finish").c_str());
 	}
 
+	void block_site_pin(::PhysicalNetlist::PhysNetlist::PhysSitePin::Reader sitePin) {
+		auto ps_source_site{ sitePin.getSite() };
+		auto ps_source_pin{ sitePin.getPin() };
+		// OutputDebugStringA(std::format("block_site_pin({}, {})\n", strList[ps_source_site].cStr(), strList[ps_source_pin].cStr()).c_str());
+		auto ds_source_site{ phys_stridx_to_dev_stridx.at(ps_source_site) };
+		auto ds_source_pin{ phys_stridx_to_dev_stridx.at(ps_source_pin) };
+		// OutputDebugStringA(std::format("block_site_pin({}, {})\n", dev.strList[ds_source_site].cStr(), dev.strList[ds_source_pin].cStr()).c_str());
+		
+		auto source_wire_idx{ rw.find_site_pin_wire(ds_source_site, ds_source_pin) };
+		if (source_wire_idx != UINT32_MAX) {
+			auto source_node_idx{ rw.alt_wire_to_node[source_wire_idx] };
+			stored_nodes[source_node_idx] = true;
+		}
+	}
+
+	void block_pip(::PhysicalNetlist::PhysNetlist::PhysPIP::Reader pip) {
+		auto ps_tile{ pip.getTile() };
+		auto ps_wire0{ pip.getWire0() };
+		auto ps_wire1{ pip.getWire1() };
+
+		auto ds_tile{ phys_stridx_to_dev_stridx.at(ps_tile) };
+		auto ds_wire0{ phys_stridx_to_dev_stridx.at(ps_wire0) };
+		auto ds_wire1{ phys_stridx_to_dev_stridx.at(ps_wire1) };
+
+		auto wire0_idx{ rw.find_wire(ds_tile, ds_wire0) };
+		auto wire1_idx{ rw.find_wire(ds_tile, ds_wire1) };
+
+
+		auto node0_idx{ rw.alt_wire_to_node[wire0_idx] };
+		auto node1_idx{ rw.alt_wire_to_node[wire1_idx] };
+
+		stored_nodes[node0_idx] = true;
+		stored_nodes[node1_idx] = true;
+	}
+
+	void block_source_resource(PhysicalNetlist::PhysNetlist::RouteBranch::Reader branch) {
+		auto rs{ branch.getRouteSegment() };
+		switch (rs.which()) {
+		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::BEL_PIN: {
+			auto belPin{ rs.getBelPin() };
+			// block_bel_pin(belPin);
+			break;
+		}
+		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::SITE_PIN: {
+			auto sitePin{ rs.getSitePin() };
+			block_site_pin(sitePin);
+			break;
+		}
+		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::PIP: {
+			auto pip{ rs.getPip() };
+			block_pip(pip);
+			break;
+		}
+		case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::SITE_P_I_P: {
+			auto sitePip{ rs.getSitePIP() };
+			// block_site_pip(sitePip);
+			break;
+		}
+		default:
+			DebugBreak();
+		}
+		for (auto&& sub_branch : branch.getBranches()) {
+			block_source_resource(sub_branch);
+		}
+	}
+
 	void block_resources(PhysicalNetlist::PhysNetlist::PhysNet::Reader physNet) {
+		for (auto&& src_branch : physNet.getSources()) {
+			block_source_resource(src_branch);
+		}
+		for (auto&& stub_branch : physNet.getStubs()) {
+			block_source_resource(stub_branch);
+		}
 
 	}
 
@@ -170,10 +242,15 @@ public:
 	bool route_stub(branch_builder branch, branch_reader stub, uint32_t source_wire_idx, uint32_t stub_wire_idx, std::vector<uint32_t> stub_node_tiles) {
 		rw.clear_routes();
 
+		std::vector<bool> used_nodes;
+		used_nodes.resize(rw.alt_nodes.size(), false);
+
 		auto source_node_idx{ rw.alt_wire_to_node[source_wire_idx] };
 		auto stub_node_idx{ rw.alt_wire_to_node[stub_wire_idx] };
 
-		puts(std::format("s").c_str());
+		used_nodes[source_node_idx] = true;
+
+		// puts(std::format("s").c_str());
 
 		auto source_node_pips{ rw.alt_node_to_pips[source_node_idx] };
 		for (auto pip_idx : source_node_pips) {
@@ -181,19 +258,29 @@ public:
 		}
 		const uint32_t chunk_size{ 1000 };
 		for (uint32_t attempts{}; attempts <= chunk_size; attempts++) {
-			if (attempts > 0 && !(attempts % chunk_size)) puts(std::format("attempts: {}, q: {}", attempts, rw.alt_route_options.size()).c_str());
+			if (attempts > 0 && !(attempts % chunk_size)) puts(std::format("fully_routed: {}, failed_route: {}, attempts: {}, q: {}", fully_routed, failed_route, attempts, rw.alt_route_options.size()).c_str());
 			if (!rw.alt_route_options.size()) {
 				// puts("Empty");
 				break;
 			}
 			uint32_t top{ rw.alt_route_options.top() };
+			bool top_forward{ static_cast<bool>(top >> 31u) };
+			if (!top_forward) continue;
 			rw.alt_route_options.pop();
 			auto top_info{ rw.alt_route_storage[top & 0x7fffffffu] };
 			auto wire0_idx{ rw.get_pip_wire0(top) };
 			auto wire1_idx{ rw.get_pip_wire1(top) };
 
-			auto node0_idx{ rw.get_pip_node0(top) };
-			auto node1_idx{ rw.get_pip_node1(top) };
+			auto node_in_idx{ top_forward?rw.get_pip_node0(top): rw.get_pip_node1(top) };
+			auto node_out_idx{ top_forward?rw.get_pip_node1(top): rw.get_pip_node0(top) };
+
+			if (node_out_idx == stub_node_idx) {
+				store_route(branch, stub, top);
+				return true;
+			}
+			if (used_nodes[node_out_idx]) continue;
+
+			used_nodes[node_out_idx] = true;
 
 #if 0
 			std::print("fully_routed: {}, failed_route: {}, attempts: {}, count:{}, topID:{}, wire0:{}, wire1:{}, p:{}, f:{}, t:{}\n",
@@ -210,16 +297,15 @@ public:
 			);
 #endif
 
-			auto current_wire0{ wire1_idx };
-			auto current_node0{ node1_idx };
-			auto current_pips{ rw.alt_node_to_pips[current_node0] };
-
+			auto current_pips{ rw.alt_node_to_pips[node_out_idx] };
 
 			for (auto&& source_pip : current_pips) {
+				bool source_pip_forward{ static_cast<bool>(source_pip >> 31u) };
+				if (!source_pip_forward) continue;
 				if (rw.alt_route_storage[source_pip & 0x7fffffff].is_used()) continue;
-				auto wire_in{ rw.get_pip_wire0(source_pip) };
-				auto wire_out{ rw.get_pip_wire1(source_pip) };
-				auto node_out{ rw.get_pip_node1(source_pip) };
+				auto wire_in{ source_pip_forward?rw.get_pip_wire0(source_pip): rw.get_pip_wire1(source_pip) };
+				auto wire_out{ source_pip_forward?rw.get_pip_wire1(source_pip): rw.get_pip_wire0(source_pip) };
+				auto node_out{ source_pip_forward?rw.get_pip_node1(source_pip): rw.get_pip_node0(source_pip) };
 
 				if (node_out == stub_node_idx) {
 					rw.append(source_pip, top, top_info.past_cost + 1, 0);
@@ -230,7 +316,8 @@ public:
 				}
 
 				if (stored_nodes[node_out]) continue;
-				
+				used_nodes[node_out] = true;
+
 				for (auto&& node_wire_out : rw.alt_nodes[node_out]) {
 					auto node_wire_out_tile_idx{ dev_tile_strIndex_to_tile.at(rw.get_wire_tile_str(node_wire_out)) };
 					auto node_wire_out_tile{ tiles[node_wire_out_tile_idx] };
@@ -373,7 +460,7 @@ public:
 			phyNetBuilder.setSources(r_sources);
 			auto b_sources{ phyNetBuilder.getSources() };
 
-			if (r_sources.size() == 1u && r_stubs.size() == 1u && fully_routed == 0) {
+			if (r_sources.size() == 1u && r_stubs.size() == 1u && fully_routed < 1000) {
 				// assign_stubs(b_sources, r_stubs);
 				if (!assign_stub(phyNetReader.getName(), b_sources[0], r_stubs[0])) {
 					phyNetBuilder.setStubs(r_stubs);

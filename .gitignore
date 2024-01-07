@@ -2,3 +2,5 @@ build
 .vscode
 *.xdc
 *.dcp
+*vivado*.jou
+*vivado*.log

@@ -97,8 +97,8 @@ public:
             size_t item_offset{};
             size_t item_index{};
             for (auto&& n : src) {
-                header[item_index] = n.size();
-                header[item_index + 1ull] = item_offset;
+                header[item_index] = static_cast<uint32_t>(n.size());
+                header[item_index + 1ull] = static_cast<uint32_t>(item_offset);
                 std::copy(n.begin(), n.end(), body.begin() + item_offset);
                 item_index += 2ull;
                 item_offset += n.size();
