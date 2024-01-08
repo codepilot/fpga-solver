@@ -39,7 +39,7 @@ inline static constexpr PIP_Index PIP_Index_Root{ PIP_Index::from_uint32_t(UINT3
 
 template <>
 struct std::hash<PIP_Index> {
-    size_t operator()(const PIP_Index _Keyval) const noexcept {
+    inline __attribute__((always_inline)) size_t operator()(const PIP_Index _Keyval) const noexcept {
         return _mm_crc32_u32(0, _Keyval.as_uint32_t());
     }
 };
@@ -81,7 +81,7 @@ public:
 
 template <>
 struct std::hash<String_Index> {
-    size_t operator()(const String_Index _Keyval) const noexcept {
+    inline __attribute__((always_inline)) size_t operator()(const String_Index _Keyval) const noexcept {
         return _mm_crc32_u32(0, _Keyval._strIdx);
     }
 };
