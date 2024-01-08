@@ -2,6 +2,7 @@
 
 #include <cinttypes>
 #include <bit>
+#include <nmmintrin.h>
 
 class PIP_Index {
 public:
@@ -39,7 +40,7 @@ inline static constexpr PIP_Index PIP_Index_Root{ PIP_Index::from_uint32_t(UINT3
 template <>
 struct std::hash<PIP_Index> {
     size_t operator()(const PIP_Index _Keyval) const noexcept {
-        return _Hash_representation(_Keyval.as_uint32_t());
+        return _mm_crc32_u32(0, _Keyval.as_uint32_t());
     }
 };
 
@@ -81,7 +82,7 @@ public:
 template <>
 struct std::hash<String_Index> {
     size_t operator()(const String_Index _Keyval) const noexcept {
-        return _Hash_representation(_Keyval._strIdx);
+        return _mm_crc32_u32(0, _Keyval._strIdx);
     }
 };
 
@@ -135,6 +136,7 @@ static_assert(std::is_standard_layout_v<Site_Pin_Info>);
 static_assert(alignof(Site_Pin_Info) == sizeof(std::array<uint32_t, 4>));
 
 #include <bitset>
+#include <memory>
 
 using _NodeBitset = std::bitset<28226432ull>;
 using _PipBitset = std::bitset<125372792ull>;
