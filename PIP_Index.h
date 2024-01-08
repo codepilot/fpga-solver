@@ -17,7 +17,7 @@
 #ifdef _WIN32
 #define ccai cai
 #else
-#define ccai __attribute__((const))
+#define ccai cai __attribute__((const))
 #endif
 
 class PIP_Index {
