@@ -436,12 +436,12 @@ public:
     MemoryMappedFile fragmentGlsl{ "shaders\\fragment.frag.spv" };
 
     GLuint vbo_locations{};
-#ifdef DRAW_ROUTED
+
     GLuint vio_routed{};
-#else
     GLuint vio_unrouted{};
-#endif
-    GLuint va{};
+
+    GLuint vaRouted{};
+    GLuint vaUnrouted{};
     GLuint pipe{};
 
     enum class ShaderType : GLenum {
@@ -531,24 +531,35 @@ public:
         glCreateBuffers(1, &vbo_locations);
         glNamedBufferStorage(vbo_locations, unrouted_locations.size_bytes(), unrouted_locations.data(), 0);
 
-        glCreateVertexArrays(1, &va);
-        glVertexArrayAttribBinding(va, 0, 0);
-        glVertexArrayAttribFormat(va, 0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
-        glVertexArrayVertexBuffer(va, 0, vbo_locations, 0, 4);
-        glEnableVertexArrayAttrib(va, 0);
+        glCreateVertexArrays(1, &vaRouted);
+        glVertexArrayAttribBinding(vaRouted, 0, 0);
+        glVertexArrayAttribFormat(vaRouted, 0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
+        glVertexArrayVertexBuffer(vaRouted, 0, vbo_locations, 0, 4);
+        glEnableVertexArrayAttrib(vaRouted, 0);
+
+        glCreateVertexArrays(1, &vaUnrouted);
+        glVertexArrayAttribBinding(vaUnrouted, 0, 0);
+        glVertexArrayAttribFormat(vaUnrouted, 0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
+        glVertexArrayVertexBuffer(vaUnrouted, 0, vbo_locations, 0, 4);
+        glEnableVertexArrayAttrib(vaUnrouted, 0);
 
 
-#ifdef DRAW_ROUTED
+        GLsizei index_buf_bytes{ static_cast<GLsizei>( rp.rw.alt_nodes.size() * sizeof(std::array<uint32_t, 2>)) };
+        size_t index_buf_lines{ static_cast<size_t>(index_buf_bytes / sizeof(std::array<uint32_t, 2>)) };
+
         glCreateBuffers(1, &vio_routed);
-        glNamedBufferStorage(vio_routed, 128 * 1024 * 1024, nullptr, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT | GL_CLIENT_STORAGE_BIT);
-        rp.start_routing(std::span<uint32_t>{reinterpret_cast<uint32_t *>(glMapNamedBufferRange(vio_routed, 0, 128 * 1024 * 1024, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), static_cast<size_t>(32 * 1024 * 1024) });
-        glVertexArrayElementBuffer(va, vio_routed);
-#else
-        glCreateBuffers(1, &vio_unrouted);
-        glNamedBufferStorage(vio_unrouted, sizeof(uint32_t) * phys.unrouted_indices.size(), phys.unrouted_indices.data(), 0);
-        glVertexArrayElementBuffer(va, vio_unrouted);
-#endif
+        glNamedBufferStorage(vio_routed, index_buf_bytes, nullptr, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT | GL_CLIENT_STORAGE_BIT);
+        glVertexArrayElementBuffer(vaRouted, vio_routed);
 
+        glCreateBuffers(1, &vio_unrouted);
+        glNamedBufferStorage(vio_unrouted, index_buf_bytes, nullptr, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT | GL_CLIENT_STORAGE_BIT);
+        glVertexArrayElementBuffer(vaUnrouted, vio_unrouted);
+
+        std::span<uint32_t> mRouted{};
+        rp.start_routing(
+            std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_routed, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines },
+            std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_unrouted, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines }
+        );
         wglSwapIntervalEXT(1);
 
 #if 0
@@ -566,11 +577,6 @@ public:
         glValidateProgramPipeline(pipe);
         glBindProgramPipeline(pipe);
         glProgramUniform2f(vertexShader, 0, static_cast<GLfloat>(tileInfo.numCol), static_cast<GLfloat>(tileInfo.numRow));
-#ifdef DRAW_ROUTED
-        glProgramUniform4f(fragmentShader, 0, 0.0f, 1.0f, 0.0f, 0.01f);
-#else
-        glProgramUniform4f(fragmentShader, 0, 1.0f, 0.0f, 0.0f, 0.01f);
-#endif
     }
 
     UINT step() {
@@ -625,14 +631,17 @@ public:
             0, 0, static_cast<GLint>(gl->clientWidth), static_cast<GLint>(gl->clientHeight),
             GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
-        // glEnable(GL_BLEND);
+        glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glBindVertexArray(va);
-#ifdef DRAW_ROUTED
+
+        glBindVertexArray(vaRouted);
+        glProgramUniform4f(fragmentShader, 0, 0.0f, 1.0f, 0.0f, 0.1f);
         glDrawElements(GL_LINES, rp.routed_index_count, GL_UNSIGNED_INT, nullptr);
-#else
-        glDrawElements(GL_LINES, static_cast<GLsizei>(phys.unrouted_indices.size() << 1ui64), GL_UNSIGNED_INT, nullptr);
-#endif
+
+        glBindVertexArray(vaUnrouted);
+        glProgramUniform4f(fragmentShader, 0, 1.0f, 0.0f, 0.0f, 0.1f);
+        glDrawElements(GL_LINES, rp.unrouted_index_count, GL_UNSIGNED_INT, nullptr);
+
         glDisable(GL_BLEND);
 
         if (!first_capture_png) {

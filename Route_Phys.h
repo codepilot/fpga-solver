@@ -66,6 +66,7 @@ public:
 	Counter fully_routed, skip_route, failed_route, total_attempts;
 	DevGZ dev{ "_deps/device-file-src/xcvu3p.device" };
 	PhysGZ phys{ "_deps/benchmark-files-src/boom_med_pb_unrouted.phys" };
+	// PhysGZ phys{ "_deps/benchmark-files-src/boom_soc_unrouted.phys" };
 	DeviceResources::Device::Reader devRoot{ dev.root };
 	PhysicalNetlist::PhysNetlist::Reader physRoot{ phys.root };
 	::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader devStrs{ devRoot.getStrList() };
@@ -80,7 +81,9 @@ public:
 	PhysicalNetlist::PhysNetlist::Builder physBuilder{ message.initRoot<PhysicalNetlist::PhysNetlist>() };
 	std::vector<std::array<uint16_t, 2>> unrouted_locations;
 	std::span<uint32_t> routed_indices;
+	std::span<uint32_t> unrouted_indices;
 	std::atomic<uint32_t> routed_index_count{};
+	std::atomic<uint32_t> unrouted_index_count{};
 	std::jthread jt;
 
 	Route_Phys() :
@@ -95,20 +98,11 @@ public:
 		puts(std::format("Route_Phys() finish").c_str());
 	}
 
-	void start_routing(std::span<uint32_t> routed_indices_mapping) {
+	void start_routing(std::span<uint32_t> routed_indices_mapping, std::span<uint32_t> unrouted_indices_mapping) {
 		routed_indices = routed_indices_mapping;
+		unrouted_indices = unrouted_indices_mapping;
 
-		jt = std::jthread{ [this]() {
-#if 0
-			for (uint32_t tile_idx{}; tile_idx < tiles.size(); tile_idx++) {
-				routed_indices[routed_index_count++] = tile_idx;
-				Sleep(10);
-			}
-#else
-			route();
-#endif
-			}
-		};
+		jt = std::jthread{ [this]() { route(); } };
 	}
 
 	void block_site_pin(uint32_t net_idx, ::PhysicalNetlist::PhysNetlist::PhysSitePin::Reader sitePin) {
@@ -257,7 +251,7 @@ public:
 			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_PIN: {
 				auto tile_idx{ get_tile_idx_from_site_pin(branch_rs.getSitePin()) };
 
-				if (previous_tile != UINT32_MAX) {
+				if (previous_tile != UINT32_MAX && routed_index_count + 2 < routed_indices.size()) {
 					routed_indices[routed_index_count++] = previous_tile;
 					routed_indices[routed_index_count++] = tile_idx;
 				}
@@ -269,7 +263,7 @@ public:
 				auto pip{ branch_rs.getPip() };
 				auto tile_idx{ sbg.dev_tile_strIndex_to_tile.at(sbg.phys_stridx_to_dev_stridx.at(pip.getTile())._strIdx) };
 
-				if (previous_tile != UINT32_MAX) {
+				if (previous_tile != UINT32_MAX && routed_index_count + 2 < routed_indices.size()) {
 					routed_indices[routed_index_count++] = previous_tile;
 					routed_indices[routed_index_count++] = tile_idx;
 				}
@@ -331,7 +325,8 @@ public:
 				rw.clear_routes();
 #endif
 
-				RouteStorage rs{ rw.alt_pips.size(), ns, rw, sbg };
+				unrouted_index_count = 0;
+				RouteStorage rs{ rw.alt_pips.size(), ns, rw, sbg, unrouted_indices, unrouted_index_count };
 
 				if (!rs.assign_stubs(n, phyNetReader.getName(), b_sources, r_stubs)) {
 					phyNetBuilder.setStubs(r_stubs);
@@ -339,7 +334,7 @@ public:
 				}
 				else {
 					fully_routed.increment();
-					draw_sources(n, b_sources);
+					if(!routed_indices.empty()) draw_sources(n, b_sources);
 				}
 				//phyNetBuilder.initStubs(0);
 			}

@@ -59,8 +59,10 @@ public:
 	const RenumberedWires &rw;
 	String_Building_Group &sbg;
 
+	std::span<uint32_t> unrouted_indices;
+	std::atomic<uint32_t> &unrouted_index_count;
 
-    RouteStorage(size_t alt_pips_size, decltype(ns) ns, decltype(rw) rw, decltype(sbg) sbg) noexcept:
+	RouteStorage(size_t alt_pips_size, decltype(ns) ns, decltype(rw) rw, decltype(sbg) sbg, decltype(unrouted_indices) unrouted_indices, decltype(unrouted_index_count) unrouted_index_count) noexcept :
         route_storage_mmf{ "route_storage2.bin", alt_pips_size * sizeof(::Route_Info) },
         alt_route_storage{ route_storage_mmf.get_span<::Route_Info>() },
         ric{ alt_route_storage },
@@ -72,7 +74,7 @@ public:
         r_used_pips{ *up_used_pips.get() },
         cr_used_nodes{ r_used_nodes },
         cr_used_pips{ r_used_pips },
-		rw{ rw }, sbg{ sbg } {
+		rw{ rw }, sbg{ sbg }, unrouted_indices{ unrouted_indices }, unrouted_index_count{ unrouted_index_count } {
 
     }
 
@@ -132,6 +134,13 @@ public:
         if (is_pip_used(pip_idx)) return;
         append(pip_idx, previous, past_cost, future_cost);
         use_pip(pip_idx);
+
+		if (!unrouted_indices.empty() && !previous.is_root() && !pip_idx.is_root() && unrouted_index_count + 2 < unrouted_indices.size()) {
+			auto prev_tile_idx{ sbg.dev_tile_strIndex_to_tile.at(rw.get_pip_tile0_str(previous)._strIdx) };
+			auto cur_tile_idx{ sbg.dev_tile_strIndex_to_tile.at(rw.get_pip_tile0_str(pip_idx)._strIdx) };
+			unrouted_indices[unrouted_index_count++] = prev_tile_idx;
+			unrouted_indices[unrouted_index_count++] = cur_tile_idx;
+		}
     }
 
 
@@ -312,7 +321,9 @@ public:
 		branch_reader_pip_map pip_stubs;
 
 		const uint32_t chunk_size{ 10000 };
-		const uint32_t max_attempts{ 100000 }; // static_cast<uint32_t>(rw.alt_nodes.size())
+		const uint32_t max_attempts{ 100000 };
+		// const uint32_t max_attempts{ static_cast<uint32_t>(rw.alt_nodes.size()) };
+
 		for (uint32_t attempts{}; attempts <= max_attempts; attempts++) {
 #if 0
 			total_attempts++;
