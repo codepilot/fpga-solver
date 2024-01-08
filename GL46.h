@@ -427,8 +427,8 @@ public:
 
     GLuint fb{};
     Textures<GL_TEXTURE_RECTANGLE> textures{};
-    MemoryMappedFile vertexGlsl{ L"shaders\\vertex.vert.spv" };
-    MemoryMappedFile fragmentGlsl{ L"shaders\\fragment.frag.spv" };
+    MemoryMappedFile vertexGlsl{ "shaders\\vertex.vert.spv" };
+    MemoryMappedFile fragmentGlsl{ "shaders\\fragment.frag.spv" };
     Dev dev;
     Physnet phys{ dev };
     GLuint vbo_locations{};
@@ -515,7 +515,7 @@ public:
             ClipCursor(&rcClip);
         }
         load_opengl();
-        phys.build();
+        // phys.build();
         glCreateFramebuffers(1, &fb);
         textures = 1;
         glTextureStorage2D(textures[0], 1, GL_RGBA8, static_cast<GLsizei>(dev.tileInfo.numCol), static_cast<GLsizei>(dev.tileInfo.numRow));
@@ -635,7 +635,7 @@ public:
             glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
             glClear(or_reduce<GLbitfield>({ GL_COLOR_BUFFER_BIT }));
             glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-            glReadnPixels(0,0, gl->clientWidth, gl->clientHeight, GL_RGBA, GL_UNSIGNED_BYTE, src.size(), src.data());
+            glReadnPixels(0,0, gl->clientWidth, gl->clientHeight, GL_RGBA, GL_UNSIGNED_BYTE, static_cast<GLsizei>(src.size()), src.data());
             size_t line_bytes{ 4 * static_cast<size_t>(gl->clientWidth) };
             for (int line = 0; line != gl->clientHeight / 2; ++line) {
                 std::swap_ranges(
@@ -643,7 +643,7 @@ public:
                     src.begin() + line_bytes * (line + 1),
                     src.begin() + line_bytes * (static_cast<size_t>(gl->clientHeight) - line - 1));
             }
-            MemoryMappedFile mmf_dst{ L"dst.png", static_cast<size_t>(gl->clientWidth) * static_cast<size_t>(gl->clientHeight) * static_cast<size_t>(4) + static_cast<size_t>(65536) };
+            MemoryMappedFile mmf_dst{ "dst.png", static_cast<size_t>(gl->clientWidth) * static_cast<size_t>(gl->clientHeight) * static_cast<size_t>(4) + static_cast<size_t>(65536) };
             png_image img{
                 .opaque{nullptr},
                 .version{PNG_IMAGE_VERSION},

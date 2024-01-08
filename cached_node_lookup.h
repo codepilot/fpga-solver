@@ -39,9 +39,9 @@ public:
             const uint64_t slot_count{ wire_count_roundup << 2ui64 };
             const uint64_t indirect_mask{ indirect_key_count - 1ui64 };
             const uint64_t used_slot_mask{ slot_count - 1ui64 };
-            MemoryMappedFile mmf_indirect{ L"indirect.bin", indirect_key_count * sizeof(__m128i) };
-            MemoryMappedFile mmf_direct{ L"direct.bin", slot_count * sizeof(uint64_t) };
-            MemoryMappedFile mmf_direct_value{ L"direct_value.bin", slot_count * sizeof(uint64_t) };
+            MemoryMappedFile mmf_indirect{ "indirect.bin", indirect_key_count * sizeof(__m128i) };
+            MemoryMappedFile mmf_direct{ "direct.bin", slot_count * sizeof(uint64_t) };
+            MemoryMappedFile mmf_direct_value{ "direct_value.bin", slot_count * sizeof(uint64_t) };
 
             std::vector<bool> used_slots(slot_count, false);
             std::vector<std::vector<uint64_t>> indirect_keys(indirect_key_count);

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "canon_reader.h"
+#include "InterchangeGZ.h"
 
 // #define REBUILD_DENSE_SETS
 
@@ -31,25 +31,24 @@ public:
         }
     };
 
-    MemoryMappedFile dev_mmf;
-    CanonReader<DeviceResources::Device> dev;
+    DevGZ dev;
 
-    decltype(dev.reader.getStrList()) strList;
+    decltype(dev.root.getStrList()) strList;
     size_t strList_size;
 
-    decltype(dev.reader.getTileList()) tiles;
+    decltype(dev.root.getTileList()) tiles;
     size_t tiles_size;
 
-    decltype(dev.reader.getTileTypeList()) tileTypes;
+    decltype(dev.root.getTileTypeList()) tileTypes;
     size_t tileTypes_size;
 
-    decltype(dev.reader.getSiteTypeList()) siteTypeList;
+    decltype(dev.root.getSiteTypeList()) siteTypeList;
     size_t siteTypeList_size;
 
-    decltype(dev.reader.getWires()) wires;
+    decltype(dev.root.getWires()) wires;
     size_t wires_size;
 
-    decltype(dev.reader.getNodes()) nodes;
+    decltype(dev.root.getNodes()) nodes;
     size_t nodes_size;
 
     std::vector<std::unordered_set<uint32_t>> inbound_node_tiles;
@@ -77,14 +76,14 @@ public:
 #ifdef REBUILD_DENSE_SETS
     std::vector<std::vector<uint32_t>> temp_vv_wire_idx_pip_wire_idx;
 #endif
-    MMF_Dense_Sets_u32 vv_wire_idx_pip_wire_idx;
+    MMF_Dense_Sets<uint32_t> vv_wire_idx_pip_wire_idx;
 
 
     // std::unordered_multimap<uint32_t, uint64_t> node_idx_pip_wire_idx_wire_idx;
 #ifdef REBUILD_DENSE_SETS
     std::vector<std::vector<uint64_t>> temp_vv_node_idx_pip_wire_idx_wire_idx;
 #endif
-    MMF_Dense_Sets_u64 vv_node_idx_pip_wire_idx_wire_idx;
+    MMF_Dense_Sets<uint64_t> vv_node_idx_pip_wire_idx_wire_idx;
 
     __forceinline static uint64_t combine_3_strIdx(uint64_t a_strIdx, uint64_t b_strIdx, uint64_t c_strIdx) {
         return (0xfffffui64 & a_strIdx) | ((0xfffffui64 & b_strIdx) << 20ui64) | ((0xfffffui64 & c_strIdx) << 40ui64);
@@ -110,8 +109,8 @@ public:
 
         OutputDebugStringA("finish make_vv_node_idx_pip_wire_idx_wire_idx\n");
 
-        MMF_Dense_Sets_u64::make("vv_node_idx_pip_wire_idx_wire_idx.bin", ret);
-        auto alt{ MMF_Dense_Sets_u64{"vv_node_idx_pip_wire_idx_wire_idx.bin"} };
+        MMF_Dense_Sets<uint64_t>::make("vv_node_idx_pip_wire_idx_wire_idx.bin", ret);
+        auto alt{ MMF_Dense_Sets<uint64_t>{"vv_node_idx_pip_wire_idx_wire_idx.bin"} };
         alt.test(ret);
 
 
@@ -173,8 +172,8 @@ public:
         }
 
         OutputDebugStringA("finish make_vv_wire_idx_pip_wire_idx\n");
-        MMF_Dense_Sets_u32::make("vv_wire_idx_pip_wire_idx.bin", ret);
-        auto alt{ MMF_Dense_Sets_u32{"vv_wire_idx_pip_wire_idx.bin"} };
+        MMF_Dense_Sets<uint32_t>::make("vv_wire_idx_pip_wire_idx.bin", ret);
+        auto alt{ MMF_Dense_Sets<uint32_t>{"vv_wire_idx_pip_wire_idx.bin"} };
         alt.test(ret);
 
         return ret;
@@ -493,7 +492,7 @@ public:
             auto tileType{ tileTypes[tile.getType()] };
             auto siteTypeInTileTypes{ tileType.getSiteTypes() };
             auto siteTypeInTileType{ siteTypeInTileTypes[tile.getSites()[siteIdx].getType()] };
-            auto siteType{ dev.reader.getSiteTypeList()[siteTypeInTileType.getPrimaryType()] };
+            auto siteType{ dev.root.getSiteTypeList()[siteTypeInTileType.getPrimaryType()] };
             auto pin_index{ get_site_pin_index(siteType, pin_strIdx) };
             auto wire_strIdx{ siteTypeInTileType.getPrimaryPinsToTileWires()[pin_index] };
 
@@ -556,25 +555,24 @@ public:
     //cached_node_lookup cnl;
 
     __declspec(noinline) Dev():
-        dev_mmf{ L"benchmarks/xcvu3p.device" },
-        dev{ dev_mmf },
+        dev{ "_deps/device-file-src/xcvu3p.device" },
 
-        strList{ dev.reader.getStrList() },
+        strList{ dev.root.getStrList() },
         strList_size{strList.size()},
 
-        tiles{ dev.reader.getTileList() },
+        tiles{ dev.root.getTileList() },
         tiles_size{ tiles.size() },
 
-        tileTypes{ dev.reader.getTileTypeList() },
+        tileTypes{ dev.root.getTileTypeList() },
         tileTypes_size{ tileTypes.size() },
 
-        siteTypeList{ dev.reader.getSiteTypeList() },
+        siteTypeList{ dev.root.getSiteTypeList() },
         siteTypeList_size{ siteTypeList.size() },
 
-        wires{ dev.reader.getWires() },
+        wires{ dev.root.getWires() },
         wires_size{ wires.size() },
 
-        nodes{ dev.reader.getNodes() },
+        nodes{ dev.root.getNodes() },
         nodes_size{ nodes.size() },
 
         tile_strIndex_to_tile{ make_tile_strIndex_to_tile(strList_size, tiles) },
@@ -605,7 +603,7 @@ public:
         vv_node_idx_pip_wire_idx_wire_idx{ "vv_node_idx_pip_wire_idx_wire_idx.bin" }
     {
 
-        for (auto&& wireType : dev.reader.getWireTypes()) {
+        for (auto&& wireType : dev.root.getWireTypes()) {
             OutputDebugStringA(std::format("{}: {}\n", strList[wireType.getName()].cStr(), static_cast<uint16_t>(wireType.getCategory())).c_str());
         }
 

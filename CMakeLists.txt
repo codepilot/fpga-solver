@@ -29,32 +29,36 @@ add_subdirectory(SPIRV-Tools)
 add_subdirectory(glslang)
 # # message(${ZLIB_LIBRARY})
 # message(${ZLIB_INCLUDE_DIR})
-# set(PNG_BUILD_ZLIB ON)
-# file(REAL_PATH zlib/RelWithDebInfo/zlibstatic.lib ZLIBSTATIC_LIB BASE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-# set(ZLIB_LIBRARIES ${ZLIBSTATIC_LIB})
-# add_subdirectory(libpng)
-# add_dependencies(png_shared zlibstatic)
-# add_dependencies(png_static zlibstatic)
-# # ExternalProject_Add(libclcxx GIT_REPOSITORY https://github.com/KhronosGroup/libclcxx.git GIT_TAG main GIT_PROGRESS true)
 
-# configure_file("libpng/scripts/pnglibconf.h.prebuilt" "build/libpng/pnglibconf.h")
+if(MSVC)
 
-# add_executable(${PROJECT_NAME} WIN32 win-desktop.cpp)
-# target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" ${PROJECT_BINARY_DIR}/interchange)
-# target_include_directories(${PROJECT_NAME} PUBLIC OpenGL-Registry/api OpenGL-Registry/extensions EGL-Registry/api OpenCL-CLHPP/include OpenCL-Headers capnproto/c++/src $<TARGET_PROPERTY:png_shared,SOURCE_DIR> $<TARGET_PROPERTY:png_shared,BINARY_DIR>)
-# target_include_directories(${PROJECT_NAME} PRIVATE ${ZLIB_INCLUDE_DIR})
-# target_compile_definitions(${PROJECT_NAME} PRIVATE NOMINMAX)
-# target_compile_definitions(${PROJECT_NAME} PRIVATE CL_HPP_ENABLE_EXCEPTIONS)
-# target_compile_definitions(${PROJECT_NAME} PRIVATE CL_HPP_TARGET_OPENCL_VERSION=300)
-# target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
-# target_compile_options(${PROJECT_NAME} PRIVATE $<$<BOOL:${MSVC}>:/arch:AVX2 /Zc:__cplusplus /MP /GR->)
-# target_link_libraries(${PROJECT_NAME} PRIVATE capnp)
-# target_link_libraries(${PROJECT_NAME} PRIVATE OpenCL)
-# target_link_libraries(${PROJECT_NAME} PRIVATE png_static)
-# target_link_libraries(${PROJECT_NAME} PRIVATE Opengl32.lib)
-# target_link_libraries(${PROJECT_NAME} PRIVATE Kernel32.lib)
-# target_link_libraries(${PROJECT_NAME} PRIVATE WindowsApp.lib)
-# target_link_libraries(${PROJECT_NAME} PRIVATE Avrt.lib)
+set(PNG_BUILD_ZLIB ON)
+file(REAL_PATH zlib/RelWithDebInfo/zlibstatic.lib ZLIBSTATIC_LIB BASE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+set(ZLIB_LIBRARIES ${ZLIBSTATIC_LIB})
+add_subdirectory(libpng)
+add_dependencies(png_shared zlibstatic)
+add_dependencies(png_static zlibstatic)
+# ExternalProject_Add(libclcxx GIT_REPOSITORY https://github.com/KhronosGroup/libclcxx.git GIT_TAG main GIT_PROGRESS true)
+
+configure_file("libpng/scripts/pnglibconf.h.prebuilt" "build/libpng/pnglibconf.h")
+
+add_executable(win-desktop WIN32 win-desktop.cpp)
+target_include_directories(win-desktop PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" ${PROJECT_BINARY_DIR}/interchange)
+target_include_directories(win-desktop PUBLIC OpenGL-Registry/api OpenGL-Registry/extensions EGL-Registry/api OpenCL-CLHPP/include OpenCL-Headers capnproto/c++/src $<TARGET_PROPERTY:png_shared,SOURCE_DIR> $<TARGET_PROPERTY:png_shared,BINARY_DIR>)
+target_include_directories(win-desktop PRIVATE ${ZLIB_INCLUDE_DIR})
+target_compile_definitions(win-desktop PRIVATE NOMINMAX)
+target_compile_definitions(win-desktop PRIVATE CL_HPP_ENABLE_EXCEPTIONS)
+target_compile_definitions(win-desktop PRIVATE CL_HPP_TARGET_OPENCL_VERSION=300)
+target_compile_features(win-desktop PUBLIC cxx_std_23)
+target_compile_options(win-desktop PRIVATE $<$<BOOL:${MSVC}>:/arch:AVX2 /Zc:__cplusplus /MP /GR->)
+target_link_libraries(win-desktop PRIVATE capnp)
+target_link_libraries(win-desktop PRIVATE OpenCL)
+target_link_libraries(win-desktop PRIVATE png_static)
+target_link_libraries(win-desktop PRIVATE Opengl32.lib)
+target_link_libraries(win-desktop PRIVATE Kernel32.lib)
+target_link_libraries(win-desktop PRIVATE WindowsApp.lib)
+target_link_libraries(win-desktop PRIVATE Avrt.lib)
+endif()
 
 # add_executable(build-cache build-cache.cpp)
 # target_include_directories(build-cache PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" ${PROJECT_BINARY_DIR}/interchange)
@@ -86,7 +90,11 @@ target_include_directories(show_phys_nets PRIVATE ${ZLIB_INCLUDE_DIR})
 target_include_directories(show_phys_nets PUBLIC capnproto/c++/src)
 target_compile_definitions(show_phys_nets PRIVATE NOMINMAX)
 target_compile_features(show_phys_nets PUBLIC cxx_std_23)
-target_compile_options(show_phys_nets PRIVATE -march=native -std=c++2b $<$<BOOL:${MSVC}>:/arch:AVX2 /Zc:__cplusplus /MP /GR->)
+if(MSVC)
+target_compile_options(show_phys_nets PRIVATE /arch:AVX2 /Zc:__cplusplus /MP /GR-)
+else()
+target_compile_options(show_phys_nets PRIVATE -march=native -std=c++2b)
+endif()
 target_link_libraries(show_phys_nets PRIVATE capnp)
 target_link_libraries(show_phys_nets PRIVATE zlibstatic)
 if(MSVC)
@@ -100,7 +108,11 @@ target_include_directories(make_pips PRIVATE ${ZLIB_INCLUDE_DIR})
 target_include_directories(make_pips PUBLIC capnproto/c++/src)
 target_compile_definitions(make_pips PRIVATE NOMINMAX)
 target_compile_features(make_pips PUBLIC cxx_std_23)
-target_compile_options(make_pips PRIVATE -march=native -std=c++2b $<$<BOOL:${MSVC}>:/arch:AVX2 /Zc:__cplusplus /MP /GR->)
+if(MSVC)
+target_compile_options(make_pips PRIVATE /arch:AVX2 /Zc:__cplusplus /MP /GR-)
+else()
+target_compile_options(make_pips PRIVATE -march=native -std=c++2b)
+endif()
 target_link_libraries(make_pips PRIVATE capnp)
 target_link_libraries(make_pips PRIVATE zlibstatic)
 if(MSVC)
@@ -114,7 +126,11 @@ target_include_directories(route_phys PRIVATE ${ZLIB_INCLUDE_DIR})
 target_include_directories(route_phys PUBLIC capnproto/c++/src)
 target_compile_definitions(route_phys PRIVATE NOMINMAX)
 target_compile_features(route_phys PUBLIC cxx_std_23)
-target_compile_options(route_phys PRIVATE -march=native -std=c++2b $<$<BOOL:${MSVC}>:/arch:AVX2 /Zc:__cplusplus /MP /GR->)
+if(MSVC)
+target_compile_options(route_phys PRIVATE /arch:AVX2 /Zc:__cplusplus /MP /GR-)
+else()
+target_compile_options(route_phys PRIVATE -march=native -std=c++2b)
+endif()
 target_link_libraries(route_phys PRIVATE capnp)
 target_link_libraries(route_phys PRIVATE zlibstatic)
 if(MSVC)
@@ -122,26 +138,29 @@ target_link_libraries(route_phys PRIVATE Kernel32.lib)
 target_link_libraries(route_phys PRIVATE WindowsApp.lib)
 endif()
 
-# file(GLOB_RECURSE GLSL_SOURCE_FILES
-#     "shaders/*.frag"
-#     "shaders/*.vert"
-# )
 
-# foreach(GLSL ${GLSL_SOURCE_FILES})
-#   get_filename_component(FILE_NAME ${GLSL} NAME)
-#   set(SPIRV "${PROJECT_BINARY_DIR}/shaders/${FILE_NAME}.spv")
-#   add_custom_command(
-#     OUTPUT ${SPIRV}
-#     COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/shaders/"
-#     COMMAND $<TARGET_FILE:glslang-standalone> -G ${GLSL} -o ${SPIRV}
-#     DEPENDS ${GLSL}
-#     DEPENDS glslang-standalone)
-#   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
-# endforeach(GLSL)
+if(MSVC)
+file(GLOB_RECURSE GLSL_SOURCE_FILES
+    "shaders/*.frag"
+    "shaders/*.vert"
+)
 
-# FetchContent_Declare(device-file URL https://github.com/Xilinx/fpga24_routing_contest/releases/latest/download/xcvu3p.device DOWNLOAD_NO_EXTRACT true)
-# FetchContent_Declare(benchmark-files URL https://github.com/Xilinx/fpga24_routing_contest/releases/latest/download/benchmarks.tar.gz DOWNLOAD_EXTRACT_TIMESTAMP true)
-# FetchContent_MakeAvailable(device-file benchmark-files)
+foreach(GLSL ${GLSL_SOURCE_FILES})
+  get_filename_component(FILE_NAME ${GLSL} NAME)
+  set(SPIRV "${PROJECT_BINARY_DIR}/shaders/${FILE_NAME}.spv")
+  add_custom_command(
+    OUTPUT ${SPIRV}
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/shaders/"
+    COMMAND $<TARGET_FILE:glslang-standalone> -G ${GLSL} -o ${SPIRV}
+    DEPENDS ${GLSL}
+    DEPENDS glslang-standalone)
+  list(APPEND SPIRV_BINARY_FILES ${SPIRV})
+endforeach(GLSL)
+endif()
+
+FetchContent_Declare(device-file URL https://github.com/Xilinx/fpga24_routing_contest/releases/latest/download/xcvu3p.device DOWNLOAD_NO_EXTRACT true)
+FetchContent_Declare(benchmark-files URL https://github.com/Xilinx/fpga24_routing_contest/releases/latest/download/benchmarks.tar.gz DOWNLOAD_EXTRACT_TIMESTAMP true)
+FetchContent_MakeAvailable(device-file benchmark-files)
 
 # file(GLOB_RECURSE BENCHMARK_FILES "${benchmark-files_SOURCE_DIR}/*.netlist" "${benchmark-files_SOURCE_DIR}/*.phys" "${device-file_SOURCE_DIR}/*.device")
 
@@ -161,9 +180,10 @@ endif()
 
 
 
-# add_custom_target(Shaders DEPENDS ${SPIRV_BINARY_FILES})
+if(MSVC)
+add_custom_target(Shaders DEPENDS ${SPIRV_BINARY_FILES})
+endif()
 # add_custom_target(prepared-benchmark-files DEPENDS ${PREPARED_BENCHMARK_FILES})
-
 
 # file(GLOB_RECURSE DEVICE_FILES "${PROJECT_BINARY_DIR}/benchmarks/*.device")
 
@@ -189,11 +209,13 @@ endif()
 # add_dependencies(cache-files prepared-benchmark-files)
 
 
-# add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-#     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders/"
-#     COMMAND ${CMAKE_COMMAND} -E copy_directory
-#         "${PROJECT_BINARY_DIR}/shaders"
-#         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders")
+if(MSVC)
+add_custom_command(TARGET win-desktop POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:win-desktop>/shaders/"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${PROJECT_BINARY_DIR}/shaders"
+        "$<TARGET_FILE_DIR:win-desktop>/shaders")
+endif()
 
 file(GLOB_RECURSE CAPNP_SOURCE_FILES
     "fpga-interchange-schema/interchange/*.capnp"
@@ -224,8 +246,12 @@ add_custom_command(TARGET interchange-files PRE_BUILD
         "${PROJECT_BINARY_DIR}/interchange")
 
 
-# add_dependencies(${PROJECT_NAME} Shaders interchange-files)
-# add_dependencies(${PROJECT_NAME} Shaders cache-files prepared-benchmark-files interchange-files)
+if(MSVC)
+add_dependencies(win-desktop Shaders interchange-files)
+endif()
+
+# add_dependencies(win-desktop Shaders interchange-files)
+# add_dependencies(win-desktop Shaders cache-files prepared-benchmark-files interchange-files)
 # add_dependencies(build-cache interchange-files)
 add_dependencies(show_phys_nets interchange-files)
 add_dependencies(route_phys interchange-files)

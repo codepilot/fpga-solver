@@ -1,6 +1,6 @@
 #pragma once
 
-#include "canon_reader.h"
+#include "InterchangeGZ.h"
 
 #define REBUILD_PHYS
 
@@ -15,9 +15,8 @@ class Physnet {
 public:
 
 	Dev& dev;
-	MemoryMappedFile mmf;
-	FlatReader<PhysicalNetlist::PhysNetlist> phys;
-	decltype(phys.reader.getStrList()) strList;
+	PhysGZ phys;
+	decltype(phys.root.getStrList()) strList;
 	std::vector<uint32_t> phys_stridx_to_dev_stridx;
 	std::unordered_map<uint32_t, uint32_t> dev_strIdx_to_phys_strIdx;
 	std::vector<uint32_t> extra_dev_strIdx;
@@ -540,8 +539,8 @@ public:
 			return false;
 		}
 		OutputDebugStringA(std::format("check_conflicts_node({} => {})\n",
-			strList[phys.reader.getPhysNets()[physNetIndex].getName()].cStr(),
-			strList[phys.reader.getPhysNets()[node_nets[node_idx]].getName()].cStr()
+			strList[phys.root.getPhysNets()[physNetIndex].getName()].cStr(),
+			strList[phys.root.getPhysNets()[node_nets[node_idx]].getName()].cStr()
 		).c_str());
 
 		return true;
@@ -574,7 +573,7 @@ public:
 		auto ps_wire0{ pip.getWire0() };
 		auto ps_wire1{ pip.getWire1() };
 
-		auto physNetStr{ strList[phys.reader.getPhysNets()[physNetIndex].getName()] };
+		auto physNetStr{ strList[phys.root.getPhysNets()[physNetIndex].getName()] };
 
 		// OutputDebugStringA(std::format("check_conflicts_pip({}, tile:{}, wire0:{}, wire1:{})\n", physNetStr.cStr(), ps_tile, ps_wire0, ps_wire1).c_str());
 
@@ -661,8 +660,8 @@ public:
 		// debug_net(phys.reader, "system/clint/time_00[5]");
 
 #ifdef REBUILD_PHYS
-		MemoryMappedFile dst{ L"dst.phy", 4294967296ui64 };
-		MemoryMappedFile dst_written{ L"dst_written.phy.gz", 4294967296ui64 };
+		MemoryMappedFile dst{ "dst.phy", 4294967296ui64 };
+		MemoryMappedFile dst_written{ "dst_written.phy.gz", 4294967296ui64 };
 
 		auto span_words{ dst.get_span<capnp::word>() };
 		auto span_words_written{ dst.get_span<capnp::word>() };
@@ -677,10 +676,10 @@ public:
 
 			PhysicalNetlist::PhysNetlist::Builder phyBuilder{ message.initRoot<PhysicalNetlist::PhysNetlist>() };
 
-			phyBuilder.setPart(phys.reader.getPart());
-			phyBuilder.setPlacements(phys.reader.getPlacements());
+			phyBuilder.setPart(phys.root.getPart());
+			phyBuilder.setPlacements(phys.root.getPlacements());
 #if 1
-			auto readerPhysNets{ phys.reader.getPhysNets() };
+			auto readerPhysNets{ phys.root.getPhysNets() };
 			uint32_t readerPhysNets_size{ readerPhysNets.size() };
 			phyBuilder.initPhysNets(readerPhysNets_size);
 			auto listPhysNets{ phyBuilder.getPhysNets() };
@@ -719,7 +718,7 @@ public:
 #else
 			phyBuilder.setPhysNets(phys.reader.getPhysNets());
 #endif  
-			phyBuilder.setPhysCells(phys.reader.getPhysCells());
+			phyBuilder.setPhysCells(phys.root.getPhysCells());
 			//phyBuilder.setStrList(phys.reader.getStrList());
 			auto strListBuilder{ phyBuilder.initStrList(static_cast<uint32_t>(strList.size() + extra_dev_strIdx.size())) };
 
@@ -737,9 +736,9 @@ public:
 			}
 #endif
 
-			phyBuilder.setSiteInsts(phys.reader.getSiteInsts());
-			phyBuilder.setProperties(phys.reader.getProperties());
-			phyBuilder.setNullNet(phys.reader.getNullNet());
+			phyBuilder.setSiteInsts(phys.root.getSiteInsts());
+			phyBuilder.setProperties(phys.root.getProperties());
+			phyBuilder.setNullNet(phys.root.getNullNet());
 
 			check_conflicts(phyBuilder);
 			// debug_net(phyBuilder, "system/clint/time_00[5]");
@@ -857,13 +856,10 @@ public:
 	DECLSPEC_NOINLINE Physnet(Dev& dev) noexcept :
 		dev{ dev },
 #ifdef REBUILD_PHYS
-		mmf{ L"benchmarks/boom_soc_unrouted.phys.UNZIPPED" },
-//		mmf{ L"_deps/benchmark-files-src/boom_soc_unrouted.phys" },
+		phys{ "_deps/benchmark-files-src/boom_med_pb_unrouted.phys" },
 #else
-		mmf{ L"dst-canon.phy" },
 #endif
-		phys{ mmf },
-		strList{ phys.reader.getStrList() },
+		strList{ phys.root.getStrList() },
 		phys_stridx_to_dev_stridx{}
 	{
 		stored_nodes.resize(dev.nodes_size);
@@ -871,7 +867,7 @@ public:
 			strMap.insert({ strList[strIdx].cStr(), strIdx });
 		}
 		{
-			auto physNets{ phys.reader.getPhysNets() };
+			auto physNets{ phys.root.getPhysNets() };
 			for (uint32_t physNetIdx{}; physNetIdx < physNets.size(); physNetIdx++) {
 				auto physNet{ physNets[physNetIdx] };
 				netStrMap.insert({ strList[physNet.getName()].cStr(), physNetIdx});
@@ -894,7 +890,7 @@ public:
 			}
 		}
 		{
-			for (auto&& physNet : phys.reader.getPhysNets()) {
+			for (auto&& physNet : phys.root.getPhysNets()) {
 				auto sources{ physNet.getSources() };
 				if (sources.size() > 1) {
 					OutputDebugStringA(std::format("{}({})\n", strList[physNet.getName()].cStr(), sources.size()).c_str());
