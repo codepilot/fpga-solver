@@ -58,9 +58,9 @@ public:
 
 		deflateInit2(&strm, Z_NO_COMPRESSION, Z_DEFLATED, 16 | 15, 9, Z_DEFAULT_STRATEGY);
 
-		MemoryMappedFile dst_written{ "dst_written.phy.gz", deflateBound(&strm, msgSize) };
+		MemoryMappedFile dst_written{ "dst_written.phy.gz", deflateBound(&strm, static_cast<uLong>(msgSize)) };
 		strm.next_out = reinterpret_cast<Bytef*>(dst_written.fp);
-		strm.avail_out = dst_written.fsize;
+		strm.avail_out = static_cast<uInt>(dst_written.fsize);
 		deflate(&strm, Z_FINISH);
 		deflateEnd(&strm);
 

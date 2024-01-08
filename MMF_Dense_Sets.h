@@ -91,8 +91,8 @@ public:
             auto count{ mmf.get_span<uint32_t>(0, 2ull) };
             puts(std::format("count.data: 0x{:x}, count.size: {}", reinterpret_cast<uintptr_t>(count.data()), count.size()).c_str());
 
-            count[0] = src.size();
-            count[1] = calc_body_count(src);
+            count[0] = static_cast<uint32_t>(src.size());
+            count[1] = static_cast<uint32_t>(calc_body_count(src));
             auto header{ mmf.get_span<uint32_t>(sizeof(uint64_t), src.size() * 2ull) };
             auto body{ mmf.get_span<T>(calc_header_size(src), calc_body_count(src)) };
             size_t item_offset{};
@@ -111,7 +111,3 @@ public:
         }
     }
 };
-
-using MMF_Dense_Sets_u32 = MMF_Dense_Sets<uint32_t>;
-using MMF_Dense_Sets_u64 = MMF_Dense_Sets<uint64_t>;
-using MMF_Dense_Sets_4xu32 = MMF_Dense_Sets<std::array<uint32_t, 4>>;

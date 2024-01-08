@@ -37,6 +37,7 @@
 #include <queue>
 
 #include "RenumberedWires.h"
+#include "RouteStorage.h"
 
 #ifdef _WIN32
 #include <safeint.h>
