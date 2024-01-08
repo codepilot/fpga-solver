@@ -35,7 +35,6 @@
 
 #include <zlib/zlib.h>
 
-namespace {
 	using msl::utilities::SafeInt;
 	class GL46;
 	thread_local GL46* gl{};
@@ -49,13 +48,18 @@ namespace {
 #include <winioctl.h>
 #include "MemoryMappedFile.h"
 #include "cached_node_lookup.h"
+
+#include "Route_Phys.h"
+
+
 #include "MMF_Dense_Sets.h"
-#include "dev.h"
-#include "route_options.h"
-#include "Physnet.h"
+// #include "dev.h"
+// #include "route_options.h"
+// #include "Physnet.h"
+
+#include "png.h"
 
 #include "GL46.h"
-};
 
 constexpr int numElements = 32;
 

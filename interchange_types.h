@@ -7,6 +7,12 @@
 #include "LogicalNetlist.capnp.h"
 #include "PhysicalNetlist.capnp.h"
 
+#include "PIP_Index.h"
+#include <unordered_map>
+#include <span>
+#include <bit>
+#include <bitset>
+
 using branch = ::PhysicalNetlist::PhysNetlist::RouteBranch;
 using branch_reader = ::PhysicalNetlist::PhysNetlist::RouteBranch::Reader;
 using branch_builder = ::PhysicalNetlist::PhysNetlist::RouteBranch::Builder;

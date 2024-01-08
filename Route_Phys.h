@@ -1,6 +1,12 @@
 #pragma once
 
 #include "interchange_types.h"
+#include "InterchangeGZ.h"
+#include "RenumberedWires.h"
+#include "NodeStorage.h"
+#include "String_Building_Group.h"
+#include "RouteStorage.h"
+#include <thread>
 
 class Counter {
 public:
@@ -8,15 +14,62 @@ public:
 	constexpr void increment() noexcept { value++; }
 };
 
+struct Tile_Info {
+	int64_t minCol;
+	int64_t minRow;
+	int64_t maxCol;
+	int64_t maxRow;
+	int64_t numCol;
+	int64_t numRow;
+
+	inline constexpr static Tile_Info make() noexcept {
+		return {
+			.minCol{ INT64_MAX },
+			.minRow{ INT64_MAX },
+			.maxCol{ INT64_MIN },
+			.maxRow{ INT64_MIN },
+			.numCol{},
+			.numRow{},
+		};
+	}
+
+	inline constexpr size_t size() const noexcept {
+		return numCol * numRow;
+	}
+
+	inline constexpr void set_tile(std::span<uint32_t> sp_tile_drawing, int64_t col, int64_t row, uint32_t val) const noexcept {
+		sp_tile_drawing[col + row * numCol] = val;
+	}
+
+	inline static Tile_Info get_tile_info(::capnp::List< ::DeviceResources::Device::Tile, ::capnp::Kind::STRUCT>::Reader tiles) noexcept {
+		auto ret{ Tile_Info::make() };
+		for (auto&& tile : tiles) {
+			const auto tileName{ tile.getName() };
+			const auto col{ tile.getCol() };
+			const auto row{ tile.getRow() };
+			ret.minCol = (col < ret.minCol) ? col : ret.minCol;
+			ret.minRow = (row < ret.minRow) ? row : ret.minRow;
+			ret.maxCol = (col > ret.maxCol) ? col : ret.maxCol;
+			ret.maxRow = (row > ret.maxRow) ? row : ret.maxRow;
+		}
+		ret.numCol = ret.maxCol - ret.minCol + 1ull;
+		ret.numRow = ret.maxRow - ret.minRow + 1ull;
+		return ret;
+	}
+
+};
+
 class Route_Phys {
 
 public:
+
 	Counter fully_routed, skip_route, failed_route, total_attempts;
 	DevGZ dev{ "_deps/device-file-src/xcvu3p.device" };
 	PhysGZ phys{ "_deps/benchmark-files-src/boom_med_pb_unrouted.phys" };
 	DeviceResources::Device::Reader devRoot{ dev.root };
 	PhysicalNetlist::PhysNetlist::Reader physRoot{ phys.root };
 	::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader devStrs{ devRoot.getStrList() };
+	::capnp::List< ::DeviceResources::Device::Tile, ::capnp::Kind::STRUCT>::Reader tiles{ devRoot.getTileList() };
 	::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader physStrs{ physRoot.getStrList() };
 
 	const RenumberedWires rw{ RenumberedWires::load() };
@@ -25,14 +78,37 @@ public:
 	// ::capnp::MallocMessageBuilder message{ 0x1FFFFFFFu, ::capnp::AllocationStrategy::FIXED_SIZE };
 	::capnp::MallocMessageBuilder message{ };
 	PhysicalNetlist::PhysNetlist::Builder physBuilder{ message.initRoot<PhysicalNetlist::PhysNetlist>() };
-
+	std::vector<std::array<uint16_t, 2>> unrouted_locations;
+	std::span<uint32_t> routed_indices;
+	std::atomic<uint32_t> routed_index_count{};
+	std::jthread jt;
 
 	Route_Phys() :
 		sbg{ devStrs , physStrs, devRoot.getTileList() }
 	{
 		puts(std::format("Route_Phys() rw.node_count: {}, rw.pip_count: {}", rw.alt_nodes.size(), rw.alt_pips.size()).c_str());
 
+		for (auto &&tile: tiles) {
+			unrouted_locations.emplace_back(std::array<uint16_t, 2>{tile.getCol(), tile.getRow()});
+		}
+
 		puts(std::format("Route_Phys() finish").c_str());
+	}
+
+	void start_routing(std::span<uint32_t> routed_indices_mapping) {
+		routed_indices = routed_indices_mapping;
+
+		jt = std::jthread{ [this]() {
+#if 0
+			for (uint32_t tile_idx{}; tile_idx < tiles.size(); tile_idx++) {
+				routed_indices[routed_index_count++] = tile_idx;
+				Sleep(10);
+			}
+#else
+			route();
+#endif
+			}
+		};
 	}
 
 	void block_site_pin(uint32_t net_idx, ::PhysicalNetlist::PhysNetlist::PhysSitePin::Reader sitePin) {
@@ -156,6 +232,64 @@ public:
 		return std::nullopt;
 	}
 
+	uint32_t get_tile_idx_from_wire_idx(uint32_t wire_idx) const {
+		auto tile_str{ rw.get_wire_tile_str(wire_idx) };
+		auto tile_idx{ sbg.dev_tile_strIndex_to_tile.at(tile_str._strIdx) };
+		return tile_idx;
+	}
+
+	uint32_t get_tile_idx_from_site_pin(::PhysicalNetlist::PhysNetlist::PhysSitePin::Builder sitePin) const {
+		auto wire_idx{ rw.find_site_pin_wire(sbg.phys_stridx_to_dev_stridx.at(sitePin.getSite()), sbg.phys_stridx_to_dev_stridx.at(sitePin.getPin())) };
+		return get_tile_idx_from_wire_idx(wire_idx);
+	}
+
+	void draw_sources(uint32_t nameIdx, branch_list_builder branches, uint32_t previous_tile = UINT32_MAX) {
+		for (auto&& branch : branches) {
+			auto branch_rs{ branch.getRouteSegment() };
+			auto branch_rs_which{ branch_rs.which() };
+			auto branch_branches{ branch.getBranches() };
+
+			switch (branch_rs_which) {
+			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::BEL_PIN: {
+				draw_sources(nameIdx, branch_branches, previous_tile);
+				break;
+			}
+			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_PIN: {
+				auto tile_idx{ get_tile_idx_from_site_pin(branch_rs.getSitePin()) };
+
+				if (previous_tile != UINT32_MAX) {
+					routed_indices[routed_index_count++] = previous_tile;
+					routed_indices[routed_index_count++] = tile_idx;
+				}
+
+				draw_sources(nameIdx, branch_branches, tile_idx);
+				break;
+			}
+			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::PIP: {
+				auto pip{ branch_rs.getPip() };
+				auto tile_idx{ sbg.dev_tile_strIndex_to_tile.at(sbg.phys_stridx_to_dev_stridx.at(pip.getTile())._strIdx) };
+
+				if (previous_tile != UINT32_MAX) {
+					routed_indices[routed_index_count++] = previous_tile;
+					routed_indices[routed_index_count++] = tile_idx;
+				}
+
+				draw_sources(nameIdx, branch_branches, tile_idx);
+				break;
+			}
+			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_P_I_P: {
+				draw_sources(nameIdx, branch_branches, previous_tile);
+				break;
+			}
+			default: {
+				puts("unreachable");
+				abort();
+			}
+			}
+		}
+		// routed_indices.emplace_back(unrouted_locations.size()); routed_index_count++;
+	}
+
 	void route() {
 		puts(std::format("route start").c_str());
 
@@ -190,7 +324,7 @@ public:
 				skip_route.increment();
 			} else if (r_sources.size() > 1u && r_stubs.size() > 1u) {
 				puts(std::format("{} sources:{}, stubs:{}\n", physStrs[phyNetReader.getName()].cStr(), r_sources.size(), r_stubs.size()).c_str());
-			} else if (r_sources.size() == 1u && r_stubs.size() > 0u && fully_routed.value < 1500) {
+			} else if (r_sources.size() == 1u && r_stubs.size() > 0u) {
 #if 0
 				used_nodes.clear(); used_nodes.resize(rw.alt_nodes.size(), false);
 				used_pips.clear();  used_pips.resize(rw.alt_pips.size(), false);
@@ -205,6 +339,7 @@ public:
 				}
 				else {
 					fully_routed.increment();
+					draw_sources(n, b_sources);
 				}
 				//phyNetBuilder.initStubs(0);
 			}

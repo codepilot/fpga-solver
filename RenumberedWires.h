@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <span>
 #include "PIP_Index.h"
+#include "MMF_Dense_Sets.h"
 
 class RenumberedWires {
 public:

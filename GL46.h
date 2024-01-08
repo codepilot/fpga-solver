@@ -12,7 +12,6 @@ public:
 };
 
 #include "MemoryMappedFile.h"
-#include "png.h"
 
 #ifdef REBUILD_PHYS
 #else
@@ -98,6 +97,12 @@ public:
       WS_OVERLAPPEDWINDOW,
       WS_VISIBLE,
     }) };
+
+    Route_Phys rp;
+    std::span<std::array<uint16_t, 2>> unrouted_locations{ rp.unrouted_locations };
+    std::span<uint32_t> routed_indices{ rp.routed_indices };
+
+    Tile_Info tileInfo{ Tile_Info::get_tile_info(rp.tiles) };
 
     UINT clientWidth{ 1 };
     UINT clientHeight{ 1 };
@@ -429,8 +434,7 @@ public:
     Textures<GL_TEXTURE_RECTANGLE> textures{};
     MemoryMappedFile vertexGlsl{ "shaders\\vertex.vert.spv" };
     MemoryMappedFile fragmentGlsl{ "shaders\\fragment.frag.spv" };
-    Dev dev;
-    Physnet phys{ dev };
+
     GLuint vbo_locations{};
 #ifdef DRAW_ROUTED
     GLuint vio_routed{};
@@ -518,14 +522,14 @@ public:
         // phys.build();
         glCreateFramebuffers(1, &fb);
         textures = 1;
-        glTextureStorage2D(textures[0], 1, GL_RGBA8, static_cast<GLsizei>(dev.tileInfo.numCol), static_cast<GLsizei>(dev.tileInfo.numRow));
+        glTextureStorage2D(textures[0], 1, GL_RGBA8, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow));
 
-        glClearTexSubImage(textures[0], 0, 0, 0, 0, static_cast<GLsizei>(dev.tileInfo.numCol), static_cast<GLsizei>(dev.tileInfo.numRow), 1, GL_RGBA, GL_FLOAT, nullptr);
+        glClearTexSubImage(textures[0], 0, 0, 0, 0, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow), 1, GL_RGBA, GL_FLOAT, nullptr);
 
-        glTextureSubImage2D(textures[0], 0, 0, 0, static_cast<GLsizei>(dev.tileInfo.numCol), static_cast<GLsizei>(dev.tileInfo.numRow), GL_RGBA, GL_UNSIGNED_BYTE, dev.sp_tile_drawing.data());
+        // glTextureSubImage2D(textures[0], 0, 0, 0, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow), GL_RGBA, GL_UNSIGNED_BYTE, dev.sp_tile_drawing.data());
 
         glCreateBuffers(1, &vbo_locations);
-        glNamedBufferStorage(vbo_locations, sizeof(uint32_t) * phys.unrouted_locations.size(), phys.unrouted_locations.data(), 0);
+        glNamedBufferStorage(vbo_locations, unrouted_locations.size_bytes(), unrouted_locations.data(), 0);
 
         glCreateVertexArrays(1, &va);
         glVertexArrayAttribBinding(va, 0, 0);
@@ -536,7 +540,8 @@ public:
 
 #ifdef DRAW_ROUTED
         glCreateBuffers(1, &vio_routed);
-        glNamedBufferStorage(vio_routed, sizeof(uint32_t) * phys.routed_indices.size(), phys.routed_indices.data(), 0);
+        glNamedBufferStorage(vio_routed, 128 * 1024 * 1024, nullptr, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT | GL_CLIENT_STORAGE_BIT);
+        rp.start_routing(std::span<uint32_t>{reinterpret_cast<uint32_t *>(glMapNamedBufferRange(vio_routed, 0, 128 * 1024 * 1024, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), static_cast<size_t>(32 * 1024 * 1024) });
         glVertexArrayElementBuffer(va, vio_routed);
 #else
         glCreateBuffers(1, &vio_unrouted);
@@ -544,6 +549,7 @@ public:
         glVertexArrayElementBuffer(va, vio_unrouted);
 #endif
 
+        wglSwapIntervalEXT(1);
 
 #if 0
         MemoryMappedFile vertexGlsl{ L"../shaders/vertex.vert" };
@@ -559,7 +565,7 @@ public:
         glUseProgramStages(pipe, GL_FRAGMENT_SHADER_BIT, fragmentShader);
         glValidateProgramPipeline(pipe);
         glBindProgramPipeline(pipe);
-        glProgramUniform2f(vertexShader, 0, static_cast<GLfloat>(dev.tileInfo.numCol), static_cast<GLfloat>(dev.tileInfo.numRow));
+        glProgramUniform2f(vertexShader, 0, static_cast<GLfloat>(tileInfo.numCol), static_cast<GLfloat>(tileInfo.numRow));
 #ifdef DRAW_ROUTED
         glProgramUniform4f(fragmentShader, 0, 0.0f, 1.0f, 0.0f, 0.01f);
 #else
@@ -615,15 +621,15 @@ public:
         glNamedFramebufferTexture(fb, GL_COLOR_ATTACHMENT0, textures[0], 0);
 
         glBlitNamedFramebuffer(fb, 0,
-            0, 0, static_cast<GLsizei>(dev.tileInfo.numCol), static_cast<GLsizei>(dev.tileInfo.numRow),
+            0, 0, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow),
             0, 0, static_cast<GLint>(gl->clientWidth), static_cast<GLint>(gl->clientHeight),
             GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
-        glEnable(GL_BLEND);
+        // glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glBindVertexArray(va);
 #ifdef DRAW_ROUTED
-        glDrawElements(GL_LINES, static_cast<GLsizei>(phys.routed_indices.size() << 1ui64), GL_UNSIGNED_INT, nullptr);
+        glDrawElements(GL_LINES, rp.routed_index_count, GL_UNSIGNED_INT, nullptr);
 #else
         glDrawElements(GL_LINES, static_cast<GLsizei>(phys.unrouted_indices.size() << 1ui64), GL_UNSIGNED_INT, nullptr);
 #endif

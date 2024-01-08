@@ -1,3 +1,5 @@
+#pragma once
+
 template<typename T>
 class MMF_Dense_Sets {
 public:
