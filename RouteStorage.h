@@ -7,6 +7,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include "PIP_Index.h"
+#include <atomic>
 
 class Route_Info {
 public:
@@ -91,8 +92,8 @@ public:
 		unrouted_indices{ unrouted_indices }, unrouted_index_count{ unrouted_index_count },
 		stubs_indices{ stubs_indices }, stubs_index_count{ stubs_index_count }
 	{
-		unrouted_index_count = 0;
-		stubs_index_count = 0;
+		unrouted_index_count = 0u;
+		stubs_index_count = 0u;
     }
 
     inline void append(PIP_Index pip_idx, PIP_Index previous, uint16_t past_cost, uint16_t future_cost) noexcept {
@@ -484,8 +485,10 @@ public:
 				if (!stub_node_tile_set.contains(stub_node_wire_tile_idx)) {
 					stub_node_tile_set.emplace(stub_node_wire_tile_idx);
 					stub_node_tiles.emplace_back(sbg.tiles[stub_node_wire_tile_idx]);
-					stubs_indices[stubs_index_count++] = source_tiles[0];
-					stubs_indices[stubs_index_count++] = stub_node_wire_tile_idx;
+					if(stubs_index_count + 2 < stubs_indices.size()) {
+						stubs_indices[stubs_index_count++] = source_tiles[0];
+						stubs_indices[stubs_index_count++] = stub_node_wire_tile_idx;
+					}
 				}
 			}
 			stubs_map.insert({ stub_node_idx , stub });
