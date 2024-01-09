@@ -82,8 +82,10 @@ public:
 	std::vector<std::array<uint16_t, 2>> unrouted_locations;
 	std::span<uint32_t> routed_indices;
 	std::span<uint32_t> unrouted_indices;
+	std::span<uint32_t> stubs_indices;
 	std::atomic<uint32_t> routed_index_count{};
 	std::atomic<uint32_t> unrouted_index_count{};
+	std::atomic<uint32_t> stubs_index_count{};
 	std::jthread jt;
 
 	Route_Phys() :
@@ -98,11 +100,12 @@ public:
 		puts(std::format("Route_Phys() finish").c_str());
 	}
 
-	void start_routing(std::span<uint32_t> routed_indices_mapping, std::span<uint32_t> unrouted_indices_mapping) {
+	void start_routing(std::span<uint32_t> routed_indices_mapping, std::span<uint32_t> unrouted_indices_mapping, std::span<uint32_t> stubs_indices_mapping) {
 		routed_indices = routed_indices_mapping;
 		unrouted_indices = unrouted_indices_mapping;
+		stubs_indices = stubs_indices_mapping;
 
-		jt = std::jthread{ [this]() { route(); } };
+		jt = std::jthread{ [this](std::stop_token stoken) { route(stoken); } };
 	}
 
 	void block_site_pin(uint32_t net_idx, ::PhysicalNetlist::PhysNetlist::PhysSitePin::Reader sitePin) {
@@ -284,7 +287,7 @@ public:
 		// routed_indices.emplace_back(unrouted_locations.size()); routed_index_count++;
 	}
 
-	void route() {
+	void route(std::stop_token stoken) {
 		puts(std::format("route start").c_str());
 
 		physBuilder.setPart(physRoot.getPart());
@@ -318,15 +321,14 @@ public:
 				skip_route.increment();
 			} else if (r_sources.size() > 1u && r_stubs.size() > 1u) {
 				puts(std::format("{} sources:{}, stubs:{}\n", physStrs[phyNetReader.getName()].cStr(), r_sources.size(), r_stubs.size()).c_str());
-			} else if (r_sources.size() == 1u && r_stubs.size() > 0u) {
+			} else if (r_sources.size() == 1u && r_stubs.size() > 0u && !stoken.stop_requested()) {
 #if 0
 				used_nodes.clear(); used_nodes.resize(rw.alt_nodes.size(), false);
 				used_pips.clear();  used_pips.resize(rw.alt_pips.size(), false);
 				rw.clear_routes();
 #endif
 
-				unrouted_index_count = 0;
-				RouteStorage rs{ rw.alt_pips.size(), ns, rw, sbg, unrouted_indices, unrouted_index_count };
+				RouteStorage rs{ rw.alt_pips.size(), ns, rw, sbg, unrouted_indices, unrouted_index_count, stubs_indices, stubs_index_count };
 
 				if (!rs.assign_stubs(n, phyNetReader.getName(), b_sources, r_stubs)) {
 					phyNetBuilder.setStubs(r_stubs);

@@ -62,7 +62,20 @@ public:
 	std::span<uint32_t> unrouted_indices;
 	std::atomic<uint32_t> &unrouted_index_count;
 
-	RouteStorage(size_t alt_pips_size, decltype(ns) ns, decltype(rw) rw, decltype(sbg) sbg, decltype(unrouted_indices) unrouted_indices, decltype(unrouted_index_count) unrouted_index_count) noexcept :
+	std::span<uint32_t> stubs_indices;
+	std::atomic<uint32_t> &stubs_index_count;
+
+
+	RouteStorage(
+		size_t alt_pips_size,
+		decltype(ns) ns,
+		decltype(rw) rw,
+		decltype(sbg) sbg,
+		decltype(unrouted_indices) unrouted_indices,
+		decltype(unrouted_index_count) unrouted_index_count,
+		decltype(stubs_indices) stubs_indices,
+		decltype(stubs_index_count) stubs_index_count
+	) noexcept :
         route_storage_mmf{ "route_storage2.bin", alt_pips_size * sizeof(::Route_Info) },
         alt_route_storage{ route_storage_mmf.get_span<::Route_Info>() },
         ric{ alt_route_storage },
@@ -74,8 +87,12 @@ public:
         r_used_pips{ *up_used_pips.get() },
         cr_used_nodes{ r_used_nodes },
         cr_used_pips{ r_used_pips },
-		rw{ rw }, sbg{ sbg }, unrouted_indices{ unrouted_indices }, unrouted_index_count{ unrouted_index_count } {
-
+		rw{ rw }, sbg{ sbg },
+		unrouted_indices{ unrouted_indices }, unrouted_index_count{ unrouted_index_count },
+		stubs_indices{ stubs_indices }, stubs_index_count{ stubs_index_count }
+	{
+		unrouted_index_count = 0;
+		stubs_index_count = 0;
     }
 
     inline void append(PIP_Index pip_idx, PIP_Index previous, uint16_t past_cost, uint16_t future_cost) noexcept {
@@ -321,7 +338,7 @@ public:
 		branch_reader_pip_map pip_stubs;
 
 		const uint32_t chunk_size{ 10000 };
-		const uint32_t max_attempts{ 100000 };
+		const uint32_t max_attempts{ 1000000 };
 		// const uint32_t max_attempts{ static_cast<uint32_t>(rw.alt_nodes.size()) };
 
 		for (uint32_t attempts{}; attempts <= max_attempts; attempts++) {
@@ -431,6 +448,7 @@ public:
 		std::vector<branch_builder> source_site_pins;
 		branches_site_pin(nameIdx, sources, source_site_pins);
 		branch_builder_map source_nodes;
+		std::vector<uint32_t> source_tiles;
 
 		for (auto&& site_pin : source_site_pins) {
 			auto ps_source_site{ site_pin.getRouteSegment().getSitePin().getSite() };
@@ -440,6 +458,7 @@ public:
 			auto source_wire_idx{ rw.find_site_pin_wire(ds_source_site, ds_source_pin) };
 			auto source_node_idx{ rw.alt_wire_to_node[source_wire_idx] };
 			source_nodes.insert({ source_node_idx, site_pin });
+			source_tiles.emplace_back(sbg.dev_tile_strIndex_to_tile.at(rw.get_wire_tile_str(source_wire_idx)._strIdx));
 		}
 
 		branch_reader_node_map stubs_map;
@@ -465,6 +484,8 @@ public:
 				if (!stub_node_tile_set.contains(stub_node_wire_tile_idx)) {
 					stub_node_tile_set.emplace(stub_node_wire_tile_idx);
 					stub_node_tiles.emplace_back(sbg.tiles[stub_node_wire_tile_idx]);
+					stubs_indices[stubs_index_count++] = source_tiles[0];
+					stubs_indices[stubs_index_count++] = stub_node_wire_tile_idx;
 				}
 			}
 			stubs_map.insert({ stub_node_idx , stub });

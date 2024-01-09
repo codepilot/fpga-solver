@@ -345,7 +345,7 @@ public:
         #if _DEBUG
                       WGL_CONTEXT_DEBUG_BIT_ARB,
         #endif
-                      WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB,
+                      // WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB,
         #if _DEBUG
                       WGL_CONTEXT_ROBUST_ACCESS_BIT_ARB,
         #endif
@@ -437,11 +437,15 @@ public:
 
     GLuint vbo_locations{};
 
+    GLuint vaRouted{};
     GLuint vio_routed{};
+
+    GLuint vaUnrouted{};
     GLuint vio_unrouted{};
 
-    GLuint vaRouted{};
-    GLuint vaUnrouted{};
+    GLuint vaStubs{};
+    GLuint vio_stubs{};
+
     GLuint pipe{};
 
     enum class ShaderType : GLenum {
@@ -543,6 +547,12 @@ public:
         glVertexArrayVertexBuffer(vaUnrouted, 0, vbo_locations, 0, 4);
         glEnableVertexArrayAttrib(vaUnrouted, 0);
 
+        glCreateVertexArrays(1, &vaStubs);
+        glVertexArrayAttribBinding(vaStubs, 0, 0);
+        glVertexArrayAttribFormat(vaStubs, 0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
+        glVertexArrayVertexBuffer(vaStubs, 0, vbo_locations, 0, 4);
+        glEnableVertexArrayAttrib(vaStubs, 0);
+
 
         GLsizei index_buf_bytes{ static_cast<GLsizei>( rp.rw.alt_nodes.size() * sizeof(std::array<uint32_t, 2>)) };
         size_t index_buf_lines{ static_cast<size_t>(index_buf_bytes / sizeof(std::array<uint32_t, 2>)) };
@@ -555,10 +565,15 @@ public:
         glNamedBufferStorage(vio_unrouted, index_buf_bytes, nullptr, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT | GL_CLIENT_STORAGE_BIT);
         glVertexArrayElementBuffer(vaUnrouted, vio_unrouted);
 
+        glCreateBuffers(1, &vio_stubs);
+        glNamedBufferStorage(vio_stubs, index_buf_bytes, nullptr, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT | GL_CLIENT_STORAGE_BIT);
+        glVertexArrayElementBuffer(vaStubs, vio_stubs);
+
         std::span<uint32_t> mRouted{};
         rp.start_routing(
             std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_routed, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines },
-            std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_unrouted, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines }
+            std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_unrouted, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines },
+            std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_stubs, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines }
         );
         wglSwapIntervalEXT(1);
 
@@ -632,11 +647,20 @@ public:
             GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
         glEnable(GL_BLEND);
+        glEnable(GL_LINE_SMOOTH);
+        glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         glBindVertexArray(vaRouted);
         glProgramUniform4f(fragmentShader, 0, 0.0f, 1.0f, 0.0f, 0.1f);
         glDrawElements(GL_LINES, rp.routed_index_count, GL_UNSIGNED_INT, nullptr);
+
+        glLineWidth(5.0f);
+        glBindVertexArray(vaStubs);
+        glProgramUniform4f(fragmentShader, 0, 0.0f, 0.0f, 1.0f, 1.0f);
+        glDrawElements(GL_LINES, rp.stubs_index_count, GL_UNSIGNED_INT, nullptr);
+        glLineWidth(1.0f);
 
         glBindVertexArray(vaUnrouted);
         glProgramUniform4f(fragmentShader, 0, 1.0f, 0.0f, 0.0f, 0.1f);
