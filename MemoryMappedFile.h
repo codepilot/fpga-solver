@@ -10,6 +10,7 @@
 class MemoryMappedFile {
 public:
 
+  bool is_writable{};
 #ifdef _WIN32
   using api_MapViewOfFile3 = decltype(MapViewOfFile3)*;
   using api_CreateFileMapping2 = decltype(CreateFileMapping2)*;
@@ -23,7 +24,6 @@ public:
   inline static api_MapViewOfFile3 MapViewOfFile3{ reinterpret_cast<api_MapViewOfFile3>(GetProcAddress(lib_kernelbase, "MapViewOfFile3")) };
   inline static api_CreateFileMapping2 CreateFileMapping2{ reinterpret_cast<api_CreateFileMapping2>(GetProcAddress(lib_kernelbase, "CreateFileMapping2")) };
 
-  bool is_writable{};
   HANDLE fh{ INVALID_HANDLE_VALUE };
 #else
   int fh{-1};
