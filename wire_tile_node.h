@@ -6,6 +6,7 @@
 
 #include "MemoryMappedFile.h"
 #include <algorithm>
+#include <cmath>
 
 class WireTileNode {
 public:

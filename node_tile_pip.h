@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <set>
 #include <span>
+#include <cmath>
 
 class NodeTilePip {
 public:

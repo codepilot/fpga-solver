@@ -4,7 +4,7 @@
 #include <set>
 #include <algorithm>
 #include "interchange_types.h"
-
+#include <cmath>
 #include "wire_tile_node.h"
 
 class SitePinNode {

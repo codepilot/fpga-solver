@@ -777,7 +777,10 @@ public:
             for (auto&& dst_wires : wire_to_wires) {
                 for (auto&& dst_wire: dst_wires) {
                     auto size_before{ dst_wires.size() };
-                    dst_wires.insert_range(wire_to_wires[dst_wire]);
+                    // dst_wires.insert_range(wire_to_wires[dst_wire]);
+                    for(auto&& item: wire_to_wires[dst_wire]) {
+                        dst_wires.insert(item);
+                    }
                     auto size_after{ dst_wires.size() };
                     if (size_before != size_after) {
                         total_added_wires += size_after - size_before;
@@ -839,7 +842,6 @@ public:
             decltype(tile_wire_to_wires.at(tileType_idx)) ww{ tile_wire_to_wires.at(tileType_idx) };
         }
 
-        DebugBreak();
     }
 
     static void make_pips(DeviceResources::Device::Reader dev) {
