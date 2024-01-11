@@ -48,9 +48,7 @@
 #include "Route_Phys.h"
 
 int main(int argc, char* argv[]) {
-	Route_Phys rp;
-	// rp.start_routing({}, {}, {});
-	rp.tile_based_routing();
-	// rp.jt.join();
+	Route_Phys::make_search_files();
+
 	return 0;
 }

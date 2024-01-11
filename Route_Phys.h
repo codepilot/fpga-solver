@@ -87,6 +87,10 @@ public:
 	decltype(devRoot.getWires()) wires{ devRoot.getWires() };
 	decltype(devRoot.getWireTypes()) wireTypes{ devRoot.getWireTypes() };
 	decltype(devRoot.getNodes()) nodes{ devRoot.getNodes() };
+	Search_Wire_Tile_Node search_wire_tile_node;
+	Search_Node_Tile_Pip search_node_tile_pip;
+	Search_Tile_Pip_Node search_tile_pip_node;
+	Search_Site_Pin_Node search_site_pin_node;
 
 	const RenumberedWires rw{ RenumberedWires::load() };
 	NodeStorage ns{ rw.alt_nodes.size(), rw };
@@ -388,8 +392,8 @@ public:
 
 	void block_phys() {
 		puts("block_phys() start");
-		each(physRoot.getPhysNets(), [&](uint32_t net_idx, net_reader net) {
-			block_resources(net_idx, net);
+		each(physRoot.getPhysNets(), [&](uint64_t net_idx, net_reader net) {
+			block_resources(static_cast<uint32_t>(net_idx), net);
 		});
 		puts("block_phys() finish");
 	}
@@ -421,7 +425,10 @@ public:
 		return upti;
 	}
 
-	void make_search_files() {
+	static void make_search_files() {
+		DevGZ dev{ "_deps/device-file-src/xcvu3p.device" };
+		decltype(dev.root) devRoot{ dev.root };
+
 		Search_Wire_Tile_Node::make_wire_tile_node(devRoot);
 		Search_Wire_Tile_Node search_wire_tile_node;
 
@@ -456,11 +463,6 @@ public:
 		alt_site_pins: 7926429, 23 bits
 		max_pip_count: 4083, 12 bits
 		*/
-
-		Search_Wire_Tile_Node search_wire_tile_node;
-		Search_Node_Tile_Pip search_node_tile_pip;
-		Search_Tile_Pip_Node search_tile_pip_node;
-		Search_Site_Pin_Node search_site_pin_node;
 
 #if 0
 
