@@ -23,6 +23,7 @@ public:
   inline static api_MapViewOfFile3 MapViewOfFile3{ reinterpret_cast<api_MapViewOfFile3>(GetProcAddress(lib_kernelbase, "MapViewOfFile3")) };
   inline static api_CreateFileMapping2 CreateFileMapping2{ reinterpret_cast<api_CreateFileMapping2>(GetProcAddress(lib_kernelbase, "CreateFileMapping2")) };
 
+  bool is_writable{};
   HANDLE fh{ INVALID_HANDLE_VALUE };
 #else
   int fh{-1};
@@ -185,6 +186,7 @@ public:
   }
 
   inline MemoryMappedFile(std::string fn):
+    is_writable{ false },
     fh{open_readonly_file_handle(fn)},
     fsize{getFileSize(fh)},
     fm{create_readonly_file_mapping(fh, fsize)},
@@ -192,16 +194,18 @@ public:
       puts(std::format("fn:{} fh:{} fsize:{} fp:{}", fn, fh, fsize, fp).c_str());
   }
 
-  inline MemoryMappedFile(decltype(fh) fh) :
+  inline MemoryMappedFile(decltype(fh) fh, bool is_writable = false) :
+    is_writable{ is_writable },
     fh{fh},
     fsize{getFileSize(fh)},
-    fm{create_readonly_file_mapping(fh, fsize)},
-    fp{mmap_readonly(fh, fsize, fm)} {
+    fm{ is_writable?create_readwrite_file_mapping(fh, fsize):create_readonly_file_mapping(fh, fsize)},
+    fp{ is_writable?mmap_readwrite(fh, fsize, fm) : mmap_readonly(fh, fsize, fm)} {
       puts(std::format("fh:{} fsize:{} fp:{}", fh, fsize, fp).c_str());
   }
 
   inline MemoryMappedFile(std::string fn, uint64_t requestedSize):
-    fh{create_readwrite_file_handle(fn)},
+    is_writable{ true },
+    fh{ create_readwrite_file_handle(fn)},
     sparse{ make_sparse(fh) },
     fsize{setFileSize(fh, requestedSize) },
     fm{create_readwrite_file_mapping(fh, fsize)},
@@ -253,7 +257,7 @@ public:
     unmap();
     setFileSize(fh, EndOfFile);
     fsize = 0;
-    MemoryMappedFile ret{ fh };
+    MemoryMappedFile ret{ fh, is_writable };
     invalidate_file_handle();
     return ret;
   }

@@ -4,7 +4,7 @@
 #include <span>
 #include <vector>
 #include <algorithm>
-
+#include "each.h"
 
 #include "node_tile_pip.h"
 
@@ -46,24 +46,15 @@ public:
 		puts(std::format("tile_pip_node: {}, {} bits", tile_pip_node.size(), ceil(log2(tile_pip_node.size()))).c_str());
 	}
 
-	static void save_tile_pip_node(std::span<TilePipNode> tile_pip_node) {
-		MemoryMappedFile mmf{ "sorted_tile_pip_node.bin", tile_pip_node.size_bytes() };
-		memcpy(mmf.fp, tile_pip_node.data(), tile_pip_node.size_bytes());
-	}
-
-	static void save_tile_pip_node(std::span<NodeTilePip> node_tile_pip) {
+	static void make_tile_pip_node(std::span<NodeTilePip> node_tile_pip) {
+		MemoryMappedFile mmf{ "sorted_tile_pip_node.bin", node_tile_pip.size_bytes() };
+		auto tile_pip_node{ mmf.get_span<TilePipNode>() };
 		puts("save_tile_pip_node start");
-		std::vector<TilePipNode> tile_pip_node;
-
-		tile_pip_node.reserve(node_tile_pip.size());
-		// convert each char to size_t
-		std::ranges::transform(node_tile_pip, std::back_inserter(tile_pip_node),
-			[](NodeTilePip ntp) -> TilePipNode { return TilePipNode{ .node_idx{ntp.node_idx}, .pip{ntp.pip}, .tile_idx{ntp.tile_idx} }; });
-
+		each(node_tile_pip, [&](uint64_t idx, NodeTilePip ntp) {
+			tile_pip_node[idx] = { .node_idx{ntp.node_idx}, .pip{ntp.pip}, .tile_idx{ntp.tile_idx} };
+		});
 		puts("save_tile_pip_node sort");
 		std::ranges::sort(tile_pip_node, [](TilePipNode a, TilePipNode b) { return a.get_uint64_t() < b.get_uint64_t();  });
-
-		save_tile_pip_node(tile_pip_node);
 		puts("save_tile_pip_node finish");
 	}
 

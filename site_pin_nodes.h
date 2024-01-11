@@ -91,7 +91,7 @@ public:
 		return source_nodes;
 	}
 
-	static std::vector<SitePinNode> make_site_pin_nodes(std::span<WireTileNode> wire_tile_node, ::DeviceResources::Device::Reader devRoot) {
+	static void make_site_pin_nodes(std::span<WireTileNode> wire_tile_node, ::DeviceResources::Device::Reader devRoot) {
 
         // decltype(phys.root) physRoot{ phys.root };
         decltype(devRoot.getStrList()) devStrs{ devRoot.getStrList() };
@@ -105,62 +105,63 @@ public:
 
 		puts("make_site_pin_nodes start");
 
-		std::vector<SitePinNode> site_pin_node;
-
+		MemoryMappedFile mmf_whole{ "sorted_site_pin_nodes.bin", nodes.size() * sizeof(SitePinNode) };
+		size_t storage_offset{};
 		uint32_t missing_nodes{};
 
-		for (auto&& tile : tiles) {
-			String_Index tile_strIdx{ tile.getName() };
-			auto tileType{ tile_types[tile.getType()] };
-			for (auto&& site : tile.getSites()) {
-				String_Index site_strIdx{ site.getName() };
-				auto site_type_idx{ site.getType() };
-				auto site_tile_type{ tileType.getSiteTypes()[site_type_idx] };
-				auto site_type{ siteTypes[site_tile_type.getPrimaryType()] };
-				auto site_pins{ site_type.getPins() };
-				auto site_tile_type_wires{ site_tile_type.getPrimaryPinsToTileWires() };
-				for (uint32_t pin_idx{}; pin_idx < site_pins.size(); pin_idx++) {
-					String_Index wire_strIdx{ site_tile_type_wires[pin_idx] };
-					auto sitePin{ site_pins[pin_idx] };
-					String_Index site_pin_strIdx{ sitePin.getName() };
+		{
+			auto site_pin_node{ mmf_whole.get_span<SitePinNode>() };
 
-					auto node_idx{ Search_Wire_Tile_Node::wire_tile_to_node(wire_tile_node, tile_strIdx, wire_strIdx) };
-					if (node_idx == UINT32_MAX) {
-						puts(std::format("site:{} pin:{} tile:{} wire:{} missing node",
-							devStrs[site.getName()].cStr(),
-							devStrs[sitePin.getName()].cStr(),
-							tile_strIdx.get_string_view(devStrs),
-							wire_strIdx.get_string_view(devStrs)
-						).c_str());
-						missing_nodes++;
-						continue;
-					}
 
-					site_pin_node.emplace_back(SitePinNode{ .node_branch{node_idx}, .sitePinStrIdx{site_pin_strIdx._strIdx}, .siteStrIdx{site_strIdx._strIdx} });
+			for (auto&& tile : tiles) {
+				String_Index tile_strIdx{ tile.getName() };
+				auto tileType{ tile_types[tile.getType()] };
+				for (auto&& site : tile.getSites()) {
+					String_Index site_strIdx{ site.getName() };
+					auto site_type_idx{ site.getType() };
+					auto site_tile_type{ tileType.getSiteTypes()[site_type_idx] };
+					auto site_type{ siteTypes[site_tile_type.getPrimaryType()] };
+					auto site_pins{ site_type.getPins() };
+					auto site_tile_type_wires{ site_tile_type.getPrimaryPinsToTileWires() };
+					for (uint32_t pin_idx{}; pin_idx < site_pins.size(); pin_idx++) {
+						String_Index wire_strIdx{ site_tile_type_wires[pin_idx] };
+						auto sitePin{ site_pins[pin_idx] };
+						String_Index site_pin_strIdx{ sitePin.getName() };
+
+						auto node_idx{ Search_Wire_Tile_Node::wire_tile_to_node(wire_tile_node, tile_strIdx, wire_strIdx) };
+						if (node_idx == UINT32_MAX) {
+#if 0
+							puts(std::format("site:{} pin:{} tile:{} wire:{} missing node",
+								devStrs[site.getName()].cStr(),
+								devStrs[sitePin.getName()].cStr(),
+								tile_strIdx.get_string_view(devStrs),
+								wire_strIdx.get_string_view(devStrs)
+							).c_str());
+#endif
+							missing_nodes++;
+							continue;
+						}
+
+						site_pin_node[storage_offset++] = { .node_branch{node_idx}, .sitePinStrIdx{site_pin_strIdx._strIdx}, .siteStrIdx{site_strIdx._strIdx} };
 
 #if 0
-					if (site_pin_to_node(site_pin_node, site_strIdx, site_pin_strIdx) != node_idx) {
-						abort();
-					}
+						if (site_pin_to_node(site_pin_node, site_strIdx, site_pin_strIdx) != node_idx) {
+							abort();
+						}
 #endif
+					}
 				}
 			}
 		}
 
-		puts(std::format("make_site_pin_nodes finish missing_nodes:{}", missing_nodes).c_str());
+		auto mmf{ mmf_whole.shrink(storage_offset * sizeof(SitePinNode)) };
+		auto site_pin_node{ mmf.get_span<SitePinNode>() };
+
+		// puts(std::format("make_site_pin_nodes finish missing_nodes:{}", missing_nodes).c_str());
+
+		puts("make_site_pin_nodes sort");
 		std::ranges::sort(site_pin_node, [](SitePinNode a, SitePinNode b) { return a.get_uint64_t() < b.get_uint64_t(); });
-		//return std::vector<SitePinNode>(site_pin_node.begin(), site_pin_node.end());
-		return site_pin_node;
-	}
-
-	static void save_site_pin_nodes(std::span<SitePinNode> site_pin_nodes) {
-		MemoryMappedFile mmf{ "sorted_site_pin_nodes.bin", site_pin_nodes.size_bytes() };
-		memcpy(mmf.fp, site_pin_nodes.data(), site_pin_nodes.size_bytes());
-	}
-
-	static void save_site_pin_nodes(std::span<WireTileNode> wire_tile_node, ::DeviceResources::Device::Reader devRoot) {
-		auto site_pin_nodes{ make_site_pin_nodes(wire_tile_node, devRoot) };
-		save_site_pin_nodes(site_pin_nodes);
+		puts("make_site_pin_nodes finish");
 	}
 
 

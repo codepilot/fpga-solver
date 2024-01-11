@@ -50,6 +50,7 @@
 int main(int argc, char* argv[]) {
 	Route_Phys rp;
 	// rp.start_routing({}, {}, {});
+	rp.make_search_files();
 	rp.tile_based_routing();
 	// rp.jt.join();
 	return 0;

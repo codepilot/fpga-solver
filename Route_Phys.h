@@ -421,6 +421,20 @@ public:
 		return upti;
 	}
 
+	void make_search_files() {
+		Search_Wire_Tile_Node::make_wire_tile_node(devRoot);
+		Search_Wire_Tile_Node search_wire_tile_node;
+
+		Search_Node_Tile_Pip::make_node_tile_pip(search_wire_tile_node, devRoot);
+		Search_Node_Tile_Pip search_node_tile_pip;
+
+		Search_Tile_Pip_Node::make_tile_pip_node(search_node_tile_pip.node_tile_pip);
+		Search_Tile_Pip_Node search_tile_pip_node;
+
+		Search_Site_Pin_Node::make_site_pin_nodes(search_wire_tile_node.wire_tile_node, devRoot);
+		Search_Site_Pin_Node search_site_pin_node;
+	}
+
 	void tile_based_routing() {
 		puts(std::format("devStrs: {}, {} bits", devStrs.size(), ceil(log2(devStrs.size()))).c_str());
 		puts(std::format("tiles: {}, {} bits", tiles.size(), ceil(log2(tiles.size()))).c_str());
@@ -443,19 +457,9 @@ public:
 		max_pip_count: 4083, 12 bits
 		*/
 
-		// auto wire_tile_node{ make_wire_tile_node() };
-		// save_wire_tile_node();
-
-		// Search_Wire_Tile_Node::save_wire_tile_node(devRoot);
 		Search_Wire_Tile_Node search_wire_tile_node;
-
-		// Search_Node_Tile_Pip::save_node_tile_pip(search_wire_tile_node, devRoot);
 		Search_Node_Tile_Pip search_node_tile_pip;
-
-		// Search_Tile_Pip_Node::save_tile_pip_node(search_node_tile_pip.node_tile_pip);
 		Search_Tile_Pip_Node search_tile_pip_node;
-
-		// Search_Site_Pin_Node::save_site_pin_nodes(search_wire_tile_node.wire_tile_node, devRoot);
 		Search_Site_Pin_Node search_site_pin_node;
 
 #if 0
