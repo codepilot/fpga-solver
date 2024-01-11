@@ -7,6 +7,7 @@
 #include "String_Building_Group.h"
 #include "RouteStorage.h"
 #include <thread>
+#include "PIP_Index.h"
 
 class Counter {
 public:
@@ -59,19 +60,33 @@ struct Tile_Info {
 
 };
 
+#include "wire_tile_node.h"
+#include "site_pin_nodes.h"
+#include "node_tile_pip.h"
+#include "tile_pip_node.h"
+
 class Route_Phys {
 
 public:
+
+	inline constexpr static size_t tile_count{ 208370ull };
+	inline constexpr static size_t wire_count{ 83282368ull };
+	inline constexpr static size_t node_count{ 28226432ull };
 
 	Counter fully_routed, skip_route, failed_route, total_attempts;
 	DevGZ dev{ "_deps/device-file-src/xcvu3p.device" };
 	PhysGZ phys{ "_deps/benchmark-files-src/boom_med_pb_unrouted.phys" };
 	// PhysGZ phys{ "_deps/benchmark-files-src/boom_soc_unrouted.phys" };
-	DeviceResources::Device::Reader devRoot{ dev.root };
-	PhysicalNetlist::PhysNetlist::Reader physRoot{ phys.root };
-	::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader devStrs{ devRoot.getStrList() };
-	::capnp::List< ::DeviceResources::Device::Tile, ::capnp::Kind::STRUCT>::Reader tiles{ devRoot.getTileList() };
-	::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader physStrs{ physRoot.getStrList() };
+	decltype(dev.root) devRoot{ dev.root };
+	decltype(phys.root) physRoot{ phys.root };
+	decltype(devRoot.getStrList()) devStrs{ devRoot.getStrList() };
+	decltype(devRoot.getTileList()) tiles{ devRoot.getTileList() };
+	decltype(devRoot.getTileTypeList()) tile_types{ devRoot.getTileTypeList() };
+	decltype(devRoot.getSiteTypeList()) siteTypes{ devRoot.getSiteTypeList() };
+	decltype(physRoot.getStrList()) physStrs{ physRoot.getStrList() };
+	decltype(devRoot.getWires()) wires{ devRoot.getWires() };
+	decltype(devRoot.getWireTypes()) wireTypes{ devRoot.getWireTypes() };
+	decltype(devRoot.getNodes()) nodes{ devRoot.getNodes() };
 
 	const RenumberedWires rw{ RenumberedWires::load() };
 	NodeStorage ns{ rw.alt_nodes.size(), rw };
@@ -368,6 +383,189 @@ public:
 		phys.write(message);
 
 		puts("route finish");
+
+	}
+
+	void block_phys() {
+		puts("block_phys() start");
+		each(physRoot.getPhysNets(), [&](uint32_t net_idx, net_reader net) {
+			block_resources(net_idx, net);
+		});
+		puts("block_phys() finish");
+	}
+
+	class TileInfo {
+	public:
+		std::string_view name;
+		Tile_Index tile_idx;
+		tile_reader tile;
+		tile_type_reader tile_type;
+		std::set<Tile_Index> in_tiles, out_tiles, reachable_tiles;
+	};
+	//19 bits str site, 19 bit pin, 25 bit node/branch, 1 bit leaf
+
+
+
+	std::unique_ptr<std::array<TileInfo, tile_count>> make_ti() {
+		auto upti{ std::make_unique<std::array<TileInfo, tile_count>>() };
+		std::span<TileInfo, tile_count> ti{ *upti };
+
+		puts("ti start");
+		each(tiles, [&](auto tile_counter, tile_reader tile) {
+			auto tile_idx{ Tile_Index::make(tile) };
+			decltype(auto) tile_info{ ti[tile_idx._value] };
+			tile_info = { .name{devStrs[tile.getName()].cStr()}, .tile_idx{tile_idx}, .tile{tile}, .tile_type{tile_types[tile.getType()]} };
+			});
+		puts("ti finish");
+
+		return upti;
+	}
+
+	void tile_based_routing() {
+		puts(std::format("devStrs: {}, {} bits", devStrs.size(), ceil(log2(devStrs.size()))).c_str());
+		puts(std::format("tiles: {}, {} bits", tiles.size(), ceil(log2(tiles.size()))).c_str());
+		puts(std::format("nodes: {}, {} bits", nodes.size(), ceil(log2(nodes.size()))).c_str());
+		puts(std::format("wires: {}, {} bits", wires.size(), ceil(log2(wires.size()))).c_str());
+		puts(std::format("alt_site_pins: {}, {} bits", rw.alt_site_pins.body.size(), ceil(log2(rw.alt_site_pins.body.size()))).c_str());
+		uint32_t max_pip_count{};
+		for (auto&& tile_type : tile_types) {
+			auto pip_count{ tile_type.getPips().size() };
+			max_pip_count = max_pip_count < pip_count ? pip_count : max_pip_count;
+		}
+		puts(std::format("max_pip_count: {}, {} bits", max_pip_count, ceil(log2(max_pip_count))).c_str());
+
+		/*
+		devStrs: 467843, 19 bits
+		tiles: 208370, 18 bits
+		nodes: 28226432, 25 bits
+		wires: 83282368, 27 bits
+		alt_site_pins: 7926429, 23 bits
+		max_pip_count: 4083, 12 bits
+		*/
+
+		// auto wire_tile_node{ make_wire_tile_node() };
+		// save_wire_tile_node();
+
+		// Search_Wire_Tile_Node::save_wire_tile_node(devRoot);
+		Search_Wire_Tile_Node search_wire_tile_node;
+
+		// Search_Node_Tile_Pip::save_node_tile_pip(search_wire_tile_node, devRoot);
+		Search_Node_Tile_Pip search_node_tile_pip;
+
+		// Search_Tile_Pip_Node::save_tile_pip_node(search_node_tile_pip.node_tile_pip);
+		Search_Tile_Pip_Node search_tile_pip_node;
+
+		// Search_Site_Pin_Node::save_site_pin_nodes(search_wire_tile_node.wire_tile_node, devRoot);
+		Search_Site_Pin_Node search_site_pin_node;
+
+#if 0
+
+		auto tile_bounds{ Tile_Info::get_tile_info(tiles) };
+		//std::unordered_set<uint32_t> dirty_tiles;
+		//dirty_tiles.reserve(tiles.size());
+
+		auto upti{make_ti()};
+		std::span<TileInfo, tile_count> ti{ *upti };
+		// std::unordered_map<Site_Pin_Tag, uint32_t> site_pin_node;
+
+		auto up_nodes_tiles{ std::make_unique<std::array<Tile_Index, wire_count>>() };
+		std::span<Tile_Index, wire_count> s_nodes_tiles{ *up_nodes_tiles };
+
+		auto up_nodes_spans_tiles{ std::make_unique<std::array<std::span<Tile_Index>, node_count>>() };
+		std::span<std::span<Tile_Index>, node_count> s_nodes_spans_tiles{ *up_nodes_spans_tiles };
+
+		// std::unordered_map<Wire_Info, uint32_t> wire_info_to_node_idx;
+
+		// wire_info_to_node_idx.reserve(wire_count);
+
+
+		uint32_t s_nodes_spans_tiles_offset{};
+
+
+		puts("s_nodes_tiles start");
+		each(nodes, [&](auto node_idx, auto node) {
+			auto node_wires{ node.getWires() };
+			DeviceResources::Device::Wire::Reader node_wire_0{ wires[node_wires[0]] };
+			if (wireTypes[node_wire_0.getType()].getCategory() == DeviceResources::Device::WireCategory::GLOBAL) return; //not global clock
+			decltype(auto) node_tiles{ s_nodes_spans_tiles[node_idx] };
+			node_tiles = s_nodes_tiles.subspan(s_nodes_spans_tiles_offset, node_wires.size());
+			s_nodes_spans_tiles_offset += node_wires.size();
+
+			each(node_wires, [&](auto node_wire_idx, auto wire_idx) {
+				auto wire{ wires[wire_idx] };
+				auto wire_info{ Wire_Info::from_wire(wire) };
+				// wire_info_to_node_idx.insert({ wire_info, node_idx });
+				auto tile_idx{ sbg.dev_tile_strIndex_to_tile.at(wire.getTile()) };
+				node_tiles[node_wire_idx] = Tile_Index::make(tiles[tile_idx]);
+			});
+		});
+		puts("s_nodes_tiles finish");
+
+		puts("pips start");
+		for (auto&& tile_info : ti) {
+			auto tile_type_wire_strs{ tile_info.tile_type.getWires() };
+			auto tile{ tile_info.tile };
+			auto tile_type_pips{ tile_info.tile_type.getPips() };
+
+			WireTileNode key{.tileStrIdx{tile.getName()} };
+
+			// auto found{ std::ranges::equal_range(tile_node, key) };
+			// auto key_start{ tile_node.data() - found.data() };
+			// std::span<WireTileNode> sub_wire_tile_node{ wire_tile_node.subspan(key_start, found.size()) };
+
+			auto tile_range{ std::ranges::equal_range(wire_tile_node, key, [](WireTileNode a, WireTileNode b) {return a.tileStrIdx < b.tileStrIdx; }) };
+
+			for (auto&& pip : tile_type_pips) {
+				auto wire0{ pip.getWire0() };
+				auto wire1{ pip.getWire1() };
+				auto directional{ pip.getDirectional() };
+				auto isConventional{ pip.isConventional() };
+				if (!isConventional) continue;
+
+				Wire_Info wi0{ ._wire_strIdx{._strIdx{tile_type_wire_strs[wire0]}}, ._tile_strIdx{._strIdx{tile.getName()}} };
+				Wire_Info wi1{ ._wire_strIdx{._strIdx{tile_type_wire_strs[wire1]}}, ._tile_strIdx{._strIdx{tile.getName()}} };
+
+				auto node0_idx{ wire_tile_to_node(tile_range, wi0.get_tile_strIdx(), wi0.get_wire_strIdx()) };
+				auto node1_idx{ wire_tile_to_node(tile_range, wi1.get_tile_strIdx(), wi1.get_wire_strIdx()) };
+
+				if (node0_idx != UINT32_MAX) {
+					decltype(auto) node_tiles{ s_nodes_spans_tiles[node0_idx] };
+					for (auto&& tile_idx : node_tiles) {
+						tile_info.reachable_tiles.insert(tile_idx);
+						tile_info.in_tiles.insert(tile_idx);
+						if (!directional) {
+							tile_info.out_tiles.insert(tile_idx);
+						}
+					}
+				}
+
+				if (node1_idx != UINT32_MAX) {
+					decltype(auto) node_tiles{ s_nodes_spans_tiles[node1_idx] };
+					for (auto&& tile_idx : node_tiles) {
+						tile_info.reachable_tiles.insert(tile_idx);
+						tile_info.out_tiles.insert(tile_idx);
+						if (!directional) {
+							tile_info.in_tiles.insert(tile_idx);
+						}
+					}
+				}
+			}
+		}
+		puts("pips finish");
+
+		each(physRoot.getPhysNets(), [&](uint32_t net_idx, net_reader net) {
+			auto sources{ net.getSources() };
+			auto stubs{ net.getStubs() };
+			if (sources.size() != 1) return;
+			if (!stubs.size()) return;
+
+			auto source_nodes{ site_pins_to_nodes(site_pin_nodes, net_idx, sources) };
+			auto stubs_site_pins{ site_pins_to_nodes(site_pin_nodes, net_idx, stubs) };
+		});
+
+
+		// block_phys();
+#endif
 
 	}
 };

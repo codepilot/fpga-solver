@@ -410,7 +410,7 @@ public:
 		return false;
 	}
 
-	static void branches_site_pin(uint32_t nameIdx, branch_list_builder branches, std::vector<branch_builder>& ret) noexcept {
+	static void branches_site_pins(uint32_t nameIdx, branch_list_reader branches, std::vector<branch_reader>& ret) noexcept {
 		for (auto&& branch : branches) {
 			// auto name{ physStrs[nameIdx] };
 			auto branch_rs{ branch.getRouteSegment() };
@@ -419,12 +419,12 @@ public:
 			// OutputDebugStringA(std::format("{} branches({}) which {}\n", name.cStr(), branch_branches.size(), static_cast<uint16_t>(branch_rs_which)).c_str());
 			switch (branch_rs_which) {
 			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::BEL_PIN: {
-				branches_site_pin(nameIdx, branch_branches, ret);
+				branches_site_pins(nameIdx, branch_branches, ret);
 				break;
 			}
 			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_PIN: {
 				if (!branch_branches.size()) ret.emplace_back(branch);
-				branches_site_pin(nameIdx, branch_branches, ret);
+				branches_site_pins(nameIdx, branch_branches, ret);
 				break;
 			}
 			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::PIP: {
@@ -433,7 +433,7 @@ public:
 				break;
 			}
 			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_P_I_P: {
-				branches_site_pin(nameIdx, branch_branches, ret);
+				branches_site_pins(nameIdx, branch_branches, ret);
 				break;
 
 			}
@@ -445,22 +445,95 @@ public:
 		}
 	}
 
-	bool assign_stubs(uint32_t net_idx, uint32_t nameIdx, branch_list_builder sources, branch_list_reader stubs) {
-		std::vector<branch_builder> source_site_pins;
-		branches_site_pin(nameIdx, sources, source_site_pins);
-		branch_builder_map source_nodes;
-		std::vector<uint32_t> source_tiles;
+	static void branches_site_pins(uint32_t nameIdx, branch_list_builder branches, std::vector<branch_builder>& ret) noexcept {
+		for (auto&& branch : branches) {
+			// auto name{ physStrs[nameIdx] };
+			auto branch_rs{ branch.getRouteSegment() };
+			auto branch_branches{ branch.getBranches() };
+			auto branch_rs_which{ branch_rs.which() };
+			// OutputDebugStringA(std::format("{} branches({}) which {}\n", name.cStr(), branch_branches.size(), static_cast<uint16_t>(branch_rs_which)).c_str());
+			switch (branch_rs_which) {
+			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::BEL_PIN: {
+				branches_site_pins(nameIdx, branch_branches, ret);
+				break;
+			}
+			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_PIN: {
+				if (!branch_branches.size()) ret.emplace_back(branch);
+				branches_site_pins(nameIdx, branch_branches, ret);
+				break;
+			}
+			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::PIP: {
+				puts("PIP");
+				abort();
+				break;
+			}
+			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_P_I_P: {
+				branches_site_pins(nameIdx, branch_branches, ret);
+				break;
 
-		for (auto&& site_pin : source_site_pins) {
-			auto ps_source_site{ site_pin.getRouteSegment().getSitePin().getSite() };
-			auto ps_source_pin{ site_pin.getRouteSegment().getSitePin().getPin() };
-			auto ds_source_site{ sbg.phys_stridx_to_dev_stridx.at(ps_source_site) };
-			auto ds_source_pin{ sbg.phys_stridx_to_dev_stridx.at(ps_source_pin) };
-			auto source_wire_idx{ rw.find_site_pin_wire(ds_source_site, ds_source_pin) };
-			auto source_node_idx{ rw.alt_wire_to_node[source_wire_idx] };
-			source_nodes.insert({ source_node_idx, site_pin });
-			source_tiles.emplace_back(sbg.dev_tile_strIndex_to_tile.at(rw.get_wire_tile_str(source_wire_idx)._strIdx));
+			}
+			default: {
+				puts("unreachable");
+				abort();
+			}
+			}
 		}
+	}
+
+	static std::vector<branch_builder> branches_site_pins(uint32_t nameIdx, branch_list_builder branches) noexcept {
+		std::vector<branch_builder> ret;
+		branches_site_pins(nameIdx, branches, ret);
+		return ret;
+	}
+
+	static std::vector<branch_reader> branches_site_pins(uint32_t nameIdx, branch_list_reader branches) noexcept {
+		std::vector<branch_reader> ret;
+		branches_site_pins(nameIdx, branches, ret);
+		return ret;
+	}
+
+	uint32_t site_pin_node(branch_builder site_pin) {
+		auto ps_source_site{ site_pin.getRouteSegment().getSitePin().getSite() };
+		auto ps_source_pin{ site_pin.getRouteSegment().getSitePin().getPin() };
+		auto ds_source_site{ sbg.phys_stridx_to_dev_stridx.at(ps_source_site) };
+		auto ds_source_pin{ sbg.phys_stridx_to_dev_stridx.at(ps_source_pin) };
+		auto source_wire_idx{ rw.find_site_pin_wire(ds_source_site, ds_source_pin) };
+		auto source_node_idx{ rw.alt_wire_to_node[source_wire_idx] };
+		return source_node_idx;
+	}
+
+	uint32_t site_pin_tile(branch_builder site_pin) {
+		auto ps_source_site{ site_pin.getRouteSegment().getSitePin().getSite() };
+		auto ps_source_pin{ site_pin.getRouteSegment().getSitePin().getPin() };
+		auto ds_source_site{ sbg.phys_stridx_to_dev_stridx.at(ps_source_site) };
+		auto ds_source_pin{ sbg.phys_stridx_to_dev_stridx.at(ps_source_pin) };
+		auto source_wire_idx{ rw.find_site_pin_wire(ds_source_site, ds_source_pin) };
+		auto source_node_idx{ rw.alt_wire_to_node[source_wire_idx] };
+		return sbg.dev_tile_strIndex_to_tile.at(rw.get_wire_tile_str(source_wire_idx)._strIdx);
+	}
+
+	std::vector<uint32_t> site_pins_tiles(std::span<branch_builder> site_pins) {
+		std::vector<uint32_t> tiles;
+		tiles.reserve(site_pins.size());
+		for (auto&& site_pin : site_pins) {
+			tiles.emplace_back(site_pin_tile(site_pin));
+		}
+		return tiles;
+	}
+
+	branch_builder_map site_pins_nodes(std::span<branch_builder> site_pins) {
+		branch_builder_map ret;
+		ret.reserve(site_pins.size());
+		for (auto&& site_pin : site_pins) {
+			ret.insert({ site_pin_node(site_pin), site_pin });
+		}
+		return ret;
+	}
+
+	bool assign_stubs(uint32_t net_idx, uint32_t nameIdx, branch_list_builder sources, branch_list_reader stubs) {
+		auto source_site_pins{ branches_site_pins(nameIdx, sources) };
+		auto source_nodes{ site_pins_nodes(source_site_pins) };
+		auto source_tiles{ site_pins_tiles(source_site_pins) };
 
 		branch_reader_node_map stubs_map;
 		tile_reader_map stub_tiles;

@@ -3,6 +3,7 @@
 #include <cinttypes>
 #include <bit>
 #include <nmmintrin.h>
+#include "interchange_types.h"
 
 #ifdef _WIN32
 #define always_inline inline __forceinline
@@ -60,10 +61,52 @@ struct std::hash<PIP_Index> {
     }
 };
 
-
 static_assert(sizeof(PIP_Index) == sizeof(uint32_t));
 static_assert(std::is_trivial_v<PIP_Index>);
 static_assert(std::is_standard_layout_v<PIP_Index>);
+
+class Tile_Index {
+public:
+    inline constexpr static int32_t cols{ 670u };
+    inline constexpr static int32_t rows{ 311u };
+    inline constexpr static int32_t count{ cols * rows };
+
+    int32_t _value;
+#if 0
+    int16_t _col;
+    int16_t _row;
+#endif
+    inline constexpr static Tile_Index make(int32_t x_col, int32_t y_row) noexcept {
+        return {
+            ._value{ x_col + (y_row * cols) },
+#if 0
+            ._col{static_cast<int16_t>(x_col)},
+            ._row{static_cast<int16_t>(y_row)},
+#endif
+        };
+    }
+    inline static Tile_Index make(tile_reader tile) noexcept {
+        return make(tile.getCol(), tile.getRow());
+    }
+    inline constexpr int32_t get_col() const noexcept {
+        return _value % cols;
+    }
+    inline constexpr int32_t get_row() const noexcept {
+        return _value / cols;
+    }
+    inline uint32_t manhattan_distance(const Tile_Index& b) const noexcept {
+        return abs(get_col() - b.get_col()) + abs(get_row() - b.get_row());
+    }
+    ccai bool operator ==(const Tile_Index& b) const noexcept { return _value == b._value; }
+    ccai bool operator !=(const Tile_Index& b) const noexcept { return _value != b._value; }
+    ccai bool operator >(const Tile_Index& b) const noexcept { return _value > b._value; }
+    ccai bool operator <(const Tile_Index& b) const noexcept { return _value < b._value; }
+};
+
+//static_assert(sizeof(Tile_Index) == sizeof(uint64_t));
+static_assert(sizeof(Tile_Index) == sizeof(uint32_t));
+static_assert(std::is_trivial_v<Tile_Index>);
+static_assert(std::is_standard_layout_v<Tile_Index>);
 
 class PIP_Info {
 public:
@@ -117,6 +160,23 @@ public:
     ccai uint64_t get_key() const noexcept {
         return String_Index::make_key(get_wire_strIdx(), get_tile_strIdx());
     }
+    always_inline static Wire_Info from_wire(DeviceResources::Device::Wire::Reader wire) noexcept {
+        return Wire_Info{
+                    ._wire_strIdx{._strIdx{wire.getWire()}},
+                    ._tile_strIdx{._strIdx{wire.getTile()}},
+        };
+    }
+    ccai bool operator ==(const Wire_Info& b) const noexcept { return get_key() == b.get_key(); }
+    ccai bool operator !=(const Wire_Info& b) const noexcept { return get_key() != b.get_key(); }
+
+    // always_inline Wire_Info(DeviceResources::Device::Wire::Reader wire) noexcept: Wire_Info{from_wire(wire)} { }
+};
+
+template <>
+struct std::hash<Wire_Info> {
+    always_inline size_t operator()(const Wire_Info _Keyval) const noexcept {
+        return _mm_crc32_u64(0, _Keyval.get_key());
+    }
 };
 
 static_assert(sizeof(Wire_Info) == sizeof(uint64_t));
@@ -151,6 +211,24 @@ static_assert(std::is_trivial_v<Site_Pin_Info>);
 static_assert(std::is_standard_layout_v<Site_Pin_Info>);
 static_assert(alignof(Site_Pin_Info) == sizeof(std::array<uint32_t, 4>));
 
+class Site_Pin_Tag {
+public:
+    alignas(sizeof(std::array<uint32_t, 2>))
+    String_Index _site;
+    String_Index _site_pin;
+    ccai uint64_t get_key() const noexcept {
+        return String_Index::make_key(_site, _site_pin);
+    }
+    ccai static uint64_t make_key(String_Index site_strIdx, String_Index site_pin_strIdx) noexcept {
+        return String_Index::make_key(site_strIdx, site_pin_strIdx);
+    }
+};
+
+static_assert(sizeof(Site_Pin_Tag) == sizeof(std::array<uint32_t, 2>));
+static_assert(std::is_trivial_v<Site_Pin_Tag>);
+static_assert(std::is_standard_layout_v<Site_Pin_Tag>);
+static_assert(alignof(Site_Pin_Tag) == sizeof(std::array<uint32_t, 2>));
+
 #include <bitset>
 #include <memory>
 
@@ -182,3 +260,16 @@ static_assert(std::is_trivially_copyable_v<NodeBitset>);
 
 static_assert(std::is_standard_layout_v<NodeBitset>);
 #endif
+
+using branch_reader_pip_map = std::unordered_map<PIP_Index, branch_reader>;
+
+#include <set>
+
+
+
+
+
+
+
+
+

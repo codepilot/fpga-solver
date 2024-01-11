@@ -4,6 +4,8 @@
 #include <span>
 #include "PIP_Index.h"
 #include "MMF_Dense_Sets.h"
+#include <unordered_set>
+#include <set>
 
 class RenumberedWires {
 public:
@@ -22,16 +24,29 @@ public:
     // MMF_Dense_Sets_u32 alt_site_pin_nodes{ "site_pin_nodes2.bin" };
     const MMF_Dense_Sets<Site_Pin_Info> alt_site_pins{ "site_pin2.bin" };
 
+    inline constexpr static uint32_t get_pip_wire0(decltype(alt_pips) alt_pips, PIP_Index pip_idx) noexcept {
+        return alt_pips[pip_idx.get_id()].get_wire0();
+    }
+
     inline constexpr uint32_t get_pip_wire0(PIP_Index pip_idx) const noexcept {
         return alt_pips[pip_idx.get_id()].get_wire0();
     }
 
-    inline constexpr uint32_t get_pip_wire1(PIP_Index pip_idx) const noexcept {
+    inline constexpr static uint32_t get_pip_wire1(decltype(alt_pips) alt_pips, PIP_Index pip_idx) noexcept {
         return alt_pips[pip_idx.get_id()].get_wire1();
+    }
+
+    inline constexpr uint32_t get_pip_wire1(PIP_Index pip_idx) const noexcept {
+        return get_pip_wire1(alt_pips, pip_idx);
     }
 
     inline constexpr bool get_pip_directional(PIP_Index pip_idx) const noexcept {
         return alt_pips[pip_idx.get_id()].is_directional();
+    }
+
+    inline constexpr static uint32_t get_pip_node0(decltype(alt_wire_to_node) alt_wire_to_node, decltype(alt_pips) alt_pips, PIP_Index pip_idx) noexcept {
+        auto wire0{ get_pip_wire0(alt_pips, pip_idx) };
+        return alt_wire_to_node[wire0];
     }
 
     inline constexpr uint32_t get_pip_node0(PIP_Index pip_idx) const noexcept {
@@ -39,17 +54,25 @@ public:
         return alt_wire_to_node[wire0];
     }
 
-    inline constexpr uint32_t get_pip_node1(PIP_Index pip_idx) const noexcept {
-        auto wire1{ get_pip_wire1(pip_idx) };
+    inline constexpr static uint32_t get_pip_node1(decltype(alt_wire_to_node) alt_wire_to_node, decltype(alt_pips) alt_pips, PIP_Index pip_idx) noexcept {
+        auto wire1{ get_pip_wire1(alt_pips, pip_idx) };
         return alt_wire_to_node[wire1];
+    }
+
+    inline constexpr uint32_t get_pip_node1(PIP_Index pip_idx) const noexcept {
+        return get_pip_node1(alt_wire_to_node, alt_pips, pip_idx);
     }
 
     inline constexpr uint32_t get_pip_node_in(PIP_Index pip_idx) const noexcept {
         return pip_idx.is_pip_forward() ? get_pip_node0(pip_idx) : get_pip_node1(pip_idx);
     }
 
+    inline constexpr static uint32_t get_pip_node_out(decltype(alt_wire_to_node) alt_wire_to_node, decltype(alt_pips) alt_pips, PIP_Index pip_idx) noexcept {
+        return pip_idx.is_pip_forward() ? get_pip_node1(alt_wire_to_node, alt_pips, pip_idx) : get_pip_node0(alt_wire_to_node, alt_pips, pip_idx);
+    }
+
     inline constexpr uint32_t get_pip_node_out(PIP_Index pip_idx) const noexcept {
-        return pip_idx.is_pip_forward() ? get_pip_node1(pip_idx) : get_pip_node0(pip_idx);
+        return get_pip_node_out(alt_wire_to_node, alt_pips, pip_idx);
     }
 
     inline constexpr String_Index get_pip_wire0_str(PIP_Index pip_idx) const noexcept {
@@ -661,12 +684,171 @@ public:
         wr.test_site_pin_wires(dev);
     }
 
+    static void make_pip_group_r(
+        DeviceResources::Device::Reader dev,
+        std::vector<PIP_Index> &ret,
+        PIP_Index pip_idx,
+        decltype(alt_wires)& alt_wires,
+        decltype(alt_nodes)& alt_nodes,
+        decltype(alt_wire_to_node) alt_wire_to_node,
+        decltype(alt_node_to_pips)& alt_node_to_pips,
+        decltype(alt_pips) alt_pips
+    ) {
+    }
+
+    static std::vector<PIP_Index> make_pip_group(
+        DeviceResources::Device::Reader dev,
+        PIP_Index pip_idx,
+        decltype(alt_wires) &alt_wires,
+        decltype(alt_nodes) &alt_nodes,
+        decltype(alt_wire_to_node) alt_wire_to_node,
+        decltype(alt_node_to_pips) &alt_node_to_pips,
+        decltype(alt_pips) alt_pips
+    ) {
+        std::vector<PIP_Index> ret;
+        get_pip_node_out(alt_wire_to_node, alt_pips, pip_idx);
+        make_pip_group_r(dev, ret, pip_idx, alt_wires, alt_nodes, alt_wire_to_node, alt_node_to_pips, alt_pips);
+        return ret;
+    }
+
+    static void make_pip_groups(DeviceResources::Device::Reader dev) {
+        const MMF_Dense_Sets<Wire_Info> alt_wires{ "wires2.bin" }; //tested
+        const MMF_Dense_Sets<uint32_t> alt_nodes{ "nodes2.bin" }; //tested
+        const ::MemoryMappedFile wire_to_node_mmf{ "wire_to_node2.bin" }; //tested
+        std::span<const uint32_t> alt_wire_to_node{ wire_to_node_mmf.get_span<const uint32_t>() }; //tested
+
+        const MMF_Dense_Sets<PIP_Index> alt_wire_to_pips{ "wire_to_pips2.bin" };
+        const MMF_Dense_Sets<PIP_Index> alt_node_to_pips{ "node_to_pips2.bin" };
+
+        const ::MemoryMappedFile pips_mmf{ "pips2.bin" };
+        std::span<const PIP_Info> alt_pips{ pips_mmf.get_span<const PIP_Info>() };
+
+
+        std::vector<std::vector<std::vector<PIP_Index>>> pip_groups(alt_nodes.size()); // node_idx to vector of vectors of pip_indexes
+        for (uint32_t node_idx{}; node_idx < alt_nodes.size(); node_idx++) {
+            decltype(pip_groups.at(node_idx)) nv{ pip_groups.at(node_idx) };
+            auto node_pips{ alt_node_to_pips[node_idx] };
+            nv.reserve(node_pips.size());
+            for (auto&& pip : node_pips) {
+                nv.emplace_back(make_pip_group(dev, pip, alt_wires, alt_nodes, alt_wire_to_node, alt_node_to_pips, alt_pips));
+            }
+        }
+        puts("");
+        // for()
+    }
+
+    static std::vector<std::set<uint32_t>> propagate_tile_wires(DeviceResources::Device::Reader dev, DeviceResources::Device::TileType::Reader tileType) {
+        std::string_view name{ dev.getStrList()[tileType.getName()].cStr()};
+        auto wires{ tileType.getWires() };
+        auto pips{ tileType.getPips() };
+        auto siteTypes{ tileType.getSiteTypes() };
+        std::vector<std::set<uint32_t>> wire_to_wires(static_cast<size_t>(wires.size()));
+
+        std::set<uint32_t> tile_inputs;
+        std::set<uint32_t> tile_outputs;
+
+        for (auto pip: pips) {
+            auto wire0{ pip.getWire0() };
+            auto wire1{ pip.getWire1() };
+            auto directional{ pip.getDirectional() };
+            auto isConventional{ pip.isConventional() };
+            if (!isConventional) continue;
+            wire_to_wires.at(wire0).insert(wire1);
+            tile_inputs.insert(wire0);
+            tile_outputs.insert(wire1);
+
+            if (directional) {
+                // puts(std::format("  {}->{}", wire0, wire1).c_str());
+            }
+            else {
+                // puts(std::format("  {}<>{}", wire0, wire1).c_str());
+                wire_to_wires.at(wire1).insert(wire0);
+                tile_inputs.insert(wire1);
+                tile_outputs.insert(wire0);
+            }
+        }
+
+        // puts(std::format("{} siteTypes:{} wires:{} in:{} out:{} pips:{}", name, siteTypes.size(), wires.size(), tile_inputs.size(), tile_outputs.size(), pips.size()).c_str());
+
+        size_t total_added_wires{};
+        for (;;) {
+            // puts(std::format("total_added_wires: {}", total_added_wires).c_str());
+            bool added_wires{};
+            for (auto&& dst_wires : wire_to_wires) {
+                for (auto&& dst_wire: dst_wires) {
+                    auto size_before{ dst_wires.size() };
+                    dst_wires.insert_range(wire_to_wires[dst_wire]);
+                    auto size_after{ dst_wires.size() };
+                    if (size_before != size_after) {
+                        total_added_wires += size_after - size_before;
+                        added_wires = true;
+                        break;
+                    }
+                }
+                // if (added_wires) break;
+            }
+            if (!added_wires) break;
+        }
+
+        for (uint32_t wire_idx{}; wire_idx < wires.size(); wire_idx++) {
+            auto dst_wires{ wire_to_wires.at(wire_idx) };
+            if (!dst_wires.size()) continue;
+#if 0
+            std::string wires_str{};
+            for (auto&& dst_wire_idx : dst_wires) {
+                wires_str += " " + std::to_string(dst_wire_idx);
+            }
+            puts(std::format("  {}->{}", wire_idx, wires_str).c_str());
+#endif
+             // puts(std::format("  {}.size:{}", wire_idx, dst_wires.size()).c_str());
+        }
+        // puts("");
+        return wire_to_wires;
+    }
+
+    static void propagate_wires(DeviceResources::Device::Reader dev) {
+        auto wires{ dev.getWires() };
+        auto tiles{ dev.getTileList() };
+        auto tileTypes{ dev.getTileTypeList() };
+
+        std::vector<std::vector<std::set<uint32_t>>> tile_wire_to_wires(tileTypes.size());
+        std::unordered_map<uint32_t, uint32_t> tile_str_idx_to_tile_idx(tiles.size());
+        std::unordered_map<uint64_t, uint32_t> rev_wires(wires.size());
+        std::vector<std::unordered_map<uint32_t, uint32_t>> tile_ws_to_wi(tiles.size());
+
+        for (uint32_t tile_idx{}; tile_idx < tiles.size(); tile_idx++) {
+            tile_str_idx_to_tile_idx[tiles[tile_idx].getName()] = tile_idx;
+        }
+
+        for (uint32_t wire_idx{}; wire_idx < wires.size(); wire_idx++) {
+            auto wire{ wires[wire_idx] };
+            auto tile_idx{ tile_str_idx_to_tile_idx.at(wire.getTile()) };
+            tile_ws_to_wi.at(tile_idx).insert({wire.getWire(), wire_idx});
+            rev_wires.insert({ std::bit_cast<uint64_t>(std::array<uint32_t, 2>{wire.getTile(), wire.getWire()}), wire_idx });
+        }
+
+        for (uint32_t tile_type_idx{}; tile_type_idx < tileTypes.size(); tile_type_idx++) {
+            auto tileType{ tileTypes[tile_type_idx] };
+            if (!tileType.getPips().size()) continue;
+            tile_wire_to_wires.at(tile_type_idx) = propagate_tile_wires(dev, tileType);
+        }
+
+        for (auto&& tile : dev.getTileList()) {
+            auto tileType_idx{ tile.getType() };
+            auto tileType{ tileTypes[tileType_idx] };
+            decltype(tile_wire_to_wires.at(tileType_idx)) ww{ tile_wire_to_wires.at(tileType_idx) };
+        }
+
+        DebugBreak();
+    }
+
     static void make_pips(DeviceResources::Device::Reader dev) {
         make_node_to_wires(dev);
         make_wire_to_node();
         make_wire_to_pips(dev);
         make_node_to_pips(dev);
         make_site_pin_wires(dev);
+        make_pip_groups(dev); // given a node_idx, get a pip group that leaves the tile
         test(dev);
     }
 
