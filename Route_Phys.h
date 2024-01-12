@@ -64,6 +64,7 @@ struct Tile_Info {
 #include "site_pin_nodes.h"
 #include "node_tile_pip.h"
 #include "tile_pip_node.h"
+#include "site_pin_wire.h"
 
 class Route_Phys {
 
@@ -87,9 +88,12 @@ public:
 	decltype(devRoot.getWires()) wires{ devRoot.getWires() };
 	decltype(devRoot.getWireTypes()) wireTypes{ devRoot.getWireTypes() };
 	decltype(devRoot.getNodes()) nodes{ devRoot.getNodes() };
+
+	Search_Wire_Tile_Wire search_wire_tile_wire;
 	Search_Wire_Tile_Node search_wire_tile_node;
 	Search_Node_Tile_Pip search_node_tile_pip;
 	Search_Tile_Pip_Node search_tile_pip_node;
+	Search_Site_Pin_Wire search_site_pin_wire;
 	Search_Site_Pin_Node search_site_pin_node;
 
 	const RenumberedWires rw{ RenumberedWires::load() };
@@ -405,6 +409,8 @@ public:
 		tile_reader tile;
 		tile_type_reader tile_type;
 		std::set<Tile_Index> in_tiles, out_tiles, reachable_tiles;
+		std::set<uint32_t> unhandled_in_nets;
+		std::set<uint32_t> unhandled_out_nets;
 	};
 	//19 bits str site, 19 bit pin, 25 bit node/branch, 1 bit leaf
 
@@ -429,17 +435,30 @@ public:
 		DevGZ dev{ "_deps/device-file-src/xcvu3p.device" };
 		decltype(dev.root) devRoot{ dev.root };
 
+		Search_Wire_Tile_Wire::make_wire_tile_wire(devRoot);
+		Search_Wire_Tile_Wire search_wire_tile_wire;
+		search_wire_tile_wire.test(devRoot);
+
 		Search_Wire_Tile_Node::make_wire_tile_node(devRoot);
 		Search_Wire_Tile_Node search_wire_tile_node;
+		search_wire_tile_node.test(devRoot);
 
 		Search_Node_Tile_Pip::make_node_tile_pip(search_wire_tile_node, devRoot);
 		Search_Node_Tile_Pip search_node_tile_pip;
+		search_node_tile_pip.test(search_wire_tile_node, devRoot);
 
 		Search_Tile_Pip_Node::make_tile_pip_node(search_node_tile_pip.node_tile_pip);
 		Search_Tile_Pip_Node search_tile_pip_node;
+		// search_tile_pip_node.test(search_node_tile_pip.node_tile_pip);
+
+		Search_Site_Pin_Wire::make_site_pin_wires(search_wire_tile_wire.wire_tile_wire, devRoot);
+		Search_Site_Pin_Wire search_site_pin_wire;
+		// search_site_pin_wire.test(search_wire_tile_wire.wire_tile_wire, devRoot);
 
 		Search_Site_Pin_Node::make_site_pin_nodes(search_wire_tile_node.wire_tile_node, devRoot);
 		Search_Site_Pin_Node search_site_pin_node;
+		//search_site_pin_node.test(search_wire_tile_node.wire_tile_node, devRoot);
+
 	}
 
 	void tile_based_routing() {
@@ -464,7 +483,7 @@ public:
 		max_pip_count: 4083, 12 bits
 		*/
 
-#if 0
+#if 1
 
 		auto tile_bounds{ Tile_Info::get_tile_info(tiles) };
 		//std::unordered_set<uint32_t> dirty_tiles;
@@ -487,7 +506,7 @@ public:
 
 		uint32_t s_nodes_spans_tiles_offset{};
 
-
+#if 0
 		puts("s_nodes_tiles start");
 		each(nodes, [&](auto node_idx, auto node) {
 			auto node_wires{ node.getWires() };
@@ -519,7 +538,7 @@ public:
 			// auto key_start{ tile_node.data() - found.data() };
 			// std::span<WireTileNode> sub_wire_tile_node{ wire_tile_node.subspan(key_start, found.size()) };
 
-			auto tile_range{ std::ranges::equal_range(wire_tile_node, key, [](WireTileNode a, WireTileNode b) {return a.tileStrIdx < b.tileStrIdx; }) };
+			auto tile_range{ std::ranges::equal_range(search_wire_tile_node.wire_tile_node, key, [](WireTileNode a, WireTileNode b) {return a.tileStrIdx < b.tileStrIdx; }) };
 
 			for (auto&& pip : tile_type_pips) {
 				auto wire0{ pip.getWire0() };
@@ -531,8 +550,8 @@ public:
 				Wire_Info wi0{ ._wire_strIdx{._strIdx{tile_type_wire_strs[wire0]}}, ._tile_strIdx{._strIdx{tile.getName()}} };
 				Wire_Info wi1{ ._wire_strIdx{._strIdx{tile_type_wire_strs[wire1]}}, ._tile_strIdx{._strIdx{tile.getName()}} };
 
-				auto node0_idx{ wire_tile_to_node(tile_range, wi0.get_tile_strIdx(), wi0.get_wire_strIdx()) };
-				auto node1_idx{ wire_tile_to_node(tile_range, wi1.get_tile_strIdx(), wi1.get_wire_strIdx()) };
+				auto node0_idx{ search_wire_tile_node.wire_tile_to_node(tile_range, wi0.get_tile_strIdx(), wi0.get_wire_strIdx()) };
+				auto node1_idx{ search_wire_tile_node.wire_tile_to_node(tile_range, wi1.get_tile_strIdx(), wi1.get_wire_strIdx()) };
 
 				if (node0_idx != UINT32_MAX) {
 					decltype(auto) node_tiles{ s_nodes_spans_tiles[node0_idx] };
@@ -558,16 +577,137 @@ public:
 			}
 		}
 		puts("pips finish");
+#endif
 
-		each(physRoot.getPhysNets(), [&](uint32_t net_idx, net_reader net) {
+		std::set<uint32_t> source_tiles, stub_tiles;
+		puts("placing nets in tiles, start");
+		each(physRoot.getPhysNets(), [&](uint64_t net_idx, net_reader net) {
 			auto sources{ net.getSources() };
 			auto stubs{ net.getStubs() };
 			if (sources.size() != 1) return;
+			if (stubs.size() != 1) return;
 			if (!stubs.size()) return;
 
-			auto source_nodes{ site_pins_to_nodes(site_pin_nodes, net_idx, sources) };
-			auto stubs_site_pins{ site_pins_to_nodes(site_pin_nodes, net_idx, stubs) };
+			// puts("sources: ");
+			auto source_nodes{ Search_Site_Pin_Node::source_site_pins_to_nodes(physStrs, search_site_pin_node.site_pin_nodes, sbg.phys_stridx_to_dev_stridx, net.getName(), sources)};
+			for (auto node_idx : source_nodes) {
+				for (auto ntp : search_node_tile_pip.node_to_tile_pip(node_idx)) {
+					auto tile_idx{ static_cast<uint32_t>(ntp.tile_idx) };
+					ti[tile_idx].unhandled_in_nets.insert(node_idx);
+					source_tiles.insert(tile_idx);
+				}
+			}
+
+#if 0
+			// puts("stubs: ");
+			auto v_stubs_site_pin_nodes{ Search_Site_Pin_Node::site_pins_to_nodes(physStrs, search_site_pin_node.site_pin_nodes, sbg.phys_stridx_to_dev_stridx, net.getName(), stubs) };
+			std::span<uint32_t> s_stubs_site_pin_nodes{ v_stubs_site_pin_nodes };
+			auto stubs_site_pin_nodes{ s_stubs_site_pin_nodes.subspan<0, 1>() };
+			if (!stubs_site_pin_nodes.size()) {
+				abort();
+			}
+			for (auto node_idx : stubs_site_pin_nodes) {
+				std::set<uint32_t> node_tiles;
+				for (auto ntp : search_node_tile_pip.node_to_tile_pip(node_idx)) {
+					auto tile_idx{ static_cast<uint32_t>(ntp.tile_idx) };
+					auto tin{ ti[tile_idx] };
+
+					std::vector<uint32_t> all_node_wires_strIdx;
+					std::set<uint32_t> node_wires_strIdx;
+					auto nodeWires{ nodes[node_idx].getWires() };
+
+					for (auto&& node_wireIdx : nodeWires) {
+						auto wireN{ wires[node_wireIdx] };
+						all_node_wires_strIdx.emplace_back(wireN.getWire());
+						auto wireTileStrIdx{wireN.getTile()};
+						if (wireTileStrIdx != tin.tile.getName()) continue;
+						node_wires_strIdx.insert(wireN.getWire());
+					}
+
+					auto pip{ tin.tile_type.getPips()[ntp.pip]};
+					auto pip_directional{ pip.getDirectional() };
+					auto tile_type_wires{ tin.tile_type.getWires() };
+					auto w0_strIdx{ tile_type_wires[pip.getWire0()] };
+					auto w1_strIdx{ tile_type_wires[pip.getWire1()] };
+					auto is_w0{ node_wires_strIdx.contains(w0_strIdx) };
+					auto is_w1{ node_wires_strIdx.contains(w1_strIdx) };
+
+					if (!((is_w0 && (!pip_directional)) || is_w1)) {
+						puts(std::format("node_idx: {}", node_idx).c_str());
+						puts(std::format("tile: {}, stub: {}, w0: {}:{}, w1:{}:{}, dir:{}",
+							tin.name,
+							physStrs[net.getName()].cStr(),
+							devStrs[w0_strIdx].cStr(), is_w0,
+							devStrs[w1_strIdx].cStr(), is_w1,
+							pip_directional
+						).c_str());
+
+						for (auto&& stub : stubs) {
+							auto stub_site_pin{ stub.getRouteSegment().getSitePin() };
+							std::string_view site_str{ physStrs[stub_site_pin.getSite()].cStr() };
+							std::string_view pin_str{ physStrs[stub_site_pin.getPin()].cStr() };
+							auto wire_idx{ search_site_pin_wire.site_pin_to_wire(
+								search_site_pin_wire.site_pin_wires,
+								{ sbg.phys_stridx_to_dev_stridx.at({stub_site_pin.getSite()}) },
+								{ sbg.phys_stridx_to_dev_stridx.at({stub_site_pin.getPin()}) }
+							) };
+							auto wire{ wires[wire_idx] };
+							auto wire_tile_strIdx{ wire.getTile() };
+							auto wire_wire_strIdx{ wire.getWire() };
+
+							for (auto node_wire_strIdx : all_node_wires_strIdx) {
+								puts(devStrs[node_wire_strIdx].cStr());
+							}
+
+							puts(std::format("site: {}, pin: {}, tile: {}, wire: {}",
+								site_str,
+								pin_str,
+								devStrs[wire_tile_strIdx].cStr(),
+								devStrs[wire_wire_strIdx].cStr()
+							).c_str());
+						}
+
+						continue;
+					}
+
+					stub_tiles.insert(tile_idx);
+					ti[tile_idx].unhandled_out_nets.insert(node_idx);
+					node_tiles.insert(tile_idx);
+
+				}
+
+				if (node_tiles.size() != 1) {
+					puts(std::format("stub: {}, node_tile_count: {}", physStrs[net.getName()].cStr(), node_tiles.size()).c_str());
+				}
+			}
+#else
+			auto v_stubs_site_pin_wires{ search_site_pin_wire.site_pins_to_wires(physStrs, search_site_pin_wire.site_pin_wires, sbg.phys_stridx_to_dev_stridx, net.getName(), stubs) };
+			std::span<uint32_t> s_stubs_site_pin_wires{ v_stubs_site_pin_wires };
+			auto stubs_site_pin_wires{ s_stubs_site_pin_wires.subspan<0, 1>() };
+			if (!stubs_site_pin_wires.size()) {
+				abort();
+			}
+			for (auto wire_idx : stubs_site_pin_wires) {
+				auto wire{ wires[wire_idx] };
+				auto tile{ tiles[sbg.dev_tile_strIndex_to_tile.at(wire.getTile())] };
+				auto tile_idx{ Tile_Index::make(tile) };
+				auto tin{ ti[tile_idx._value] };
+
+
+				stub_tiles.insert(tile_idx._value);
+				auto node_idx{ search_wire_tile_node.wire_tile_to_node({wire.getTile()}, {wire.getWire()}) };
+				tin.unhandled_out_nets.insert(node_idx);
+
+			}
+#endif
 		});
+
+		std::vector<TileInfo *> stub_tile_refs;
+		for (auto stub_tile_idx : stub_tiles) {
+			stub_tile_refs.emplace_back(&ti[stub_tile_idx]);
+		}
+
+		puts(std::format("placing nets in tiles, finish, source_tiles:{}, stub_tiles:{}, stub_tile_refs: {}", source_tiles.size(), stub_tiles.size(), stub_tile_refs.size()).c_str());
 
 
 		// block_phys();

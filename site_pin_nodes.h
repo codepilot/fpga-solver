@@ -68,20 +68,14 @@ public:
 		return UINT32_MAX;
 	}
 
-	static std::vector<uint32_t> site_pins_to_nodes(std::span<SitePinNode> site_pin_nodes, std::vector<uint32_t> phys_stridx_to_dev_stridx, uint32_t net_idx, branch_list_reader sources) {
-		auto sources_site_pins{ RouteStorage::branches_site_pins(net_idx, sources) };
+	static std::vector<uint32_t> site_pins_to_nodes(::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader physStrs, std::span<SitePinNode> site_pin_nodes, std::vector<String_Index> &phys_stridx_to_dev_stridx, uint32_t net_strIdx, branch_list_reader site_pins) {
 		std::vector<uint32_t> source_nodes;
-		source_nodes.reserve(sources_site_pins.size());
-		// std::string_view net_name{ physStrs[physRoot.getPhysNets()[net_idx].getName()].cStr() };
-		for (auto&& site_pin : sources_site_pins) {
+		source_nodes.reserve(site_pins.size());
+
+		for (auto&& site_pin : site_pins) {
 			auto sp{ site_pin.getRouteSegment().getSitePin() };
 			auto node_idx{ site_pin_to_node(site_pin_nodes, {phys_stridx_to_dev_stridx.at(sp.getSite())}, {phys_stridx_to_dev_stridx.at(sp.getPin())}) };
 			if (UINT32_MAX == node_idx) {
-				//puts(std::format("net:{} site:{} pin:{} node missing",
-				//	net_name,
-				//	physStrs[sp.getSite()].cStr(),
-				//	physStrs[sp.getPin()].cStr()
-				//).c_str());
 				abort();
 				continue;
 			}
@@ -89,6 +83,28 @@ public:
 		}
 
 		return source_nodes;
+	}
+
+	static std::vector<uint32_t> site_pins_to_nodes(::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader physStrs, std::span<SitePinNode> site_pin_nodes, std::vector<String_Index>& phys_stridx_to_dev_stridx, uint32_t net_strIdx, std::span<branch_reader> site_pins) {
+		std::vector<uint32_t> source_nodes;
+		source_nodes.reserve(site_pins.size());
+
+		for (auto&& site_pin : site_pins) {
+			auto sp{ site_pin.getRouteSegment().getSitePin() };
+			auto node_idx{ site_pin_to_node(site_pin_nodes, {phys_stridx_to_dev_stridx.at(sp.getSite())}, {phys_stridx_to_dev_stridx.at(sp.getPin())}) };
+			if (UINT32_MAX == node_idx) {
+				abort();
+				continue;
+			}
+			source_nodes.emplace_back(node_idx);
+		}
+
+		return source_nodes;
+	}
+
+	static std::vector<uint32_t> source_site_pins_to_nodes(::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader physStrs, std::span<SitePinNode> site_pin_nodes, std::vector<String_Index>& phys_stridx_to_dev_stridx, uint32_t net_strIdx, branch_list_reader sources) {
+		auto site_pins{ RouteStorage::branches_site_pins(physStrs, net_strIdx, sources) };
+		return site_pins_to_nodes(physStrs, site_pin_nodes, phys_stridx_to_dev_stridx, net_strIdx, site_pins);
 	}
 
 	static void make_site_pin_nodes(std::span<WireTileNode> wire_tile_node, ::DeviceResources::Device::Reader devRoot) {

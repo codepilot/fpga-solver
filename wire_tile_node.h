@@ -103,4 +103,26 @@ public:
 		puts("make_wire_tile_node() finish");
 	}
 
+	void test(::DeviceResources::Device::Reader devRoot) const {
+		auto nodes{ devRoot.getNodes() };
+		auto wires{ devRoot.getWires() };
+		puts("Search_Wire_Tile_Node::test() start");
+
+		size_t storage_offset{};
+
+		each(nodes, [&](uint64_t node_idx, node_reader node) {
+			for (auto&& wire_idx : node.getWires()) {
+				auto wire{ wires[wire_idx] };
+
+				auto found_node_idx{ wire_tile_to_node({wire.getTile()}, {wire.getWire()})};
+				if (node_idx != found_node_idx) {
+					abort();
+				}
+			}
+		});
+
+		puts("Search_Wire_Tile_Node::test() finish");
+	}
+
+
 };

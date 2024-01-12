@@ -43,6 +43,18 @@ public:
 		puts(std::format("node_tile_pip: {}, {} bits", node_tile_pip.size(), ceil(log2(node_tile_pip.size()))).c_str());
 	}
 
+	inline constexpr static std::span<NodeTilePip> node_to_tile_pip(std::span<NodeTilePip> node_tile_pip, uint32_t node_idx) noexcept {
+		return std::ranges::equal_range(node_tile_pip, NodeTilePip{ .node_idx{node_idx} }, [](NodeTilePip a, NodeTilePip b) { return a.node_idx < b.node_idx; });
+	}
+
+	inline constexpr std::span<NodeTilePip> node_to_tile_pip(uint32_t node_idx) const noexcept {
+		return node_to_tile_pip(node_tile_pip, node_idx);
+	}
+
+	inline constexpr static std::span<NodeTilePip> get_node_tile_pips(std::span<NodeTilePip> node_tile_pip, uint32_t node_idx, uint32_t tile_idx, uint32_t pip_index) noexcept {
+		return std::ranges::equal_range(node_tile_pip, NodeTilePip{ .pip{pip_index}, .tile_idx{tile_idx}, .node_idx{node_idx}}, [](NodeTilePip a, NodeTilePip b) { return a.get_uint64_t() < b.get_uint64_t(); });
+	}
+
 	static void make_node_tile_pip(Search_Wire_Tile_Node& search_wire_tile_node, ::DeviceResources::Device::Reader devRoot) {
 		// SetNodeTilePip node_tile_pip;
 		// 80000000 268435456
@@ -101,4 +113,50 @@ public:
 		puts("make_node_tile_pip finish");
 	}
 
+	void test(Search_Wire_Tile_Node& search_wire_tile_node, ::DeviceResources::Device::Reader devRoot) const {
+		puts("Search_Node_Tile_Pip::test start");
+
+		{
+			auto tiles{ devRoot.getTileList() };
+			auto tile_types{ devRoot.getTileTypeList() };
+
+			each(tiles, [&](uint64_t tile_idx, tile_reader tile) {
+				auto tile_range{ search_wire_tile_node.tile_to_node(String_Index{._strIdx{tile.getName()}}) };
+
+				auto tile_type{ tile_types[tile.getType()] };
+				auto tile_type_wire_strs{ tile_type.getWires() };
+				auto tileIndex{ Tile_Index::make(tile) };
+
+				each(tile_type.getPips(), [&](uint64_t pip_idx, pip_reader pip) {
+					auto wire0{ pip.getWire0() };
+					auto wire1{ pip.getWire1() };
+					auto directional{ pip.getDirectional() };
+					auto isConventional{ pip.isConventional() };
+					if (!isConventional) return;
+
+					Wire_Info wi0{ ._wire_strIdx{._strIdx{tile_type_wire_strs[wire0]}}, ._tile_strIdx{._strIdx{tile.getName()}} };
+					Wire_Info wi1{ ._wire_strIdx{._strIdx{tile_type_wire_strs[wire1]}}, ._tile_strIdx{._strIdx{tile.getName()}} };
+
+					auto node0_idx{ Search_Wire_Tile_Node::wire_tile_to_node(tile_range, wi0.get_tile_strIdx(), wi0.get_wire_strIdx()) };
+					auto node1_idx{ Search_Wire_Tile_Node::wire_tile_to_node(tile_range, wi1.get_tile_strIdx(), wi1.get_wire_strIdx()) };
+
+					if (node0_idx != UINT32_MAX) {
+						auto found_ntps{ get_node_tile_pips(node_tile_pip, node0_idx, tileIndex._value, pip_idx) };
+						if (found_ntps.size() != 1) {
+							abort();
+						}
+					}
+
+					if (node1_idx != UINT32_MAX) {
+						auto found_ntps{ get_node_tile_pips(node_tile_pip, node1_idx, tileIndex._value, pip_idx) };
+						if (found_ntps.size() != 1) {
+							abort();
+						}
+					}
+					});
+				});
+		}
+
+		puts("Search_Node_Tile_Pip::test finish");
+	}
 };

@@ -27,4 +27,5 @@ using branch_reader_node_map = std::unordered_map<uint32_t, branch_reader>;
 using tile_reader_map = std::unordered_map<uint32_t, std::vector<tile_reader>>;
 using net_reader = ::PhysicalNetlist::PhysNetlist::PhysNet::Reader;
 using node_reader = ::DeviceResources::Device::Node::Reader;
+using wire_reader = ::DeviceResources::Device::Wire::Reader;
 using pip_reader = ::DeviceResources::Device::PIP::Reader;

@@ -410,21 +410,21 @@ public:
 		return false;
 	}
 
-	static void branches_site_pins(uint32_t nameIdx, branch_list_reader branches, std::vector<branch_reader>& ret) noexcept {
+	static void branches_site_pins(::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader physStrs, uint32_t nameIdx, branch_list_reader branches, std::vector<branch_reader>& ret) noexcept {
 		for (auto&& branch : branches) {
-			// auto name{ physStrs[nameIdx] };
+			auto name{ physStrs[nameIdx] };
 			auto branch_rs{ branch.getRouteSegment() };
 			auto branch_branches{ branch.getBranches() };
 			auto branch_rs_which{ branch_rs.which() };
-			// OutputDebugStringA(std::format("{} branches({}) which {}\n", name.cStr(), branch_branches.size(), static_cast<uint16_t>(branch_rs_which)).c_str());
+			// puts(std::format("{} branches({}) which {}\n", name.cStr(), branch_branches.size(), static_cast<uint16_t>(branch_rs_which)).c_str());
 			switch (branch_rs_which) {
 			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::BEL_PIN: {
-				branches_site_pins(nameIdx, branch_branches, ret);
+				branches_site_pins(physStrs, nameIdx, branch_branches, ret);
 				break;
 			}
 			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_PIN: {
 				if (!branch_branches.size()) ret.emplace_back(branch);
-				branches_site_pins(nameIdx, branch_branches, ret);
+				branches_site_pins(physStrs, nameIdx, branch_branches, ret);
 				break;
 			}
 			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::PIP: {
@@ -433,7 +433,7 @@ public:
 				break;
 			}
 			case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::SITE_P_I_P: {
-				branches_site_pins(nameIdx, branch_branches, ret);
+				branches_site_pins(physStrs, nameIdx, branch_branches, ret);
 				break;
 
 			}
@@ -486,9 +486,9 @@ public:
 		return ret;
 	}
 
-	static std::vector<branch_reader> branches_site_pins(uint32_t nameIdx, branch_list_reader branches) noexcept {
+	static std::vector<branch_reader> branches_site_pins(::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader physStrs, uint32_t nameIdx, branch_list_reader branches) noexcept {
 		std::vector<branch_reader> ret;
-		branches_site_pins(nameIdx, branches, ret);
+		branches_site_pins(physStrs, nameIdx, branches, ret);
 		return ret;
 	}
 
