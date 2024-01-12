@@ -85,7 +85,7 @@ public:
 		auto key{ WireTileWire::make(tileStrIdx._strIdx, wireStrIdx._strIdx, 0) };
 		auto found{ std::ranges::equal_range(wire_tile_wire, key, [](WireTileWire a, WireTileWire b) { return a.get_key() < b.get_key(); }) };
 		if (found.size() != 1) {
-			DebugBreak();
+			abort();
 		}
 		for (auto&& entry : found) {
 			if (tileStrIdx._strIdx != entry.get_tileStrIdx()) {
