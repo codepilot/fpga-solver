@@ -97,6 +97,9 @@ public:
     inline uint32_t manhattan_distance(const Tile_Index& b) const noexcept {
         return abs(get_col() - b.get_col()) + abs(get_row() - b.get_row());
     }
+    inline double_t distance(const Tile_Index& b) const noexcept {
+        return sqrt(pow(static_cast<double_t>(get_col() - b.get_col()), 2.0) + pow(static_cast<double_t>(get_row() - b.get_row()), 2.0));
+    }
     ccai bool operator ==(const Tile_Index& b) const noexcept { return _value == b._value; }
     ccai bool operator !=(const Tile_Index& b) const noexcept { return _value != b._value; }
     ccai bool operator >(const Tile_Index& b) const noexcept { return _value > b._value; }

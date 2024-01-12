@@ -57,13 +57,17 @@ public:
         puts(std::format("site_pin_wires: {}, {} bits", site_pin_wires.size(), ceil(log2(site_pin_wires.size()))).c_str());
     }
 
-	static uint32_t site_pin_to_wire(std::span<SitePinWire> site_pin_wire, String_Index siteStrIdx, String_Index sitePinStrIdx) {
+	static uint32_t site_pin_to_wire(std::span<SitePinWire> site_pin_wires, String_Index siteStrIdx, String_Index sitePinStrIdx) {
 		auto key{ SitePinWire::make(siteStrIdx._strIdx, sitePinStrIdx._strIdx, 0) };
-		auto found{ std::ranges::equal_range(site_pin_wire, key, [](SitePinWire a, SitePinWire b) { return a.get_key() < b.get_key(); }) };
+		auto found{ std::ranges::equal_range(site_pin_wires, key, [](SitePinWire a, SitePinWire b) { return a.get_key() < b.get_key(); }) };
 		for (auto&& entry : found) {
 			return entry.get_wire_idx();
 		}
 		return UINT32_MAX;
+	}
+
+	uint32_t site_pin_to_wire(String_Index siteStrIdx, String_Index sitePinStrIdx) const {
+		return site_pin_to_wire(site_pin_wires, siteStrIdx, sitePinStrIdx);
 	}
 
 	static std::vector<uint32_t> site_pins_to_wires(::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader physStrs, std::span<SitePinWire> site_pin_wires, std::vector<String_Index> &phys_stridx_to_dev_stridx, uint32_t net_strIdx, branch_list_reader site_pins) {

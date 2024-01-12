@@ -141,14 +141,14 @@ public:
 					auto node1_idx{ Search_Wire_Tile_Node::wire_tile_to_node(tile_range, wi1.get_tile_strIdx(), wi1.get_wire_strIdx()) };
 
 					if (node0_idx != UINT32_MAX) {
-						auto found_ntps{ get_node_tile_pips(node_tile_pip, node0_idx, tileIndex._value, pip_idx) };
+						auto found_ntps{ get_node_tile_pips(node_tile_pip, node0_idx, tileIndex._value, static_cast<uint32_t>(pip_idx)) };
 						if (found_ntps.size() != 1) {
 							abort();
 						}
 					}
 
 					if (node1_idx != UINT32_MAX) {
-						auto found_ntps{ get_node_tile_pips(node_tile_pip, node1_idx, tileIndex._value, pip_idx) };
+						auto found_ntps{ get_node_tile_pips(node_tile_pip, node1_idx, tileIndex._value, static_cast<uint32_t>(pip_idx)) };
 						if (found_ntps.size() != 1) {
 							abort();
 						}
