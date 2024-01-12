@@ -4,6 +4,7 @@
 #include <bit>
 #include <nmmintrin.h>
 #include "interchange_types.h"
+#include <cmath>
 
 #ifdef _WIN32
 #define always_inline inline __forceinline
