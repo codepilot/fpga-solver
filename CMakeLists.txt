@@ -157,6 +157,28 @@ target_link_libraries(route_phys PRIVATE WindowsApp.lib)
 endif()
 
 
+add_executable(opencl-test opencl-test.cpp)
+target_include_directories(opencl-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" ${PROJECT_BINARY_DIR}/interchange OpenCL-CLHPP/include OpenCL-Headers)
+target_include_directories(opencl-test PRIVATE ${ZLIB_INCLUDE_DIR})
+target_include_directories(opencl-test PUBLIC capnproto/c++/src)
+target_compile_definitions(opencl-test PRIVATE NOMINMAX)
+target_compile_features(opencl-test PUBLIC cxx_std_23)
+if(MSVC)
+target_compile_options(opencl-test PRIVATE /arch:AVX2 /Zc:__cplusplus /MP /GR-)
+else()
+target_compile_options(opencl-test PRIVATE -march=native -std=c++2b)
+endif()
+target_link_libraries(opencl-test PRIVATE capnp)
+target_link_libraries(opencl-test PRIVATE zlibstatic)
+target_link_libraries(opencl-test PRIVATE OpenCL)
+
+if(MSVC)
+target_link_libraries(opencl-test PRIVATE Kernel32.lib)
+target_link_libraries(opencl-test PRIVATE WindowsApp.lib)
+endif()
+
+
+
 if(MSVC)
 file(GLOB_RECURSE GLSL_SOURCE_FILES
     "shaders/*.frag"
