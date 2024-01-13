@@ -17,12 +17,13 @@ public:
 };
 
 struct Tile_Info {
-	int64_t minCol;
-	int64_t minRow;
-	int64_t maxCol;
-	int64_t maxRow;
-	int64_t numCol;
-	int64_t numRow;
+	int64_t minCol; //0
+	int64_t minRow; //0
+	int64_t maxCol; //669
+	int64_t maxRow; //310
+	int64_t numCol; //670 10 bits
+	int64_t numRow; //311 9 bits
+	// total 208370 18 bits
 
 	inline constexpr static Tile_Info make() noexcept {
 		return {
@@ -67,14 +68,11 @@ struct Tile_Info {
 #include "tile_pip_node.h"
 #include "site_pin_wire.h"
 #include "tile_tile_wire_pip.h"
+#include "TileInfo.h"
 
 class Route_Phys {
 
 public:
-
-	inline constexpr static size_t tile_count{ 208370ull };
-	inline constexpr static size_t wire_count{ 83282368ull };
-	inline constexpr static size_t node_count{ 28226432ull };
 
 	Counter fully_routed, skip_route, failed_route, total_attempts;
 	DevGZ dev{ "_deps/device-file-src/xcvu3p.device" };
@@ -405,20 +403,6 @@ public:
 		puts("block_phys() finish");
 	}
 
-	class TileInfo {
-	public:
-		std::string_view name;
-		Tile_Index tile_idx;
-		tile_reader tile;
-		tile_type_reader tile_type;
-		std::set<Tile_Index> in_tiles, out_tiles, reachable_tiles;
-		std::set<uint32_t> unhandled_in_nets;
-		std::vector<std::shared_ptr<Stub_Router>> unhandled_out_nets;
-		std::vector<std::shared_ptr<Stub_Router>> handling_out_nets;
-		void handle_out_nets() {
-			handling_out_nets = std::move(unhandled_out_nets);
-		}
-	};
 	//19 bits str site, 19 bit pin, 25 bit node/branch, 1 bit leaf
 
 
@@ -646,6 +630,7 @@ public:
 					.stub{stub},
 					.nodes{{node_idx}},
 					.source_tiles{std::vector<Tile_Index>{source_tiles.begin(), source_tiles.end()}},
+					.tile_path{std::vector<Tile_Index>{tile_idx}},
 					.current_distance{HUGE_VAL},
 				})));
 				stub_router_count++;
@@ -690,46 +675,112 @@ public:
 				// puts(std::format("{} unhandled_out_nets: {}", tin.name, tin.unhandled_out_nets.size()).c_str());
 				tin.handle_out_nets();
 			}
+
 			puts(std::format("stubs_to_handle: {}, stubs_further: {}, stubs_deadend: {}, stubs_finished: {}", stubs_to_handle, stubs_further, stubs_deadend, stubs_finished).c_str());
+
 			for (auto&& tin : ti) {
 				if (!tin.handling_out_nets.size()) continue;
-				/*
+
+				if(false)
 				puts(std::format("{} handling_out_nets: {}, in_tiles: {}, out_tiles: {}",
 					tin.name,
 					tin.handling_out_nets.size(),
 					tin.in_tiles.size(),
 					tin.out_tiles.size()
 				).c_str());
-				*/
+
 				auto ustubs{ std::move(tin.handling_out_nets) };
 				auto tile_pips{ search_tile_tile_wire_pip.search_tile_tile_pip[tin.tile_idx._value] };
 				for (auto ustub : ustubs) {
 					Tile_Index previous{ ._value {INT32_MAX} };
 					Tile_Index bestTI{ ._value {INT32_MAX} };
 					double_t bestDistance{ HUGE_VAL };
-					if (!tile_pips.size()) {
-						stub_router_count--;
-						// puts(std::format("stub: {} stub_router_count:{} deadend", ustub->net_idx, stub_router_count).c_str());
-						stubs_deadend++;
-						continue;
+					if (ustub->nodes.size() == 1) {
+						for (auto&& ntp : search_node_tile_pip.node_to_tile_pip(ustub->nodes.at(0))) {
+							auto ti_dest{ std::bit_cast<Tile_Index>(static_cast<uint32_t>(ntp.tile_idx)) };
+							if (ti_dest == tin.tile_idx) continue;
+							if (ti_dest == previous) continue;
+							previous = ti_dest;
+
+							if (ti_dest == ustub->source_tiles[0]) {
+								bestDistance = 0;
+								bestTI = ti_dest;
+								break;
+							}
+
+							auto dst_ti{ ti[ti_dest._value] };
+
+							auto dest_tile_pips{ search_tile_tile_wire_pip.search_tile_tile_pip[ti_dest._value] };
+							if (!dest_tile_pips.size()) {
+								// puts(std::format("no pips {} ", dst_ti.name).c_str());
+								continue;
+							}
+
+							auto dest_tile_type{ ti[ti_dest._value].tile_type };
+							if (dest_tile_type.getSiteTypes().size()) {
+								// puts(std::format("contains sites {} ", dst_ti.name).c_str());
+								continue;
+							}
+
+							auto dist{ ustub->source_tiles[0].distance(ti_dest) };
+							if (dist < bestDistance) {
+								bestDistance = dist;
+								bestTI = ti_dest;
+							}
+						}
 					}
 					for (auto tile_pip : tile_pips) {
 						auto ti_dest{ std::bit_cast<Tile_Index>(static_cast<uint32_t>(tile_pip.tile_destination)) };
+						if (ti_dest == tin.tile_idx) continue;
 						if (ti_dest == previous) continue;
 						previous = ti_dest;
-						auto dist{ ustub->source_tiles[0].distance(ti_dest)};
+
+						if (ti_dest == ustub->source_tiles[0]) {
+							bestDistance = 0;
+							bestTI = ti_dest;
+							break;
+						}
+
+						auto dst_ti{ ti[ti_dest._value] };
+
+						auto dest_tile_pips{ search_tile_tile_wire_pip.search_tile_tile_pip[ti_dest._value] };
+						if (!dest_tile_pips.size()) {
+							// puts(std::format("no pips {} ", dst_ti.name).c_str());
+							continue;
+						}
+
+						auto dest_tile_type{ ti[ti_dest._value].tile_type };
+						if (dest_tile_type.getSiteTypes().size()) {
+							// puts(std::format("contains sites {} ", dst_ti.name).c_str());
+							continue;
+						}
+
+						auto dist{ ustub->source_tiles[0].distance(ti_dest) };
 						if (dist < bestDistance) {
 							bestDistance = dist;
 							bestTI = ti_dest;
 						}
 						// puts(std::format("stub: {} dist: {} dest:{} pip:{}", ustub->net_idx, dist, static_cast<uint32_t>(tile_pip.tile_destination), static_cast<uint32_t>(tile_pip.pip_offset)).c_str());
 					}
-					if (bestDistance >= ustub->current_distance) {
+					if (bestTI._value == INT32_MAX) {
+						stub_router_count--;
+						// puts(std::format("stub: {} stub_router_count:{} dist:{} {}:deadend", ustub->net_idx, stub_router_count, ustub->current_distance, tin.name).c_str());
+						stubs_deadend++;
+						continue;
+					}
+
+					if (bestDistance >= ustub->current_distance && ustub->tile_path.size() > 3) {
+#if 1
 						stub_router_count--;
 						stubs_further++;
-						// puts(std::format("stub: {} current_dist:{} dist: {} dest:{} stub_router_count:{} further", ustub->net_idx, ustub->current_distance, bestDistance, bestTI._value, stub_router_count).c_str());
+						// puts(std::format("stub: {} current_dist:{} dist: {} dest:{} stub_router_count:{} further:{}", ustub->net_idx, ustub->current_distance, bestDistance, bestTI._value, stub_router_count, TileInfo::get_tile_path_str(ti, ustub)).c_str());
+#else
+						ustub->tile_path.pop_back();
+						auto rb{ ustub->tile_path.rbegin() };
+#endif
 					} else if (bestDistance > 0.0) {
 						ustub->current_distance = bestDistance;
+						ustub->tile_path.emplace_back(bestTI._value);
 						// puts(std::format("stub: {} current_dist:{} dist: {} dest:{} stub_router_count:{}", ustub->net_idx, ustub->current_distance, bestDistance, bestTI._value, stub_router_count).c_str());
 						ti[bestTI._value].unhandled_out_nets.emplace_back(std::move(ustub));
 					}

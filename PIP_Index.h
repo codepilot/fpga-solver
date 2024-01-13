@@ -6,6 +6,10 @@
 #include "interchange_types.h"
 #include <cmath>
 
+inline constexpr static size_t tile_count{ 208370ull };
+inline constexpr static size_t wire_count{ 83282368ull };
+inline constexpr static size_t node_count{ 28226432ull };
+
 #ifdef _WIN32
 #define always_inline inline __forceinline
 #else

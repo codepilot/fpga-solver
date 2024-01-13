@@ -49,6 +49,21 @@
 
 int main(int argc, char* argv[]) {
 	Route_Phys rp;
+#if 0
+	std::vector<std::string> strings;
+	for (auto &&tile_type : rp.tile_types) {
+		if (!tile_type.getPips().size()) continue;
+		strings.emplace_back(std::format("sites:{} pips:{} {} ",
+			tile_type.getSiteTypes().size(),
+			tile_type.getPips().size(),
+			rp.devStrs[tile_type.getName()].cStr()
+		));
+	}
+	std::ranges::sort(strings);
+	for (auto str : strings) {
+		puts(str.c_str());
+	}
+#endif
 	// rp.start_routing({}, {}, {});
 	rp.tile_based_routing();
 	// rp.jt.join();

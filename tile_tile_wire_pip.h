@@ -47,6 +47,10 @@ public:
         auto wires{ devRoot.getWires() };
         // std::vector<TileTileWirePip> ttwp;
         std::vector<std::vector<TilePip>> tp;
+        int32_t dx_max{ INT32_MIN };
+        int32_t dy_max{ INT32_MIN };
+        int32_t dx_min{ INT32_MAX };
+        int32_t dy_min{ INT32_MAX };
         // ttwp.reserve(983379274ull);
 
         tp.resize(208370ull);
@@ -61,6 +65,7 @@ public:
             decltype(auto) tpi{ tp.at(tile_index_origin._value) };
             tpi.reserve(tile_origin_pips.size());
             each(tile_origin_pips, [&](uint64_t pip_idx, pip_reader pip) {
+                if (pip.isPseudoCells()) return;
                 {
                     auto wire0_strIdx{ tile_type_wire_strIdxs[pip.getWire0()] };
                     auto node0_idx{ search_wire_tile_node.wire_tile_to_node(String_Index{._strIdx{tile_origin_strIdx} }, String_Index{._strIdx{wire0_strIdx} }) };
@@ -70,6 +75,12 @@ public:
                             auto node0_wire{ wires[node0_wire_idx] };
                             auto node0_tile{ tiles[dev_tile_strIndex_to_tile[node0_wire.getTile()]] };
                             auto node0_tile_index{ Tile_Index::make(node0_tile) };
+                            auto dx{ node0_tile_index.get_col() - tile_index_origin.get_col() };
+                            auto dy{ node0_tile_index.get_row() - tile_index_origin.get_row() };
+                            if (dx < dx_min) dx_min = dx;
+                            if (dy < dy_min) dy_min = dy;
+                            if (dx > dx_max) dx_max = dx;
+                            if (dy > dy_max) dy_max = dy;
                             tpi.emplace_back(TilePip::make(node0_tile_index, static_cast<uint16_t>(pip_idx)));
                         }
                     }
@@ -83,6 +94,13 @@ public:
                             auto node1_wire{ wires[node1_wire_idx] };
                             auto node1_tile{ tiles[dev_tile_strIndex_to_tile[node1_wire.getTile()]] };
                             auto node1_tile_index{ Tile_Index::make(node1_tile) };
+                            auto dx{ node1_tile_index.get_col() - tile_index_origin.get_col() };
+                            auto dy{ node1_tile_index.get_row() - tile_index_origin.get_row() };
+                            if (dx < dx_min) dx_min = dx;
+                            if (dy < dy_min) dy_min = dy;
+                            if (dx > dx_max) dx_max = dx;
+                            if (dy > dy_max) dy_max = dy;
+
                             tpi.emplace_back(TilePip::make(node1_tile_index, static_cast<uint16_t>(pip_idx)));
                         }
                     }
@@ -107,6 +125,7 @@ public:
         }
 #endif
 //        puts(std::format("ttwp: {}", ttwp.size()).c_str());
+        puts(std::format("dx: {} to {}, dy: {} to {}", dx_min, dx_max, dy_min, dy_max).c_str());
         puts("Search_Tile_Tile_Wire_Pip::make finish");
         MMF_Dense_Sets<TilePip>::make("search_tile_tile_pip.bin", tp);
     }
