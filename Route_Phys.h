@@ -9,6 +9,7 @@
 #include <thread>
 #include "PIP_Index.h"
 #include "stub_router.h"
+#include <barrier>
 
 class Counter {
 public:
@@ -76,8 +77,8 @@ public:
 
 	Counter fully_routed, skip_route, failed_route, total_attempts;
 	DevGZ dev{ "_deps/device-file-src/xcvu3p.device" };
-	PhysGZ phys{ "_deps/benchmark-files-src/boom_med_pb_unrouted.phys" };
-	// PhysGZ phys{ "_deps/benchmark-files-src/boom_soc_unrouted.phys" };
+	// PhysGZ phys{ "_deps/benchmark-files-src/boom_med_pb_unrouted.phys" };
+	PhysGZ phys{ "_deps/benchmark-files-src/boom_soc_unrouted.phys" };
 	decltype(dev.root) devRoot{ dev.root };
 	decltype(phys.root) physRoot{ phys.root };
 	decltype(devRoot.getStrList()) devStrs{ devRoot.getStrList() };
@@ -414,9 +415,11 @@ public:
 		puts("ti start");
 		each(tiles, [&](auto tile_counter, tile_reader tile) {
 			auto tile_idx{ Tile_Index::make(tile) };
-			decltype(auto) tile_info{ ti[tile_idx._value] };
-			tile_info = { .name{devStrs[tile.getName()].cStr()}, .tile_idx{tile_idx}, .tile{tile}, .tile_type{tile_types[tile.getType()]} };
-			});
+			ti[tile_idx._value].name = devStrs[tile.getName()].cStr();
+			ti[tile_idx._value].tile_idx = tile_idx;
+			ti[tile_idx._value].tile = tile;
+			ti[tile_idx._value].tile_type = tile_types[tile.getType()];
+		});
 		puts("ti finish");
 
 		return upti;
@@ -632,7 +635,7 @@ public:
 					.source_tiles{std::vector<Tile_Index>{source_tiles.begin(), source_tiles.end()}},
 					.tile_path{std::vector<Tile_Index>{tile_idx}},
 					.current_distance{HUGE_VAL},
-				})));
+				})).get());
 				stub_router_count++;
 			}
 #if 0
@@ -663,31 +666,56 @@ public:
 
 		puts("placing nets in tiles finished");
 
-		uint32_t stubs_further{};
-		uint32_t stubs_deadend{};
-		uint32_t stubs_finished{};
+		// block_phys();
+#endif
+
+		std::vector<std::jthread> threads;
+		uint64_t group_size{ std::thread::hardware_concurrency() };
+		puts(std::format("std::thread::hardware_concurrency: {}", group_size).c_str());
+
+		std::barrier<> bar{ static_cast<ptrdiff_t>(group_size) };
+		std::atomic<uint32_t> stubs_to_handle{};
+		for (uint64_t offset{ 0 }; offset < group_size; offset++) {
+			threads.emplace_back([offset, group_size, &ti, stub_router_count, &bar, &stubs_to_handle, this]() {
+				route_tiles(offset, group_size, ti, stub_router_count, bar, stubs_to_handle);
+			});
+		}
+		for (auto&& thread : threads) {
+			thread.join();
+		}
+	}
+
+	std::atomic<uint32_t> stubs_further{};
+	std::atomic<uint32_t> stubs_deadend{};
+	std::atomic<uint32_t> stubs_finished{};
+
+	void route_tiles(uint64_t offset, uint64_t group_size, std::span<TileInfo, tile_count> &ti, uint32_t stub_router_count, std::barrier<> &bar, std::atomic<uint32_t> &stubs_to_handle) {
+		std::span<const TileInfo, tile_count> cti( ti.cbegin(), ti.size() );
 
 		for (;;) {
-			size_t stubs_to_handle{};
-			for (auto&& tin : ti) {
+			bar.arrive_and_wait();
+			if(!offset) stubs_to_handle.store(0);
+			bar.arrive_and_wait();
+			each_n(offset, group_size, ti,[&](uint64_t tin_index, TileInfo &tin) {
 				stubs_to_handle += tin.unhandled_out_nets.size();
-				if (!tin.unhandled_out_nets.size()) continue;
+				if (!tin.unhandled_out_nets.size()) return;
 				// puts(std::format("{} unhandled_out_nets: {}", tin.name, tin.unhandled_out_nets.size()).c_str());
 				tin.handle_out_nets();
-			}
+			});
 
-			puts(std::format("stubs_to_handle: {}, stubs_further: {}, stubs_deadend: {}, stubs_finished: {}", stubs_to_handle, stubs_further, stubs_deadend, stubs_finished).c_str());
+			bar.arrive_and_wait();
+			if (!offset) puts(std::format("stubs_to_handle: {}, stubs_further: {}, stubs_deadend: {}, stubs_finished: {}", stubs_to_handle.load(), stubs_further.load(), stubs_deadend.load(), stubs_finished.load()).c_str());
 
-			for (auto&& tin : ti) {
-				if (!tin.handling_out_nets.size()) continue;
+			each_n(offset, group_size, ti, [&](uint64_t tin_index, TileInfo& tin) {
+				if (!tin.handling_out_nets.size()) return;
 
-				if(false)
-				puts(std::format("{} handling_out_nets: {}, in_tiles: {}, out_tiles: {}",
-					tin.name,
-					tin.handling_out_nets.size(),
-					tin.in_tiles.size(),
-					tin.out_tiles.size()
-				).c_str());
+				if (false)
+					puts(std::format("{} handling_out_nets: {}, in_tiles: {}, out_tiles: {}",
+						tin.name,
+						tin.handling_out_nets.size(),
+						tin.in_tiles.size(),
+						tin.out_tiles.size()
+					).c_str());
 
 				auto ustubs{ std::move(tin.handling_out_nets) };
 				auto tile_pips{ search_tile_tile_wire_pip.search_tile_tile_pip[tin.tile_idx._value] };
@@ -708,7 +736,7 @@ public:
 								break;
 							}
 
-							auto dst_ti{ ti[ti_dest._value] };
+							decltype(auto) dst_ti{ cti[ti_dest._value] };
 
 							auto dest_tile_pips{ search_tile_tile_wire_pip.search_tile_tile_pip[ti_dest._value] };
 							if (!dest_tile_pips.size()) {
@@ -716,7 +744,7 @@ public:
 								continue;
 							}
 
-							auto dest_tile_type{ ti[ti_dest._value].tile_type };
+							auto dest_tile_type{ cti[ti_dest._value].tile_type };
 							if (dest_tile_type.getSiteTypes().size()) {
 								// puts(std::format("contains sites {} ", dst_ti.name).c_str());
 								continue;
@@ -741,7 +769,7 @@ public:
 							break;
 						}
 
-						auto dst_ti{ ti[ti_dest._value] };
+						decltype(auto) dst_ti{ cti[ti_dest._value] };
 
 						auto dest_tile_pips{ search_tile_tile_wire_pip.search_tile_tile_pip[ti_dest._value] };
 						if (!dest_tile_pips.size()) {
@@ -749,7 +777,7 @@ public:
 							continue;
 						}
 
-						auto dest_tile_type{ ti[ti_dest._value].tile_type };
+						auto dest_tile_type{ cti[ti_dest._value].tile_type };
 						if (dest_tile_type.getSiteTypes().size()) {
 							// puts(std::format("contains sites {} ", dst_ti.name).c_str());
 							continue;
@@ -782,7 +810,8 @@ public:
 						ustub->current_distance = bestDistance;
 						ustub->tile_path.emplace_back(bestTI._value);
 						// puts(std::format("stub: {} current_dist:{} dist: {} dest:{} stub_router_count:{}", ustub->net_idx, ustub->current_distance, bestDistance, bestTI._value, stub_router_count).c_str());
-						ti[bestTI._value].unhandled_out_nets.emplace_back(std::move(ustub));
+						ti[bestTI._value].append_unhandled_out(ustub);
+						// ti[bestTI._value].unhandled_out_nets.emplace_back(std::move(ustub));
 					}
 					else {
 						stub_router_count--;
@@ -790,12 +819,13 @@ public:
 						// puts(std::format("stub: {} dist: {} dest:{} stub_router_count:{} finished", ustub->net_idx, bestDistance, bestTI._value, stub_router_count).c_str());
 					}
 				}
+			});
+			bar.arrive_and_wait();
+			if (!stubs_to_handle) {
+				break;
 			}
-			if (!stubs_to_handle) break;
 		}
 
-		// block_phys();
-#endif
 
 	}
 };
