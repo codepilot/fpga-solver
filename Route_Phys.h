@@ -664,25 +664,35 @@ public:
 
 		});
 
-		puts("placing nets in tiles finished");
+		puts("placing nets in tiles finished\nRouting started");
 
 		// block_phys();
 #endif
 
-		std::vector<std::jthread> threads;
-		uint64_t group_size{ std::thread::hardware_concurrency() };
-		puts(std::format("std::thread::hardware_concurrency: {}", group_size).c_str());
+		const auto start = std::chrono::steady_clock::now();
 
-		std::barrier<> bar{ static_cast<ptrdiff_t>(group_size) };
-		std::atomic<uint32_t> stubs_to_handle{};
-		for (uint64_t offset{ 0 }; offset < group_size; offset++) {
-			threads.emplace_back([offset, group_size, &ti, stub_router_count, &bar, &stubs_to_handle, this]() {
-				route_tiles(offset, group_size, ti, stub_router_count, bar, stubs_to_handle);
-			});
+		{
+			std::vector<std::jthread> threads;
+			uint64_t group_size{ std::thread::hardware_concurrency() };
+			puts(std::format("std::thread::hardware_concurrency: {}", group_size).c_str());
+
+			std::barrier<> bar{ static_cast<ptrdiff_t>(group_size) };
+			std::atomic<uint32_t> stubs_to_handle{};
+			for (uint64_t offset{ 0 }; offset < group_size; offset++) {
+				threads.emplace_back([offset, group_size, &ti, stub_router_count, &bar, &stubs_to_handle, this]() {
+					route_tiles(offset, group_size, ti, stub_router_count, bar, stubs_to_handle);
+				});
+			}
+			for (auto&& thread : threads) {
+				thread.join();
+			}
 		}
-		for (auto&& thread : threads) {
-			thread.join();
-		}
+
+		const auto end = std::chrono::steady_clock::now();
+
+		const std::chrono::duration<double> diff = end - start;
+
+		puts(std::format("finished routing {}s", diff.count()).c_str());
 	}
 
 	std::atomic<uint32_t> stubs_further{};
@@ -723,7 +733,7 @@ public:
 					Tile_Index previous{ ._value {INT32_MAX} };
 					Tile_Index bestTI{ ._value {INT32_MAX} };
 					double_t bestDistance{ HUGE_VAL };
-					if (ustub->nodes.size() == 1) {
+					if (ustub->tile_path.size() == 1) {
 						for (auto&& ntp : search_node_tile_pip.node_to_tile_pip(ustub->nodes.at(0))) {
 							auto ti_dest{ std::bit_cast<Tile_Index>(static_cast<uint32_t>(ntp.tile_idx)) };
 							if (ti_dest == tin.tile_idx) continue;
