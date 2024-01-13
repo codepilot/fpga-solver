@@ -199,7 +199,7 @@ endforeach(GLSL)
 endif()
 
 FetchContent_Declare(device-file URL https://github.com/Xilinx/fpga24_routing_contest/releases/latest/download/xcvu3p.device DOWNLOAD_NO_EXTRACT true)
-FetchContent_Declare(benchmark-files URL https://github.com/Xilinx/fpga24_routing_contest/releases/latest/download/benchmarks.tar.gz DOWNLOAD_EXTRACT_TIMESTAMP true)
+FetchContent_Declare(benchmark-files URL https://github.com/Xilinx/fpga24_routing_contest/releases/latest/download/benchmarks.tar.gz DOWNLOAD_NO_EXTRACT false)
 FetchContent_MakeAvailable(device-file benchmark-files)
 
 # file(GLOB_RECURSE BENCHMARK_FILES "${benchmark-files_SOURCE_DIR}/*.netlist" "${benchmark-files_SOURCE_DIR}/*.phys" "${device-file_SOURCE_DIR}/*.device")

@@ -1,10 +1,12 @@
 #define CL_HPP_TARGET_OPENCL_VERSION 300
 #include <CL/opencl.hpp>
+#include <format>
 
 constexpr int numElements = 32;
 
 
 int test_opencl() {
+    puts("test_opencl()");
     // Filter for a 2.0 or newer platform and set it as the default
     std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
