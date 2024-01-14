@@ -86,6 +86,43 @@ public:
         return std::expected<ocl::event, status>(ocl::event {.event{ event } });
     }
 
+    template<typename T>
+    always_inline std::expected<ocl::event, status> enqueueSVMMap(cl_bool blocking_map, cl_map_flags flags, std::span<T> svm) {
+        cl_event event{};
+        cl_int errcode_ret{ clEnqueueSVMMap(
+            queue,
+            blocking_map,
+            flags,
+            svm.data(),
+            svm.size_bytes(),
+            0,
+            nullptr,
+            &event
+        )};
+
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<ocl::event, status>(ocl::event {.event{ event } });
+    }
+
+    template<typename T>
+    always_inline std::expected<ocl::event, status> enqueueSVMUnmap(std::span<T> svm) {
+        cl_event event{};
+        cl_int errcode_ret{ clEnqueueSVMUnmap(
+            queue,
+            svm.data(),
+            0,
+            nullptr,
+            &event
+        )};
+
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<ocl::event, status>(ocl::event {.event{ event } });
+    }
+
     always_inline std::expected<void, status> flush() {
         cl_int errcode_ret{ clFlush(queue) };
 
