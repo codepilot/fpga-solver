@@ -167,6 +167,11 @@ public:
         show_info_uint(CL_DEVICE_PREFERRED_LOCAL_ATOMIC_ALIGNMENT);
         show_info_uint(CL_DEVICE_MAX_NUM_SUB_GROUPS);
 #undef show_info
+        std::cout << std::format("  CL_DEVICE_SVM_CAPABILITIES: {}\n", get_info_integral<cl_device_svm_capabilities>(device, CL_DEVICE_SVM_CAPABILITIES).value());
+        std::cout << std::format("  CL_DEVICE_SVM_COARSE_GRAIN_BUFFER: {}\n", static_cast<bool>(get_info_integral<cl_device_svm_capabilities>(device, CL_DEVICE_SVM_CAPABILITIES).value() & CL_DEVICE_SVM_COARSE_GRAIN_BUFFER));
+        std::cout << std::format("  CL_DEVICE_SVM_FINE_GRAIN_BUFFER: {}\n", static_cast<bool>(get_info_integral<cl_device_svm_capabilities>(device, CL_DEVICE_SVM_CAPABILITIES).value() & CL_DEVICE_SVM_FINE_GRAIN_BUFFER));
+        std::cout << std::format("  CL_DEVICE_SVM_FINE_GRAIN_SYSTEM: {}\n", static_cast<bool>(get_info_integral<cl_device_svm_capabilities>(device, CL_DEVICE_SVM_CAPABILITIES).value() & CL_DEVICE_SVM_FINE_GRAIN_SYSTEM));
+        std::cout << std::format("  CL_DEVICE_SVM_ATOMICS: {}\n", static_cast<bool>(get_info_integral<cl_device_svm_capabilities>(device, CL_DEVICE_SVM_CAPABILITIES).value() & CL_DEVICE_SVM_ATOMICS));
     }
 
     always_inline void log_info() {
