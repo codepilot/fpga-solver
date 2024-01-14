@@ -12,6 +12,11 @@
 #include "constexpr_intrinsics.h"
 #endif
 
+#include <cstdint>
+#include <cstdio>
+#include <format>
+#include "Trivial_Span.h"
+
 class MemoryMappedFile {
 public:
 
