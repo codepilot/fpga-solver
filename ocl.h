@@ -104,6 +104,9 @@ namespace ocl {
 #endif
 
     };
+class platform;
+class device;
 };
 
 #include "ocl_platform.h"
+#include "ocl_device.h"
