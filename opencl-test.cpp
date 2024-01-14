@@ -5,6 +5,8 @@ void test_opencl() {
         platform.log_info();
         platform.each_device([](uint64_t device_idx, ocl::device device) {
             device.log_info();
+            auto c{ device.create_context().value() };
+            std::cout << std::format("context.refcount: {}\n", c.get_reference_count().value());
         });
     });
 }

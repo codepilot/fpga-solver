@@ -173,5 +173,9 @@ public:
         log_info(device);
     }
 
+    always_inline auto create_context() {
+        return context::create_context(this);
+    }
+
 };
 };

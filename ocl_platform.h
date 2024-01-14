@@ -84,13 +84,13 @@ public:
 
     always_inline static std::expected<std::vector<cl_platform_id>, status> get_ids() noexcept {
         return size().and_then([](size_t size)-> std::expected<std::vector<cl_platform_id>, status> {
-            return get_ids(size);
+            return get_ids(static_cast<cl_uint>(size));
         });
     }
 
     always_inline static std::expected<std::vector<ocl::platform>, status> get() noexcept {
         return size().and_then([](size_t size)-> std::expected<std::vector<ocl::platform>, status> {
-            return get(size);
+            return get(static_cast<cl_uint>(size));
         });
     }
 

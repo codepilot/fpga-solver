@@ -107,7 +107,11 @@ namespace ocl {
     };
 class platform;
 class device;
+class context;
+class command_queue;
 };
 
 #include "ocl_platform.h"
+#include "ocl_context.h"
 #include "ocl_device.h"
+#include "ocl_command_queue.h"
