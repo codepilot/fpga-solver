@@ -43,7 +43,7 @@ public:
 
     template<typename cl_integral>
     always_inline std::expected<cl_integral, status> get_info_integral(cl_device_info param_name) const noexcept {
-        return get_info_integral(device, param_name);
+        return get_info_integral<cl_integral>(device, param_name);
     }
 
     always_inline static std::expected<std::string, status> get_profile(cl_device_id device) noexcept { return get_info_string(device, CL_DEVICE_PROFILE); }
