@@ -86,6 +86,23 @@ public:
         return std::expected<ocl::event, status>(ocl::event {.event{ event } });
     }
 
+    always_inline std::expected<void, status> flush() {
+        cl_int errcode_ret{ clFlush(queue) };
+
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<void, status>();
+    }
+
+    always_inline std::expected<void, status> finish() {
+        cl_int errcode_ret{ clFinish(queue) };
+
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<void, status>();
+    }
 
 };
 };

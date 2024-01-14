@@ -47,6 +47,8 @@ void test_opencl() {
             each(svec, [](uint64_t i, uint32_t n) {
                 if (i != n) std::cout << std::format("mismatch[{}] != {}\n", i, n);
             });
+            queue.finish().value();
+
         });
     });
 }
