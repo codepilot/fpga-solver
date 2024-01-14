@@ -6,7 +6,11 @@ public:
 	cl_mem mem;
     always_inline static std::expected<ocl::buffer, status> create_buffer(cl_context context, cl_mem_flags flags, size_t size, void* host_ptr) noexcept {
         cl_int errcode_ret{};
+#if 0
         cl_mem mem{ clCreateBufferWithProperties(context, nullptr, flags, size, host_ptr, &errcode_ret) };
+#else
+        cl_mem mem{ clCreateBuffer(context, flags, size, host_ptr, &errcode_ret) };
+#endif
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
         }
