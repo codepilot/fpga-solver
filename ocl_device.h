@@ -68,7 +68,7 @@ public:
         std::cout << std::format("  il_version: {}\n", ocl::device::get_il_version(device).value());
         std::cout << std::format("  built_in_kernels: {}\n", ocl::device::get_built_in_kernels(device).value());
         std::cout << std::format("  opencl_c_version: {}\n", ocl::device::get_opencl_c_version(device).value());
-        std::cout << std::format("  latest_conformancce_version_passed: {}\n", ocl::device::get_latest_conformancce_version_passed(device).value());
+        std::cout << std::format("  latest_conformancce_version_passed: {}\n", ocl::device::get_latest_conformancce_version_passed(device).value_or("N/A"));
         std::cout << std::format("  driver_version: {}\n", ocl::device::get_driver_version(device).value());
 
     }
