@@ -60,6 +60,11 @@ public:
         return buffer::create(context, flags, size, host_ptr);
     }
 
+    template<typename T>
+    always_inline std::expected<ocl::buffer, status> create_buffer(cl_mem_flags flags, std::span<T> host) noexcept {
+        return buffer::create(context, flags, host.size_bytes(), host.data());
+    }
+
     always_inline std::expected<ocl::program, status> create_program(std::string_view source) noexcept {
         return program::create(context, device, source);
     }

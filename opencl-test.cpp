@@ -13,9 +13,9 @@ void test_opencl() {
             auto queue{ context.create_queue().value() };
             std::cout << std::format("queue.refcount: {}\n", queue.get_reference_count().value());
 
-            std::vector<uint32_t> vec(max_workgroup_size << 10ull, 0);
+            std::vector<uint32_t> vec(max_workgroup_size << 10ull, 1);
             std::span<uint32_t> svec(vec);
-            auto buffer{ context.create_buffer(CL_MEM_READ_WRITE, svec.size_bytes()).value() };
+            auto buffer{ context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, svec).value() };
             std::cout << std::format("buffer.refcount: {}\n", buffer.get_reference_count().value());
 
             MemoryMappedFile source{ "../kernels/test_kernel_1.cl" };
