@@ -7,6 +7,8 @@ void test_opencl() {
             device.log_info();
             auto c{ device.create_context().value() };
             std::cout << std::format("context.refcount: {}\n", c.get_reference_count().value());
+            auto q{ c.create_command_queue().value() };
+            std::cout << std::format("queue.refcount: {}\n", q.get_reference_count().value());
         });
     });
 }

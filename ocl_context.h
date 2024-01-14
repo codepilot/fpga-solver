@@ -4,20 +4,21 @@ namespace ocl {
 class context {
 public:
 	cl_context context;
+    cl_device_id device;
 #if 0
     ~context() {
         clReleaseContext(context);
     }
 #endif
-    always_inline static std::expected<ocl::context, status> create_context(ocl::device *device) noexcept {
+    always_inline static std::expected<ocl::context, status> create_context(cl_device_id device) noexcept {
         cl_int errcode_ret{};
-        cl_context context{ clCreateContext(nullptr, 1, reinterpret_cast<const cl_device_id *>(device), [](const char* errinfo, const void* private_info, size_t cb, void* user_data) {
+        cl_context context{ clCreateContext(nullptr, 1, &device, [](const char* errinfo, const void* private_info, size_t cb, void* user_data) {
             puts(errinfo);
         }, nullptr, &errcode_ret) };
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
         }
-        return std::expected<ocl::context, status>(ocl::context{ .context{context} });
+        return std::expected<ocl::context, status>(ocl::context{ .context{context}, .device{device} });
     }
 
     always_inline static std::expected<size_t, status> get_info_size(cl_context context, cl_context_info param_name) noexcept {
@@ -50,5 +51,10 @@ public:
     std::expected<cl_uint, status> get_reference_count() {
         return get_info_integral<cl_uint>(CL_CONTEXT_REFERENCE_COUNT);
     }
+
+    always_inline std::expected<ocl::command_queue, status> create_command_queue() {
+        return command_queue::create_command_queue(context, device);
+    }
+
 };
 };
