@@ -108,14 +108,18 @@ namespace ocl {
 class platform;
 class device;
 class context;
-class command_queue;
+class queue;
 class buffer;
 class program;
+class kernel;
+class event;
 };
 
 #include "ocl_platform.h"
+#include "ocl_event.h"
+#include "ocl_kernel.h"
 #include "ocl_program.h"
-#include "ocl_command_queue.h"
+#include "ocl_queue.h"
 #include "ocl_buffer.h"
 #include "ocl_context.h"
 #include "ocl_device.h"

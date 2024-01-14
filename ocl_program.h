@@ -140,5 +140,9 @@ public:
     always_inline std::expected<std::string, status> get_build_info_string(cl_program_build_info param_name) const noexcept {
         return get_build_info_string(program, device, param_name);
     }
+
+    always_inline std::expected<ocl::kernel, status> create_kernel(std::string kernel_name) noexcept {
+        return ocl::kernel::create(program, kernel_name);
+    }
 };
 };
