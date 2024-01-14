@@ -73,7 +73,6 @@ public:
         std::cout << std::format("  opencl_c_version: {}\n", ocl::device::get_opencl_c_version(device).value_or(na));
         std::cout << std::format("  latest_conformancce_version_passed: {}\n", ocl::device::get_latest_conformancce_version_passed(device).value_or(na));
         std::cout << std::format("  driver_version: {}\n", ocl::device::get_driver_version(device).value_or(na));
-
     }
 
     always_inline void log_info() {

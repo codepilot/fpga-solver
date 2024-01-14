@@ -4,6 +4,7 @@ namespace ocl {
 class platform {
 public:
     cl_platform_id platform;
+
     always_inline static std::expected<size_t, status> get_info_size(cl_platform_id platform, cl_platform_info param_name) noexcept {
         size_t param_value_size_ret{};
         status sts0{ clGetPlatformInfo(platform, param_name, 0, nullptr, &param_value_size_ret) };
@@ -16,12 +17,14 @@ public:
     }
 
     always_inline static std::expected<std::string, status> get_info_string(cl_platform_id platform, cl_platform_info param_name) noexcept {
-        std::string string_pointer(get_info_size(platform, param_name).value(), 0);
+        return get_info_size(platform, param_name).and_then([&](size_t size) -> std::expected<std::string, status> {
+            std::string string_pointer(size, 0);
 
-        status sts1{ clGetPlatformInfo(platform, param_name, string_pointer.size(), string_pointer.data(), 0) };
-        if (sts1 != status::SUCCESS) return std::unexpected(sts1);
+            status sts1{ clGetPlatformInfo(platform, param_name, string_pointer.size(), string_pointer.data(), 0) };
+            if (sts1 != status::SUCCESS) return std::unexpected(sts1);
 
-        return decltype(get_info_string(platform, param_name))(string_pointer);
+            return std::expected<std::string, status>(string_pointer);
+        });
     }
 
     always_inline std::expected<std::string, status> get_info_string(cl_platform_info param_name) const noexcept {
@@ -44,11 +47,12 @@ public:
     always_inline std::expected<std::string, status> get_extensions() const noexcept { return get_extensions(platform); }
 
     always_inline static void log_info(cl_platform_id platform) {
-        std::cout << std::format("profile: {}\n", ocl::platform::get_profile(platform).value());
-        std::cout << std::format("version: {}\n", ocl::platform::get_version(platform).value());
-        std::cout << std::format("name: {}\n", ocl::platform::get_name(platform).value());
-        std::cout << std::format("vendor: {}\n", ocl::platform::get_vendor(platform).value());
-        std::cout << std::format("extensions: {}\n", ocl::platform::get_extensions(platform).value());
+        std::string na{ "N/A" };
+        std::cout << std::format("profile: {}\n", ocl::platform::get_profile(platform).value_or(na));
+        std::cout << std::format("version: {}\n", ocl::platform::get_version(platform).value_or(na));
+        std::cout << std::format("name: {}\n", ocl::platform::get_name(platform).value_or(na));
+        std::cout << std::format("vendor: {}\n", ocl::platform::get_vendor(platform).value_or(na));
+        std::cout << std::format("extensions: {}\n", ocl::platform::get_extensions(platform).value_or(na));
     }
 
     always_inline void log_info() {
@@ -79,11 +83,15 @@ public:
     }
 
     always_inline static std::expected<std::vector<cl_platform_id>, status> get_ids() noexcept {
-        return decltype(get_ids())(get_ids(size().value()));
+        return size().and_then([](size_t size)-> std::expected<std::vector<cl_platform_id>, status> {
+            return get_ids(size);
+        });
     }
 
     always_inline static std::expected<std::vector<ocl::platform>, status> get() noexcept {
-        return decltype(get())(get(size().value()));
+        return size().and_then([](size_t size)-> std::expected<std::vector<ocl::platform>, status> {
+            return get(size);
+        });
     }
 
     always_inline static void each(auto lambda) noexcept {
@@ -100,11 +108,13 @@ public:
 
     template<cl_device_type device_type = CL_DEVICE_TYPE_DEFAULT>
     always_inline std::expected<std::vector<ocl::device>, status> get_devices() noexcept {
-        std::vector<ocl::device> ret(static_cast<size_t>(devices_size<device_type>().value()));
-        status sts1{ clGetDeviceIDs(platform, device_type, static_cast<cl_uint>(ret.size()), reinterpret_cast<cl_device_id*>(ret.data()), nullptr) };
-        if (sts1 != status::SUCCESS) return std::unexpected(sts1);
+        return devices_size<device_type>().and_then([this](size_t size)-> std::expected<std::vector<ocl::device>, status> {
+            std::vector<ocl::device> ret(size);
+            status sts1{ clGetDeviceIDs(platform, device_type, static_cast<cl_uint>(ret.size()), reinterpret_cast<cl_device_id*>(ret.data()), nullptr) };
+            if (sts1 != status::SUCCESS) return std::unexpected(sts1);
 
-        return std::expected<std::vector<ocl::device>, status>(ret);
+            return std::expected<std::vector<ocl::device>, status>(ret);
+        });
     }
 
     template<cl_device_type device_type = CL_DEVICE_TYPE_DEFAULT>
