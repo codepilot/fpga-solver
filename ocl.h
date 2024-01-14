@@ -159,41 +159,43 @@ public:
         always_inline void log_info() {
             log_info(platform);
         }
+
+        always_inline static std::expected<std::vector<cl_platform_id>, status> get_ids(cl_uint num_platforms) noexcept {
+            std::vector<cl_platform_id> ret(static_cast<size_t>(num_platforms));
+            status sts1{ clGetPlatformIDs(static_cast<cl_uint>(ret.size()), ret.data(), nullptr) };
+            if (sts1 != status::SUCCESS) return std::unexpected(sts1);
+
+            return decltype(get_ids(num_platforms))(ret);
+        }
+
+        always_inline static std::expected<std::vector<ocl::platform>, status> get(cl_uint num_platforms) noexcept {
+            std::vector<ocl::platform> ret(static_cast<size_t>(num_platforms));
+            status sts1{ clGetPlatformIDs(static_cast<cl_uint>(ret.size()), reinterpret_cast<cl_platform_id*>(ret.data()), nullptr) };
+            if (sts1 != status::SUCCESS) return std::unexpected(sts1);
+
+            return decltype(get(num_platforms))(ret);
+        }
+
+        always_inline static std::expected<cl_uint, status> size() noexcept {
+            cl_uint num_platforms{};
+            status sts0{ clGetPlatformIDs(0, nullptr, &num_platforms) };
+            if (sts0 != status::SUCCESS) return std::unexpected(sts0);
+            return decltype(size())(num_platforms);
+        }
+
+        always_inline static std::expected<std::vector<cl_platform_id>, status> get_ids() noexcept {
+            return decltype(get_ids())(get_ids(size().value()));
+        }
+
+        always_inline static std::expected<std::vector<ocl::platform>, status> get() noexcept {
+            return decltype(get())(get(size().value()));
+        }
+
+        always_inline static void each(auto lambda) noexcept {
+            ::each(get().value(), lambda);
+        }
+
+
     };
-
-    always_inline static std::expected<std::vector<cl_platform_id>, status> GetPlatformIDs(cl_uint num_platforms) noexcept {
-        std::vector<cl_platform_id> ret(static_cast<size_t>(num_platforms));
-        status sts1{ clGetPlatformIDs(static_cast<cl_uint>(ret.size()), ret.data(), nullptr) };
-        if (sts1 != status::SUCCESS) return std::unexpected(sts1);
-
-        return decltype(GetPlatformIDs(num_platforms))(ret);
-    }
-
-    always_inline static std::expected<std::vector<platform>, status> GetPlatforms(cl_uint num_platforms) noexcept {
-        std::vector<platform> ret(static_cast<size_t>(num_platforms));
-        status sts1{ clGetPlatformIDs(static_cast<cl_uint>(ret.size()), reinterpret_cast<cl_platform_id *>(ret.data()), nullptr) };
-        if (sts1 != status::SUCCESS) return std::unexpected(sts1);
-
-        return decltype(GetPlatforms(num_platforms))(ret);
-    }
-
-    always_inline static std::expected<cl_uint, status> GetPlatformID_count() noexcept {
-        cl_uint num_platforms{};
-        status sts0{ clGetPlatformIDs(0, nullptr, &num_platforms) };
-        if (sts0 != status::SUCCESS) return std::unexpected(sts0);
-        return decltype(GetPlatformID_count())(num_platforms);
-    }
-
-    always_inline static std::expected<std::vector<cl_platform_id>, status> GetPlatformIDs() noexcept {
-        return decltype(GetPlatformIDs())(GetPlatformIDs(GetPlatformID_count().value()));
-    }
-
-    always_inline static std::expected<std::vector<platform>, status> GetPlatforms() noexcept {
-        return decltype(GetPlatforms())(GetPlatforms(GetPlatformID_count().value()));
-    }
-
-    always_inline static void each_platform(auto lambda) noexcept {
-        each(ocl::GetPlatforms().value(), lambda);
-    }
 
 };

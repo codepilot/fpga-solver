@@ -1,7 +1,7 @@
 #include "ocl.h"
 
 void test_opencl() {
-    ocl::each_platform([](uint64_t platform_idx, ocl::platform platform) {
+    ocl::platform::each([](uint64_t platform_idx, ocl::platform platform) {
         platform.log_info();
     });
 }
