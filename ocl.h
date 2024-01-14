@@ -9,6 +9,8 @@
 #include "each.h"
 #include <iostream>
 #include <array>
+#include <algorithm>
+#include <span>
 
 #ifndef always_inline
 #ifdef _WIN32
@@ -113,9 +115,11 @@ class buffer;
 class program;
 class kernel;
 class event;
+template<typename T> class svm;
 };
 
 #include "ocl_platform.h"
+#include "ocl_svm.h"
 #include "ocl_event.h"
 #include "ocl_kernel.h"
 #include "ocl_program.h"

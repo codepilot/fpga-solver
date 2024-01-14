@@ -174,6 +174,12 @@ public:
         std::cout << std::format("  CL_DEVICE_SVM_ATOMICS: {}\n", static_cast<bool>(get_info_integral<cl_device_svm_capabilities>(device, CL_DEVICE_SVM_CAPABILITIES).value() & CL_DEVICE_SVM_ATOMICS));
     }
 
+    always_inline std::expected<bool, status> supports_svm_fine_grain_buffer() {
+        return get_info_integral<cl_device_svm_capabilities>(device, CL_DEVICE_SVM_CAPABILITIES).and_then([](cl_device_svm_capabilities svm_caps)-> std::expected<bool, status> {
+            return std::expected<bool, status>(svm_caps & CL_DEVICE_SVM_FINE_GRAIN_BUFFER);
+        });
+    }
+
     always_inline void log_info() {
         log_info(device);
     }

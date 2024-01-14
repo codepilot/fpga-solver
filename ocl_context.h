@@ -73,5 +73,10 @@ public:
         return program::create(context, device, source);
     }
 
+    template<typename T>
+    always_inline std::expected<ocl::svm<T>, status> alloc_svm(cl_svm_mem_flags flags, size_t size, cl_uint alignment = 0) noexcept {
+        return ocl::svm<T>::alloc(context, flags, size, alignment);
+    }
+
 };
 };

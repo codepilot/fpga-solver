@@ -14,22 +14,9 @@ void test_opencl() {
             std::cout << std::format("queue.refcount: {}\n", queue.get_reference_count().value());
 
             size_t svmSpanSize{sizeof(uint32_t) * max_workgroup_size};
-            auto svmSpan{std::span<uint32_t>(
-                reinterpret_cast<uint32_t *>(clSVMAlloc(context.context, CL_MEM_READ_WRITE | CL_MEM_SVM_FINE_GRAIN_BUFFER, svmSpanSize, 0)), max_workgroup_size
-            )};
+            auto svm{ context.alloc_svm<uint32_t>(device.supports_svm_fine_grain_buffer().value() ? (CL_MEM_READ_WRITE | CL_MEM_SVM_FINE_GRAIN_BUFFER) : CL_MEM_READ_WRITE, svmSpanSize).value()};
 
-            // auto mapEventA{queue.enqueueSVMMap<uint32_t>(false, CL_MAP_WRITE_INVALIDATE_REGION, svmSpan).value()};
-            // std::cout << std::format("mapEventA.CL_EVENT_COMMAND_EXECUTION_STATUS : {}\n", mapEventA.get_info_integral<cl_int>(CL_EVENT_COMMAND_EXECUTION_STATUS).value());
-            // mapEventA.wait().value();
-            // std::cout << std::format("mapEventA.CL_EVENT_COMMAND_EXECUTION_STATUS : {}\n", mapEventA.get_info_integral<cl_int>(CL_EVENT_COMMAND_EXECUTION_STATUS).value());
-            std::ranges::fill(svmSpan, 1);
-            // auto unmapEventA{queue.enqueueSVMUnmap<uint32_t>(svmSpan).value()};
-            // std::cout << std::format("unmapEventA.CL_EVENT_COMMAND_EXECUTION_STATUS : {}\n", unmapEventA.get_info_integral<cl_int>(CL_EVENT_COMMAND_EXECUTION_STATUS).value());
-            // unmapEventA.wait().value();
-            // std::cout << std::format("unmapEventA.CL_EVENT_COMMAND_EXECUTION_STATUS : {}\n", unmapEventA.get_info_integral<cl_int>(CL_EVENT_COMMAND_EXECUTION_STATUS).value());
-
-            //auto buffer{ context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR, svmSpan).value() };
-            //std::cout << std::format("buffer.refcount: {}\n", buffer.get_reference_count().value());
+            std::ranges::fill(svm, 1);
 
             MemoryMappedFile source{ "../kernels/test_kernel_1.cl" };
             auto program{ context.create_program(source.get_span<char>()).value() };
@@ -48,34 +35,18 @@ void test_opencl() {
             std::cout << std::format("kerenl[0].CL_KERNEL_ARG_NAME: {}\n", kernel.get_arg_info_string(0, CL_KERNEL_ARG_NAME).value());
             std::cout << std::format("kerenl[0].CL_KERNEL_ARG_TYPE_NAME: {}\n", kernel.get_arg_info_string(0, CL_KERNEL_ARG_TYPE_NAME).value());
 
-            kernel.set_arg(0, svmSpan).value();
-            auto kernel_event{ queue.enqueue<1>(kernel.kernel, { 0 }, { svmSpan.size() }, {max_workgroup_size}).value()};
+            kernel.set_arg(0, svm).value();
+            auto kernel_event{ queue.enqueue<1>(kernel.kernel, { 0 }, { svm.size() }, {max_workgroup_size}).value()};
             std::cout << std::format("kernel_event.refcount: {}\n", kernel_event.get_reference_count().value());
             std::cout << std::format("kernel_event.CL_EVENT_COMMAND_TYPE : {}\n", kernel_event.get_info_integral<cl_command_type>(CL_EVENT_COMMAND_TYPE).value());
             std::cout << std::format("kernel_event.CL_EVENT_COMMAND_EXECUTION_STATUS : {}\n", kernel_event.get_info_integral<cl_int>(CL_EVENT_COMMAND_EXECUTION_STATUS).value());
 
-            {
-                kernel_event.wait().value();
-                std::cout << std::format("kernel_event.CL_EVENT_COMMAND_EXECUTION_STATUS : {}\n", kernel_event.get_info_integral<cl_int>(CL_EVENT_COMMAND_EXECUTION_STATUS).value());
+            kernel_event.wait().value();
+            std::cout << std::format("kernel_event.CL_EVENT_COMMAND_EXECUTION_STATUS : {}\n", kernel_event.get_info_integral<cl_int>(CL_EVENT_COMMAND_EXECUTION_STATUS).value());
 
-                // auto mapEvent{queue.enqueueSVMMap<uint32_t>(false, CL_MAP_READ, svmSpan).value()};
-                // std::cout << std::format("mapEvent.CL_EVENT_COMMAND_EXECUTION_STATUS : {}\n", mapEvent.get_info_integral<cl_int>(CL_EVENT_COMMAND_EXECUTION_STATUS).value());
-                // queue.flush().value();
-                // std::cout << std::format("mapEvent.CL_EVENT_COMMAND_EXECUTION_STATUS : {}\n", mapEvent.get_info_integral<cl_int>(CL_EVENT_COMMAND_EXECUTION_STATUS).value());
-                // mapEvent.wait().value();
-                // std::cout << std::format("mapEvent.CL_EVENT_COMMAND_EXECUTION_STATUS : {}\n", mapEvent.get_info_integral<cl_int>(CL_EVENT_COMMAND_EXECUTION_STATUS).value());
-
-                each(svmSpan, [](uint64_t i, uint32_t n) {
-                    if (i != n) std::cout << std::format("mismatch[{}] != {}\n", i, n);
-                });
-                // auto unmapEvent{queue.enqueueSVMUnmap<uint32_t>(svmSpan).value()};
-                // std::cout << std::format("unmapEvent.CL_EVENT_COMMAND_EXECUTION_STATUS : {}\n", unmapEvent.get_info_integral<cl_int>(CL_EVENT_COMMAND_EXECUTION_STATUS).value());
-                // queue.flush().value();
-                // std::cout << std::format("unmapEvent.CL_EVENT_COMMAND_EXECUTION_STATUS : {}\n", unmapEvent.get_info_integral<cl_int>(CL_EVENT_COMMAND_EXECUTION_STATUS).value());
-                // unmapEvent.wait().value();
-                // std::cout << std::format("unmapEvent.CL_EVENT_COMMAND_EXECUTION_STATUS : {}\n", unmapEvent.get_info_integral<cl_int>(CL_EVENT_COMMAND_EXECUTION_STATUS).value());
-            }
-            // queue.finish().value();
+            each(svm, [](uint64_t i, uint32_t n) {
+                if (i != n) std::cout << std::format("mismatch[{}] != {}\n", i, n);
+            });
 
         });
     });
