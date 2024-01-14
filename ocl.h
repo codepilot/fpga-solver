@@ -8,6 +8,7 @@
 #include <expected>
 #include "each.h"
 #include <iostream>
+#include <array>
 
 #ifndef always_inline
 #ifdef _WIN32
