@@ -5,6 +5,11 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#else
+#include <span>
+#include <Trivial_Span.h>
+#include <Windows.h>
+#include "constexpr_intrinsics.h"
 #endif
 
 class MemoryMappedFile {

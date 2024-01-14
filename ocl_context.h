@@ -10,7 +10,7 @@ public:
         clReleaseContext(context);
     }
 #endif
-    always_inline static std::expected<ocl::context, status> create_context(cl_device_id device) noexcept {
+    always_inline static std::expected<ocl::context, status> create(cl_device_id device) noexcept {
         cl_int errcode_ret{};
         cl_context context{ clCreateContext(nullptr, 1, &device, [](const char* errinfo, const void* private_info, size_t cb, void* user_data) {
             puts(errinfo);
@@ -53,11 +53,19 @@ public:
     }
 
     always_inline std::expected<ocl::command_queue, status> create_command_queue() noexcept {
-        return command_queue::create_command_queue(context, device);
+        return command_queue::create(context, device);
     }
 
     always_inline std::expected<ocl::buffer, status> create_buffer(cl_mem_flags flags, size_t size, void* host_ptr=nullptr) noexcept {
-        return buffer::create_buffer(context, flags, size, host_ptr);
+        return buffer::create(context, flags, size, host_ptr);
+    }
+
+    always_inline std::expected<ocl::program, status> create_program(std::string_view source) noexcept {
+        return program::create(context, device, source);
+    }
+
+    always_inline std::expected<ocl::program, status> create_program(std::span<char> source) noexcept {
+        return program::create(context, device, source);
     }
 
 };

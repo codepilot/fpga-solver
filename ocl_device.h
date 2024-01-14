@@ -174,7 +174,7 @@ public:
     }
 
     always_inline auto create_context() {
-        return context::create_context(device);
+        return context::create(device);
     }
 
 };

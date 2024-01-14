@@ -110,9 +110,11 @@ class device;
 class context;
 class command_queue;
 class buffer;
+class program;
 };
 
 #include "ocl_platform.h"
+#include "ocl_program.h"
 #include "ocl_command_queue.h"
 #include "ocl_buffer.h"
 #include "ocl_context.h"

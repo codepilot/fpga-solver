@@ -4,7 +4,7 @@ namespace ocl {
 class command_queue {
 public:
 	cl_command_queue command_queue;
-    always_inline static std::expected<ocl::command_queue, status> create_command_queue(cl_context context, cl_device_id device) noexcept {
+    always_inline static std::expected<ocl::command_queue, status> create(cl_context context, cl_device_id device) noexcept {
         cl_int errcode_ret{};
         cl_command_queue command_queue{ clCreateCommandQueueWithProperties(context, device, nullptr, &errcode_ret) };
         if (errcode_ret) {
