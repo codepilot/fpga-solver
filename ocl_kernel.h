@@ -72,7 +72,7 @@ public:
 
     template<typename cl_integral>
     always_inline static std::expected<cl_integral, status> get_arg_info_integral(cl_kernel kernel, cl_uint arg_index, cl_kernel_info param_name) noexcept {
-        return get_arg_info_size(kernel, param_name).and_then([&](size_t size) -> std::expected<cl_integral, status> {
+        return get_arg_info_size<cl_integral>(kernel, param_name).and_then([&](size_t size) -> std::expected<cl_integral, status> {
             cl_integral integral_pointer{};
 
             status sts1{ clGetKernelArgInfo(kernel, arg_index, param_name, sizeof(integral_pointer), &integral_pointer, 0) };
