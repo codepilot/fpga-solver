@@ -52,8 +52,12 @@ public:
         return get_info_integral<cl_uint>(CL_CONTEXT_REFERENCE_COUNT);
     }
 
-    always_inline std::expected<ocl::command_queue, status> create_command_queue() {
+    always_inline std::expected<ocl::command_queue, status> create_command_queue() noexcept {
         return command_queue::create_command_queue(context, device);
+    }
+
+    always_inline std::expected<ocl::buffer, status> create_buffer(cl_mem_flags flags, size_t size, void* host_ptr=nullptr) noexcept {
+        return buffer::create_buffer(context, flags, size, host_ptr);
     }
 
 };

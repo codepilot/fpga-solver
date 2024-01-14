@@ -7,8 +7,12 @@ void test_opencl() {
             device.log_info();
             auto c{ device.create_context().value() };
             std::cout << std::format("context.refcount: {}\n", c.get_reference_count().value());
+
             auto q{ c.create_command_queue().value() };
             std::cout << std::format("queue.refcount: {}\n", q.get_reference_count().value());
+
+            auto b{ c.create_buffer(CL_MEM_READ_WRITE, 65536ull).value() };
+            std::cout << std::format("buffer.refcount: {}\n", b.get_reference_count().value());
         });
     });
 }
