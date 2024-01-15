@@ -799,8 +799,10 @@ public:
 			ustub->current_distance = bestDistance;
 			ustub->tile_path.emplace_back(bestTI._value);
 			auto pos{ routed_index_count.fetch_add(2) };;
-			routed_indices[pos] = ustub->tile_path[ustub->tile_path.size() - 2]._value;
-			routed_indices[pos + 1] = ustub->tile_path[ustub->tile_path.size() - 1]._value;
+			if (pos + 2 < routed_indices.size()) {
+				routed_indices[pos] = ustub->tile_path[ustub->tile_path.size() - 2]._value;
+				routed_indices[pos + 1] = ustub->tile_path[ustub->tile_path.size() - 1]._value;
+			}
 
 			// puts(std::format("stub: {} current_dist:{} dist: {} dest:{} stub_router_count:{}", ustub->net_idx, ustub->current_distance, bestDistance, bestTI._value, stub_router_count).c_str());
 			ti[bestTI._value].append_unhandled_out(ustub);
@@ -810,17 +812,12 @@ public:
 			ustub->current_distance = bestDistance;
 			ustub->tile_path.emplace_back(bestTI._value);
 			auto pos{ routed_index_count.fetch_add(2) };;
-			routed_indices[pos] = ustub->tile_path[ustub->tile_path.size() - 2]._value;
-			routed_indices[pos + 1] = ustub->tile_path[ustub->tile_path.size() - 1]._value;
-
+			if (pos + 2 < routed_indices.size()) {
+				routed_indices[pos] = ustub->tile_path[ustub->tile_path.size() - 2]._value;
+				routed_indices[pos + 1] = ustub->tile_path[ustub->tile_path.size() - 1]._value;
+			}
 			stub_router_count--;
 			stubs_finished++;
-#if 0
-			for (size_t i = 1; i < ustub->tile_path.size(); i++) {
-				routed_indices[routed_index_count++] = ustub->tile_path[i - 1]._value;
-				routed_indices[routed_index_count++] = ustub->tile_path[i]._value;
-			}
-#endif
 			// puts(std::format("stub: {} dist: {} dest:{} stub_router_count:{} finished", ustub->net_idx, bestDistance, bestTI._value, stub_router_count).c_str());
 		}
 

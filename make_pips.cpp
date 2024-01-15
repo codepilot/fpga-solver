@@ -44,7 +44,7 @@
 #include <barrier>
 
 void make_pips(std::string gzPath) {
-	DevGZ devGZ{ gzPath };
+	DevGZ devGZ{ gzPath, false };
 	auto dev{ devGZ.root };
 
     puts(std::format("tile_count: {}, bit_count: {}", dev.getTileList().size(), ceil(log2(dev.getTileList().size()))).c_str());
