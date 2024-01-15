@@ -43,8 +43,10 @@ public:
     always_inline static std::expected<std::string, status> get_vendor(cl_platform_id platform) noexcept { return get_info_string(platform, CL_PLATFORM_VENDOR); }
     always_inline std::expected<std::string, status> get_vendor() const noexcept { return get_vendor(platform); }
 
-    always_inline static std::expected<std::string, status> get_extensions(cl_platform_id platform) noexcept { return get_info_string(platform, CL_PLATFORM_EXTENSIONS); }
-    always_inline std::expected<std::string, status> get_extensions() const noexcept { return get_extensions(platform); }
+    always_inline static std::expected<std::set<std::string>, status> get_extensions(cl_platform_id platform) noexcept {
+        return get_info_string(platform, CL_PLATFORM_EXTENSIONS).and_then([](std::string ext) -> std::expected<std::set<std::string>, status> { return std::expected<std::set<std::string>, status>(ocl::split(ext)); });
+    }
+    always_inline std::expected<std::set<std::string>, status> get_extensions() const noexcept { return get_extensions(platform); }
 
     always_inline static void log_info(cl_platform_id platform) {
         std::string na{ "N/A" };
@@ -52,7 +54,11 @@ public:
         std::cout << std::format("version: {}\n", ocl::platform::get_version(platform).value_or(na));
         std::cout << std::format("name: {}\n", ocl::platform::get_name(platform).value_or(na));
         std::cout << std::format("vendor: {}\n", ocl::platform::get_vendor(platform).value_or(na));
-        std::cout << std::format("extensions: {}\n", ocl::platform::get_extensions(platform).value_or(na));
+        auto extensions{ ocl::platform::get_extensions(platform).value_or(std::set<std::string>()) };
+        std::cout << std::format("extensions: {}\n", extensions.size());
+        for (auto&& extension : extensions) {
+            std::cout << std::format("  {}\n", extension);
+        }
     }
 
     always_inline void log_info() {

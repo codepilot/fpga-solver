@@ -58,8 +58,10 @@ public:
     always_inline static std::expected<std::string, status> get_vendor(cl_device_id device) noexcept { return get_info_string(device, CL_DEVICE_VENDOR); }
     always_inline std::expected<std::string, status> get_vendor() const noexcept { return get_vendor(device); }
 
-    always_inline static std::expected<std::string, status> get_extensions(cl_device_id device) noexcept { return get_info_string(device, CL_DEVICE_EXTENSIONS); }
-    always_inline std::expected<std::string, status> get_extensions() const noexcept { return get_extensions(device); }
+    always_inline static std::expected<std::set<std::string>, status> get_extensions(cl_device_id device) noexcept {
+        return get_info_string(device, CL_DEVICE_EXTENSIONS).and_then([](std::string ext) -> std::expected<std::set<std::string>, status> { return std::expected<std::set<std::string>, status>(ocl::split(ext)); });
+    }
+    always_inline std::expected<std::set<std::string>, status> get_extensions() const noexcept { return get_extensions(device); }
 
     always_inline static std::expected<std::string, status> get_il_version(cl_device_id device) noexcept { return get_info_string(device, CL_DEVICE_IL_VERSION); }
     always_inline std::expected<std::string, status> get_il_version() const noexcept { return get_il_version(device); }
@@ -82,7 +84,11 @@ public:
         std::cout << std::format("  version: {}\n", ocl::device::get_version(device).value_or(na));
         std::cout << std::format("  name: {}\n", ocl::device::get_name(device).value_or(na));
         std::cout << std::format("  vendor: {}\n", ocl::device::get_vendor(device).value_or(na));
-        std::cout << std::format("  extensions: {}\n", ocl::device::get_extensions(device).value_or(na));
+        auto extensions{ ocl::device::get_extensions(device).value_or(std::set<std::string>()) };
+        std::cout << std::format("  extensions: {}\n", extensions.size());
+        for (auto&& extension : extensions) {
+            std::cout << std::format("    {}\n", extension);
+        }
         std::cout << std::format("  il_version: {}\n", ocl::device::get_il_version(device).value_or(na));
         std::cout << std::format("  built_in_kernels: {}\n", ocl::device::get_built_in_kernels(device).value_or(na));
         std::cout << std::format("  opencl_c_version: {}\n", ocl::device::get_opencl_c_version(device).value_or(na));

@@ -13,7 +13,7 @@ public:
 	capnp::FlatArrayMessageReader famr;
 	T::Reader root;
 
-	static MemoryMappedFile inflate_mmf(std::string fn) {
+	static MemoryMappedFile inflate_mmf(std::string fn, bool delete_temp = true) {
 		MemoryMappedFile mmf_gz{ fn };
 		MemoryMappedFile mmf_temp{ fn + ".temp", 4294967296ull};
 
@@ -32,12 +32,12 @@ public:
 		puts(std::format("init_result: {}\ninflate_result: {}\nend_result: {}\n", init_result, inflate_result, end_result).c_str());
 		auto mmf_unzipped{ mmf_temp.shrink(strm.total_out) };
 
-		mmf_unzipped.reopen_delete();
+		if(delete_temp) mmf_unzipped.reopen_delete();
 		return mmf_unzipped;
 	}
 
-	InterchangeGZ(std::string fn) :
-		mmf_unzipped{ inflate_mmf(fn) },
+	InterchangeGZ(std::string fn, bool delete_temp = true) :
+		mmf_unzipped{ inflate_mmf(fn, delete_temp) },
 		span_words{ mmf_unzipped.get_span<capnp::word>() },
 		words{ span_words.data(), span_words.size() },
 		famr{ words, {.traversalLimitInWords = UINT64_MAX, .nestingLimit = INT32_MAX} },
@@ -70,5 +70,26 @@ public:
 	}
 };
 
+template<typename T>
+class InterchangeFlat {
+public:
+	MemoryMappedFile mmf_unzipped;
+	std::span<capnp::word> span_words;
+	kj::ArrayPtr<capnp::word> words;
+	capnp::FlatArrayMessageReader famr;
+	T::Reader root;
+
+	InterchangeFlat(std::string fn, bool delete_temp = true) :
+		mmf_unzipped{ fn + ".temp" },
+		span_words{ mmf_unzipped.get_span<capnp::word>() },
+		words{ span_words.data(), span_words.size() },
+		famr{ words, {.traversalLimitInWords = UINT64_MAX, .nestingLimit = INT32_MAX} },
+		root{ famr.getRoot<T>() }
+	{ }
+
+};
+
 using DevGZ = InterchangeGZ<DeviceResources::Device>;
 using PhysGZ = InterchangeGZ<PhysicalNetlist::PhysNetlist>;
+
+using DevFlat = InterchangeFlat<DeviceResources::Device>;

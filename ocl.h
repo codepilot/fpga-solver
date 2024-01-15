@@ -11,6 +11,7 @@
 #include <array>
 #include <algorithm>
 #include <span>
+#include <set>
 
 #ifndef always_inline
 #ifdef _WIN32
@@ -22,6 +23,18 @@
 
 
 namespace ocl {
+    inline static std::set<std::string> split(std::string str) noexcept {
+        uint64_t start{};
+        std::set<std::string> ret;
+        each(str, [&](uint64_t i, char n) {
+            if (n == 32) {
+                ret.insert(std::string(str.data() + start, i - start));
+                start = i + 1;
+            }
+            });
+        return ret;
+    }
+
     enum class status:cl_int {
         SUCCESS = CL_SUCCESS,
         DEVICE_NOT_FOUND = CL_DEVICE_NOT_FOUND,

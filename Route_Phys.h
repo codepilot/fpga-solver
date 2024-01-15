@@ -76,7 +76,7 @@ class Route_Phys {
 public:
 
 	Counter fully_routed, skip_route, failed_route, total_attempts;
-	DevGZ dev{ "_deps/device-file-src/xcvu3p.device" };
+	DevFlat dev{ "_deps/device-file-src/xcvu3p.device" };
 	// PhysGZ phys{ "_deps/benchmark-files-src/boom_med_pb_unrouted.phys" };
 	PhysGZ phys{ "_deps/benchmark-files-src/boom_soc_unrouted.phys" };
 	decltype(dev.root) devRoot{ dev.root };
@@ -118,10 +118,17 @@ public:
 	{
 		puts(std::format("Route_Phys() rw.node_count: {}, rw.pip_count: {}", rw.alt_nodes.size(), rw.alt_pips.size()).c_str());
 
+#if 0
 		for (auto &&tile: tiles) {
 			unrouted_locations.emplace_back(std::array<uint16_t, 2>{tile.getCol(), tile.getRow()});
 		}
-
+#else
+		for (uint16_t row{}; row < 311; row++) {
+			for (uint16_t col{}; col < 670; col++) {
+				unrouted_locations.emplace_back(std::array<uint16_t, 2>{col, row});
+			}
+		}
+#endif
 		puts(std::format("Route_Phys() finish").c_str());
 	}
 
@@ -130,7 +137,10 @@ public:
 		unrouted_indices = unrouted_indices_mapping;
 		stubs_indices = stubs_indices_mapping;
 
-		jt = std::jthread{ [this](std::stop_token stoken) { route(stoken); } };
+		jt = std::jthread{ [this](std::stop_token stoken) {
+			// route(stoken);
+			tile_based_routing();
+		} };
 	}
 
 	void block_site_pin(uint32_t net_idx, ::PhysicalNetlist::PhysNetlist::PhysSitePin::Reader sitePin) {
@@ -406,8 +416,6 @@ public:
 
 	//19 bits str site, 19 bit pin, 25 bit node/branch, 1 bit leaf
 
-
-
 	std::unique_ptr<std::array<TileInfo, tile_count>> make_ti() {
 		auto upti{ std::make_unique<std::array<TileInfo, tile_count>>() };
 		std::span<TileInfo, tile_count> ti{ *upti };
@@ -426,7 +434,7 @@ public:
 	}
 
 	static void make_search_files() {
-		DevGZ dev{ "_deps/device-file-src/xcvu3p.device" };
+		DevGZ dev{ "_deps/device-file-src/xcvu3p.device", false };
 		decltype(dev.root) devRoot{ dev.root };
 
 		Search_Wire_Tile_Wire::make_wire_tile_wire(devRoot);
@@ -819,13 +827,29 @@ public:
 					} else if (bestDistance > 0.0) {
 						ustub->current_distance = bestDistance;
 						ustub->tile_path.emplace_back(bestTI._value);
+						auto pos{ routed_index_count.fetch_add(2) };;
+						routed_indices[pos] = ustub->tile_path[ustub->tile_path.size() - 2]._value;
+						routed_indices[pos + 1] = ustub->tile_path[ustub->tile_path.size() - 1]._value;
+
 						// puts(std::format("stub: {} current_dist:{} dist: {} dest:{} stub_router_count:{}", ustub->net_idx, ustub->current_distance, bestDistance, bestTI._value, stub_router_count).c_str());
 						ti[bestTI._value].append_unhandled_out(ustub);
 						// ti[bestTI._value].unhandled_out_nets.emplace_back(std::move(ustub));
 					}
 					else {
+						ustub->current_distance = bestDistance;
+						ustub->tile_path.emplace_back(bestTI._value);
+						auto pos{ routed_index_count.fetch_add(2) };;
+						routed_indices[pos] = ustub->tile_path[ustub->tile_path.size() - 2]._value;
+						routed_indices[pos + 1] = ustub->tile_path[ustub->tile_path.size() - 1]._value;
+
 						stub_router_count--;
 						stubs_finished++;
+#if 0
+						for (size_t i = 1; i < ustub->tile_path.size(); i++) {
+							routed_indices[routed_index_count++] = ustub->tile_path[i - 1]._value;
+							routed_indices[routed_index_count++] = ustub->tile_path[i]._value;
+						}
+#endif
 						// puts(std::format("stub: {} dist: {} dest:{} stub_router_count:{} finished", ustub->net_idx, bestDistance, bestTI._value, stub_router_count).c_str());
 					}
 				}
