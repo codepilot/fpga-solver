@@ -1,14 +1,15 @@
 #pragma once
 
 namespace route_tiles {
-	static inline void get_best_initial_tile(
+	constexpr static always_inline void get_best_initial_tile(
 		const Search_Node_Tile_Pip& search_node_tile_pip,
 		const Search_Tile_Tile_Wire_Pip& search_tile_tile_wire_pip,
 		std::span<const TileInfo, tile_count> cti,
 		TileInfo& tin,
 		Stub_Router* ustub,
 		Tile_Index& bestTI,
-		double_t& bestDistance) {
+		double_t& bestDistance
+	) {
 
 		Tile_Index previous{ ._value {INT32_MAX} };
 
@@ -46,14 +47,15 @@ namespace route_tiles {
 		}
 	}
 
-	static inline void get_best_next_tile(
+	constexpr static always_inline void get_best_next_tile(
 		const Search_Tile_Tile_Wire_Pip& search_tile_tile_wire_pip,
 		std::span<const TileInfo, tile_count> cti,
 		TileInfo& tin,
 		Stub_Router* ustub,
 		std::span<TilePip> tile_pips,
 		Tile_Index& bestTI,
-		double_t& bestDistance)
+		double_t& bestDistance
+	)
 	{
 		Tile_Index previous{ ._value {INT32_MAX} };
 		for (auto tile_pip : tile_pips) {
@@ -91,7 +93,7 @@ namespace route_tiles {
 		}
 	}
 
-	static inline void route_tile_stub(
+	constexpr static always_inline void route_tile_stub(
 		std::span<uint32_t> routed_indices,
 		std::atomic<uint32_t>& routed_index_count,
 		std::atomic<uint32_t>& unrouted_index_count,
@@ -102,7 +104,8 @@ namespace route_tiles {
 		TileInfo& tin,
 		std::atomic<uint32_t>& stub_router_count,
 		std::span<TilePip> tile_pips,
-		Stub_Router* ustub)
+		Stub_Router* ustub
+	)
 	{
 		Tile_Index bestTI{ ._value {INT32_MAX} };
 		double_t bestDistance{ HUGE_VAL };
@@ -155,7 +158,7 @@ namespace route_tiles {
 
 	}
 
-	static inline void route_tile(
+	constexpr static always_inline void route_tile(
 		std::span<uint32_t> routed_indices,
 		std::atomic<uint32_t>& routed_index_count,
 		std::atomic<uint32_t>& unrouted_index_count,
@@ -164,7 +167,8 @@ namespace route_tiles {
 		std::span<const TileInfo, tile_count> cti,
 		std::span<TileInfo, tile_count>& ti,
 		TileInfo& tin,
-		std::atomic<uint32_t>& stub_router_count)
+		std::atomic<uint32_t>& stub_router_count
+	)
 	{
 		if (!tin.handling_out_nets.size()) return;
 
@@ -195,8 +199,13 @@ namespace route_tiles {
 
 	}
 
-	static inline void move_unhandled_to_handled(uint64_t offset, uint64_t group_size, std::span<TileInfo, tile_count>& ti, std::atomic<uint32_t>& stubs_to_handle) {
-		each_n(offset, group_size, ti, [&](uint64_t tin_index, TileInfo& tin) {
+	constexpr static always_inline void move_unhandled_to_handled(
+		uint64_t offset,
+		uint64_t group_size,
+		std::span<TileInfo, tile_count>& ti,
+		std::atomic<uint32_t>& stubs_to_handle
+	) {
+		constexpr_each_n(offset, group_size, ti, [&](uint64_t tin_index, TileInfo& tin) {
 			stubs_to_handle += static_cast<uint32_t>(tin.unhandled_out_nets.size());
 			if (!tin.unhandled_out_nets.size()) return;
 			// puts(std::format("{} unhandled_out_nets: {}", tin.name, tin.unhandled_out_nets.size()).c_str());
@@ -204,7 +213,7 @@ namespace route_tiles {
 			});
 	}
 
-	static inline void route_each_tile(
+	constexpr static always_inline void route_each_tile(
 		std::span<uint32_t> routed_indices,
 		std::atomic<uint32_t>& routed_index_count,
 		std::atomic<uint32_t>& unrouted_index_count,
@@ -216,7 +225,7 @@ namespace route_tiles {
 		std::span<TileInfo, tile_count>& ti,
 		std::atomic<uint32_t>& stub_router_count
 	) {
-		each_n(offset, group_size, ti, [&](uint64_t tin_index, TileInfo& tin) {
+		constexpr_each_n(offset, group_size, ti, [&](uint64_t tin_index, TileInfo& tin) {
 			route_tile(
 				routed_indices,
 				routed_index_count,
@@ -231,7 +240,7 @@ namespace route_tiles {
 			});
 	}
 
-	static inline void route_tiles(
+	static always_inline void route_tiles(
 		std::span<uint32_t> routed_indices,
 		std::atomic<uint32_t>& routed_index_count,
 		std::atomic<uint32_t>& unrouted_index_count,

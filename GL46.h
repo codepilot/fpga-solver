@@ -18,7 +18,8 @@ public:
 #define DRAW_ROUTED
 #endif
 
-class GL46 {
+#include "gl46_base.h"
+class GL46: public GL46_Base {
 public:
 
     static inline LRESULT Wndproc(const _In_ HWND   hwnd, const _In_ UINT   uMsg, const _In_ WPARAM wParam, const _In_ LPARAM lParam) {
@@ -110,7 +111,6 @@ public:
     HWND hwnd{};
     HDC hdc{};
     HGLRC hglrc{};
-#include "declarations.h"
 
     static HWND make_window(GL46 *that) {
         return CreateWindowExA(
@@ -160,26 +160,6 @@ public:
               .dwVisibleMask = 0,
               .dwDamageMask = 0
         };
-    }
-
-    template<typename T> static inline T load(std::string procName) {
-        T p = reinterpret_cast<T>(wglGetProcAddress(procName.c_str()));
-        if (p == 0 ||
-            (p == (void*)0x1) || (p == (void*)0x2) || (p == (void*)0x3) ||
-            (p == (void*)-1))
-        {
-            HMODULE module{ nullptr };
-            GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, L"opengl32.dll", &module);
-            p = reinterpret_cast<T>(GetProcAddress(module, procName.c_str()));
-        }
-
-        return p;
-    }
-
-    void loadAll() {
-#define loadProc(n) {n = load<decltype(n)>(#n);}
-#include "loadProcs.h"
-#undef loadProc
     }
 
     std::unordered_set <std::string> extensions;
@@ -632,7 +612,7 @@ public:
         }
     }
 
-    bool first_capture_png{ false };
+    bool first_capture_png{ true };
     __declspec(noinline) void draw() {
         if (!getThis(hwnd)) return;
         if (!hglrc) return;
@@ -656,11 +636,9 @@ public:
         glProgramUniform4f(fragmentShader, 0, 0.0f, 1.0f, 0.0f, 0.1f);
         glDrawElements(GL_LINES, rp.routed_index_count, GL_UNSIGNED_INT, nullptr);
 
-        glLineWidth(5.0f);
         glBindVertexArray(vaStubs);
         glProgramUniform4f(fragmentShader, 0, 0.0f, 0.0f, 1.0f, 1.0f);
         glDrawElements(GL_LINES, rp.stubs_index_count, GL_UNSIGNED_INT, nullptr);
-        glLineWidth(1.0f);
 
         glBindVertexArray(vaUnrouted);
         glProgramUniform4f(fragmentShader, 0, 1.0f, 0.0f, 0.0f, 1.0f/255.0f);
