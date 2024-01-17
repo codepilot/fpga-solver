@@ -756,13 +756,8 @@ public:
 		}
 	}
 
-	void route_tile_stub(std::span<const TileInfo, tile_count> cti, std::span<TileInfo, tile_count>& ti, TileInfo& tin, std::atomic<uint32_t>& stub_router_count, std::span<TilePip> tile_pips, Stub_Router *ustub) {
+	void get_best_next_tile(std::span<const TileInfo, tile_count> cti, TileInfo& tin, Stub_Router* ustub, std::span<TilePip> tile_pips, Tile_Index& bestTI, double_t& bestDistance) {
 		Tile_Index previous{ ._value {INT32_MAX} };
-		Tile_Index bestTI{ ._value {INT32_MAX} };
-		double_t bestDistance{ HUGE_VAL };
-		if (ustub->tile_path.size() == 1) {
-			get_best_initial_tile(cti, tin, ustub, bestTI, bestDistance);
-		}
 		for (auto tile_pip : tile_pips) {
 			auto ti_dest{ std::bit_cast<Tile_Index>(static_cast<uint32_t>(tile_pip.tile_destination)) };
 			if (ti_dest == tin.tile_idx) continue;
@@ -796,6 +791,15 @@ public:
 			}
 			// puts(std::format("stub: {} dist: {} dest:{} pip:{}", ustub->net_idx, dist, static_cast<uint32_t>(tile_pip.tile_destination), static_cast<uint32_t>(tile_pip.pip_offset)).c_str());
 		}
+	}
+
+	void route_tile_stub(std::span<const TileInfo, tile_count> cti, std::span<TileInfo, tile_count>& ti, TileInfo& tin, std::atomic<uint32_t>& stub_router_count, std::span<TilePip> tile_pips, Stub_Router *ustub) {
+		Tile_Index bestTI{ ._value {INT32_MAX} };
+		double_t bestDistance{ HUGE_VAL };
+		if (ustub->tile_path.size() == 1) {
+			get_best_initial_tile(cti, tin, ustub, bestTI, bestDistance);
+		}
+		get_best_next_tile(cti, tin, ustub, tile_pips, bestTI, bestDistance);
 		if (bestTI._value == INT32_MAX) {
 			stub_router_count--;
 			// puts(std::format("stub: {} stub_router_count:{} dist:{} {}:deadend", ustub->net_idx, stub_router_count, ustub->current_distance, tin.name).c_str());
@@ -860,6 +864,21 @@ public:
 
 	}
 
+	void move_unhandled_to_handled(uint64_t offset, uint64_t group_size, std::span<TileInfo, tile_count>& ti, std::atomic<uint32_t>& stubs_to_handle) {
+		each_n(offset, group_size, ti, [&](uint64_t tin_index, TileInfo& tin) {
+			stubs_to_handle += static_cast<uint32_t>(tin.unhandled_out_nets.size());
+			if (!tin.unhandled_out_nets.size()) return;
+			// puts(std::format("{} unhandled_out_nets: {}", tin.name, tin.unhandled_out_nets.size()).c_str());
+			tin.handle_out_nets();
+		});
+	}
+
+	void route_each_tile(uint64_t offset, uint64_t group_size, std::span<const TileInfo, tile_count> cti, std::span<TileInfo, tile_count>& ti, std::atomic<uint32_t>& stub_router_count) {
+		each_n(offset, group_size, ti, [&](uint64_t tin_index, TileInfo& tin) {
+			route_tile(cti, ti, tin, stub_router_count);
+		});
+	}
+
 	void route_tiles(uint64_t offset, uint64_t group_size, std::span<TileInfo, tile_count> &ti, std::atomic<uint32_t> &stub_router_count, std::barrier<> &bar, std::atomic<uint32_t> &stubs_to_handle) {
 		std::span<const TileInfo, tile_count> cti( ti.cbegin(), ti.size() );
 
@@ -867,19 +886,14 @@ public:
 			bar.arrive_and_wait();
 			if(!offset) stubs_to_handle.store(0);
 			bar.arrive_and_wait();
-			each_n(offset, group_size, ti,[&](uint64_t tin_index, TileInfo &tin) {
-				stubs_to_handle += tin.unhandled_out_nets.size();
-				if (!tin.unhandled_out_nets.size()) return;
-				// puts(std::format("{} unhandled_out_nets: {}", tin.name, tin.unhandled_out_nets.size()).c_str());
-				tin.handle_out_nets();
-			});
+
+			move_unhandled_to_handled(offset, group_size, ti, stubs_to_handle);
 
 			bar.arrive_and_wait();
 			if (!offset) puts(std::format("stubs_to_handle: {}, stubs_further: {}, stubs_deadend: {}, stubs_finished: {}", stubs_to_handle.load(), stubs_further.load(), stubs_deadend.load(), stubs_finished.load()).c_str());
 
-			each_n(offset, group_size, ti, [&](uint64_t tin_index, TileInfo& tin) {
-				route_tile(cti, ti, tin, stub_router_count);
-			});
+			route_each_tile(offset, group_size, cti, ti, stub_router_count);
+
 			bar.arrive_and_wait();
 			if (!stubs_to_handle) {
 				break;
