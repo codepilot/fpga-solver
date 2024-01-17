@@ -3,11 +3,11 @@
 class User32Class {
 public:
     ATOM atom{ 0 };
-    std::wstring wsClassName;
-    User32Class(WNDCLASSEXW& classInfo) : atom{ RegisterClassExW(&classInfo) }, wsClassName{ classInfo.lpszClassName } {
+    std::string wsClassName;
+    User32Class(WNDCLASSEXA& classInfo) : atom{ RegisterClassExA(&classInfo) }, wsClassName{ classInfo.lpszClassName } {
     }
     ~User32Class() {
-        UnregisterClassW(wsClassName.c_str(), GetModuleHandleW(nullptr));
+        UnregisterClassA(wsClassName.c_str(), GetModuleHandleA(nullptr));
     }
 };
 
@@ -64,8 +64,8 @@ public:
         return 0;
     }
 
-    static inline WNDCLASSEXW classInfo{
-        .cbSize{sizeof(WNDCLASSEXW)},
+    static inline WNDCLASSEXA classInfo{
+        .cbSize{sizeof(WNDCLASSEXA)},
         .style{or_reduce<UINT>({
           CS_DROPSHADOW,
           CS_HREDRAW,
@@ -80,7 +80,7 @@ public:
       .hCursor{nullptr},
       .hbrBackground{nullptr},
       .lpszMenuName{nullptr},
-      .lpszClassName{L"GL46"},
+      .lpszClassName{"GL46"},
       .hIconSm{nullptr},
     };
     static inline User32Class atom{ GL46::classInfo };
@@ -113,10 +113,10 @@ public:
 #include "declarations.h"
 
     static HWND make_window(GL46 *that) {
-        return CreateWindowExW(
+        return CreateWindowExA(
             dwExStyle,
             atom.wsClassName.c_str(),
-            L"GL46",
+            "GL46",
             dwStyle,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
@@ -663,7 +663,7 @@ public:
         glLineWidth(1.0f);
 
         glBindVertexArray(vaUnrouted);
-        glProgramUniform4f(fragmentShader, 0, 1.0f, 0.0f, 0.0f, 0.1f);
+        glProgramUniform4f(fragmentShader, 0, 1.0f, 0.0f, 0.0f, 1.0f/255.0f);
         glDrawElements(GL_LINES, rp.unrouted_index_count, GL_UNSIGNED_INT, nullptr);
 
         glDisable(GL_BLEND);
@@ -715,9 +715,8 @@ public:
         time_steps[step_num] = diff_ts;
         double_t divisor{ time_step_count>=1024?1024.0: time_step_count };
         double_t fps{1.0 / (static_cast<double_t>(time_step_sum) / static_cast<double_t>(time_step_freq.QuadPart) / divisor)};
-         auto title_text{ std::format(L"{} fps", fps) };
-        // SetWindowTextW(hwnd, title_text.c_str());
-        if((time_step_count & 127i64) == 0i64) OutputDebugStringW(std::format(L"{}\n", title_text).c_str());
+        auto title_text{ std::format(L"{:03.2f} fps", fps) };
+        SetWindowTextW(hwnd, title_text.c_str());
     }
 
     static GL46* getThis(HWND hwnd) {

@@ -77,8 +77,20 @@ public:
 
 	Counter fully_routed, skip_route, failed_route, total_attempts;
 	DevFlat dev{ "_deps/device-file-src/xcvu3p.device" };
-	// PhysGZ phys{ "_deps/benchmark-files-src/boom_med_pb_unrouted.phys" };
+//	PhysGZ phys{ "_deps/benchmark-files-src/boom_med_pb_unrouted.phys" };
 	PhysGZ phys{ "_deps/benchmark-files-src/boom_soc_unrouted.phys" };
+//  PhysGZ phys{ "_deps/benchmark-files-src/corescore_500_pb_unrouted.phys" };
+//  PhysGZ phys{ "_deps/benchmark-files-src/corescore_500_unrouted.phys" };
+//  PhysGZ phys{ "_deps/benchmark-files-src/corundum_25g_unrouted.phys" };
+//	PhysGZ phys{ "_deps/benchmark-files-src/finn_radioml_unrouted.phys" };
+//  PhysGZ phys{ "_deps/benchmark-files-src/ispd16_example2_unrouted.phys" };
+//  PhysGZ phys{ "_deps/benchmark-files-src/koios_dla_like_large_unrouted.phys" };
+// 	PhysGZ phys{ "_deps/benchmark-files-src/logicnets_jscl_unrouted.phys" };
+//  PhysGZ phys{ "_deps/benchmark-files-src/mlcad_d181_lefttwo3rds_unrouted.phys" };
+//	PhysGZ phys{ "_deps/benchmark-files-src/rosetta_fd_unrouted.phys" };
+//  PhysGZ phys{ "_deps/benchmark-files-src/vtr_lu64peeng_unrouted.phys" };
+//  PhysGZ phys{ "_deps/benchmark-files-src/vtr_mcml_unrouted.phys" };
+
 	decltype(dev.root) devRoot{ dev.root };
 	decltype(phys.root) physRoot{ phys.root };
 	decltype(devRoot.getStrList()) devStrs{ devRoot.getStrList() };
@@ -707,43 +719,49 @@ public:
 	std::atomic<uint32_t> stubs_deadend{};
 	std::atomic<uint32_t> stubs_finished{};
 
+	void get_best_initial_tile(std::span<const TileInfo, tile_count> cti, TileInfo& tin, Stub_Router* ustub, Tile_Index &bestTI, double_t &bestDistance) {
+		Tile_Index previous{ ._value {INT32_MAX} };
+
+		for (auto&& ntp : search_node_tile_pip.node_to_tile_pip(ustub->nodes.at(0))) {
+			auto ti_dest{ std::bit_cast<Tile_Index>(static_cast<uint32_t>(ntp.tile_idx)) };
+			if (ti_dest == tin.tile_idx) continue;
+			if (ti_dest == previous) continue;
+			previous = ti_dest;
+
+			if (ti_dest == ustub->source_tiles[0]) {
+				bestDistance = 0;
+				bestTI = ti_dest;
+				break;
+			}
+
+			decltype(auto) dst_ti{ cti[ti_dest._value] };
+
+			auto dest_tile_pips{ search_tile_tile_wire_pip.search_tile_tile_pip[ti_dest._value] };
+			if (!dest_tile_pips.size()) {
+				// puts(std::format("no pips {} ", dst_ti.name).c_str());
+				continue;
+			}
+
+			auto dest_tile_type{ cti[ti_dest._value].tile_type };
+			if (dest_tile_type.getSiteTypes().size()) {
+				// puts(std::format("contains sites {} ", dst_ti.name).c_str());
+				continue;
+			}
+
+			auto dist{ ustub->source_tiles[0].distance(ti_dest) };
+			if (dist < bestDistance) {
+				bestDistance = dist;
+				bestTI = ti_dest;
+			}
+		}
+	}
+
 	void route_tile_stub(std::span<const TileInfo, tile_count> cti, std::span<TileInfo, tile_count>& ti, TileInfo& tin, std::atomic<uint32_t>& stub_router_count, std::span<TilePip> tile_pips, Stub_Router *ustub) {
 		Tile_Index previous{ ._value {INT32_MAX} };
 		Tile_Index bestTI{ ._value {INT32_MAX} };
 		double_t bestDistance{ HUGE_VAL };
 		if (ustub->tile_path.size() == 1) {
-			for (auto&& ntp : search_node_tile_pip.node_to_tile_pip(ustub->nodes.at(0))) {
-				auto ti_dest{ std::bit_cast<Tile_Index>(static_cast<uint32_t>(ntp.tile_idx)) };
-				if (ti_dest == tin.tile_idx) continue;
-				if (ti_dest == previous) continue;
-				previous = ti_dest;
-
-				if (ti_dest == ustub->source_tiles[0]) {
-					bestDistance = 0;
-					bestTI = ti_dest;
-					break;
-				}
-
-				decltype(auto) dst_ti{ cti[ti_dest._value] };
-
-				auto dest_tile_pips{ search_tile_tile_wire_pip.search_tile_tile_pip[ti_dest._value] };
-				if (!dest_tile_pips.size()) {
-					// puts(std::format("no pips {} ", dst_ti.name).c_str());
-					continue;
-				}
-
-				auto dest_tile_type{ cti[ti_dest._value].tile_type };
-				if (dest_tile_type.getSiteTypes().size()) {
-					// puts(std::format("contains sites {} ", dst_ti.name).c_str());
-					continue;
-				}
-
-				auto dist{ ustub->source_tiles[0].distance(ti_dest) };
-				if (dist < bestDistance) {
-					bestDistance = dist;
-					bestTI = ti_dest;
-				}
-			}
+			get_best_initial_tile(cti, tin, ustub, bestTI, bestDistance);
 		}
 		for (auto tile_pip : tile_pips) {
 			auto ti_dest{ std::bit_cast<Tile_Index>(static_cast<uint32_t>(tile_pip.tile_destination)) };
