@@ -700,7 +700,19 @@ public:
 			std::atomic<uint32_t> stubs_to_handle{};
 			for (uint64_t offset{ 0 }; offset < group_size; offset++) {
 				threads.emplace_back([offset, group_size, &ti, &stub_router_count, &bar, &stubs_to_handle, this]() {
-					route_tiles(offset, group_size, ti, stub_router_count, bar, stubs_to_handle);
+					route_tiles(
+						routed_indices,
+						routed_index_count,
+						unrouted_index_count,
+						search_node_tile_pip,
+						search_tile_tile_wire_pip,
+						offset,
+						group_size,
+						ti,
+						stub_router_count,
+						bar,
+						stubs_to_handle
+					);
 				});
 			}
 			for (auto&& thread : threads) {
@@ -719,7 +731,15 @@ public:
 	std::atomic<uint32_t> stubs_deadend{};
 	std::atomic<uint32_t> stubs_finished{};
 
-	void get_best_initial_tile(std::span<const TileInfo, tile_count> cti, TileInfo& tin, Stub_Router* ustub, Tile_Index &bestTI, double_t &bestDistance) {
+	static void get_best_initial_tile(
+		const Search_Node_Tile_Pip &search_node_tile_pip,
+		const Search_Tile_Tile_Wire_Pip &search_tile_tile_wire_pip,
+		std::span<const TileInfo, tile_count> cti,
+		TileInfo& tin,
+		Stub_Router* ustub,
+		Tile_Index &bestTI,
+		double_t &bestDistance) {
+
 		Tile_Index previous{ ._value {INT32_MAX} };
 
 		for (auto&& ntp : search_node_tile_pip.node_to_tile_pip(ustub->nodes.at(0))) {
@@ -756,7 +776,15 @@ public:
 		}
 	}
 
-	void get_best_next_tile(std::span<const TileInfo, tile_count> cti, TileInfo& tin, Stub_Router* ustub, std::span<TilePip> tile_pips, Tile_Index& bestTI, double_t& bestDistance) {
+	static void get_best_next_tile(
+		const Search_Tile_Tile_Wire_Pip &search_tile_tile_wire_pip,
+		std::span<const TileInfo, tile_count> cti,
+		TileInfo& tin,
+		Stub_Router* ustub,
+		std::span<TilePip> tile_pips,
+		Tile_Index& bestTI,
+		double_t& bestDistance)
+	{
 		Tile_Index previous{ ._value {INT32_MAX} };
 		for (auto tile_pip : tile_pips) {
 			auto ti_dest{ std::bit_cast<Tile_Index>(static_cast<uint32_t>(tile_pip.tile_destination)) };
@@ -793,24 +821,36 @@ public:
 		}
 	}
 
-	void route_tile_stub(std::span<const TileInfo, tile_count> cti, std::span<TileInfo, tile_count>& ti, TileInfo& tin, std::atomic<uint32_t>& stub_router_count, std::span<TilePip> tile_pips, Stub_Router *ustub) {
+	static void route_tile_stub(
+		std::span<uint32_t> routed_indices,
+		std::atomic<uint32_t> &routed_index_count,
+		std::atomic<uint32_t> &unrouted_index_count,
+		const Search_Node_Tile_Pip &search_node_tile_pip,
+		const Search_Tile_Tile_Wire_Pip& search_tile_tile_wire_pip,
+		std::span<const TileInfo, tile_count> cti,
+		std::span<TileInfo, tile_count>& ti,
+		TileInfo& tin,
+		std::atomic<uint32_t>& stub_router_count,
+		std::span<TilePip> tile_pips,
+		Stub_Router *ustub)
+	{
 		Tile_Index bestTI{ ._value {INT32_MAX} };
 		double_t bestDistance{ HUGE_VAL };
 		if (ustub->tile_path.size() == 1) {
-			get_best_initial_tile(cti, tin, ustub, bestTI, bestDistance);
+			get_best_initial_tile(search_node_tile_pip, search_tile_tile_wire_pip, cti, tin, ustub, bestTI, bestDistance);
 		}
-		get_best_next_tile(cti, tin, ustub, tile_pips, bestTI, bestDistance);
+		get_best_next_tile(search_tile_tile_wire_pip, cti, tin, ustub, tile_pips, bestTI, bestDistance);
 		if (bestTI._value == INT32_MAX) {
 			stub_router_count--;
 			// puts(std::format("stub: {} stub_router_count:{} dist:{} {}:deadend", ustub->net_idx, stub_router_count, ustub->current_distance, tin.name).c_str());
-			stubs_deadend++;
+			// stubs_deadend++;
 			return;
 		}
 
 		if (bestDistance >= ustub->current_distance && ustub->tile_path.size() > 3) {
 #if 1
 			stub_router_count--;
-			stubs_further++;
+			// stubs_further++;
 			// puts(std::format("stub: {} current_dist:{} dist: {} dest:{} stub_router_count:{} further:{}", ustub->net_idx, ustub->current_distance, bestDistance, bestTI._value, stub_router_count, TileInfo::get_tile_path_str(ti, ustub)).c_str());
 #else
 			ustub->tile_path.pop_back();
@@ -839,13 +879,23 @@ public:
 				routed_indices[pos + 1] = ustub->tile_path[ustub->tile_path.size() - 1]._value;
 			}
 			stub_router_count--;
-			stubs_finished++;
+			// stubs_finished++;
 			// puts(std::format("stub: {} dist: {} dest:{} stub_router_count:{} finished", ustub->net_idx, bestDistance, bestTI._value, stub_router_count).c_str());
 		}
 
 	}
 
-	void route_tile(std::span<const TileInfo, tile_count> cti, std::span<TileInfo, tile_count>& ti, TileInfo& tin, std::atomic<uint32_t> &stub_router_count) {
+	static void route_tile(
+		std::span<uint32_t> routed_indices,
+		std::atomic<uint32_t>& routed_index_count,
+		std::atomic<uint32_t>& unrouted_index_count,
+		const Search_Node_Tile_Pip& search_node_tile_pip,
+		const Search_Tile_Tile_Wire_Pip& search_tile_tile_wire_pip,
+		std::span<const TileInfo, tile_count> cti,
+		std::span<TileInfo, tile_count>& ti,
+		TileInfo& tin,
+		std::atomic<uint32_t> &stub_router_count)
+	{
 		if (!tin.handling_out_nets.size()) return;
 
 		if (false)
@@ -859,12 +909,23 @@ public:
 		auto ustubs{ std::move(tin.handling_out_nets) };
 		auto tile_pips{ search_tile_tile_wire_pip.search_tile_tile_pip[tin.tile_idx._value] };
 		for (auto ustub : ustubs) {
-			route_tile_stub(cti, ti, tin, stub_router_count, tile_pips, ustub);
+			route_tile_stub(
+				routed_indices,
+				routed_index_count,
+				unrouted_index_count,
+				search_node_tile_pip,
+				search_tile_tile_wire_pip,
+				cti,
+				ti,
+				tin,
+				stub_router_count,
+				tile_pips,
+				ustub);
 		}
 
 	}
 
-	void move_unhandled_to_handled(uint64_t offset, uint64_t group_size, std::span<TileInfo, tile_count>& ti, std::atomic<uint32_t>& stubs_to_handle) {
+	static void move_unhandled_to_handled(uint64_t offset, uint64_t group_size, std::span<TileInfo, tile_count>& ti, std::atomic<uint32_t>& stubs_to_handle) {
 		each_n(offset, group_size, ti, [&](uint64_t tin_index, TileInfo& tin) {
 			stubs_to_handle += static_cast<uint32_t>(tin.unhandled_out_nets.size());
 			if (!tin.unhandled_out_nets.size()) return;
@@ -873,13 +934,46 @@ public:
 		});
 	}
 
-	void route_each_tile(uint64_t offset, uint64_t group_size, std::span<const TileInfo, tile_count> cti, std::span<TileInfo, tile_count>& ti, std::atomic<uint32_t>& stub_router_count) {
+	static void route_each_tile(
+		std::span<uint32_t> routed_indices,
+		std::atomic<uint32_t>& routed_index_count,
+		std::atomic<uint32_t>& unrouted_index_count,
+		const Search_Node_Tile_Pip& search_node_tile_pip,
+		const Search_Tile_Tile_Wire_Pip& search_tile_tile_wire_pip,
+		uint64_t offset,
+		uint64_t group_size,
+		std::span<const TileInfo, tile_count> cti,
+		std::span<TileInfo, tile_count>& ti,
+		std::atomic<uint32_t>& stub_router_count
+	) {
 		each_n(offset, group_size, ti, [&](uint64_t tin_index, TileInfo& tin) {
-			route_tile(cti, ti, tin, stub_router_count);
+			route_tile(
+				routed_indices,
+				routed_index_count,
+				unrouted_index_count,
+				search_node_tile_pip,
+				search_tile_tile_wire_pip,
+				cti,
+				ti,
+				tin,
+				stub_router_count
+			);
 		});
 	}
 
-	void route_tiles(uint64_t offset, uint64_t group_size, std::span<TileInfo, tile_count> &ti, std::atomic<uint32_t> &stub_router_count, std::barrier<> &bar, std::atomic<uint32_t> &stubs_to_handle) {
+	static void route_tiles(
+		std::span<uint32_t> routed_indices,
+		std::atomic<uint32_t>& routed_index_count,
+		std::atomic<uint32_t>& unrouted_index_count,
+		const Search_Node_Tile_Pip& search_node_tile_pip,
+		const Search_Tile_Tile_Wire_Pip& search_tile_tile_wire_pip,
+		uint64_t offset,
+		uint64_t group_size,
+		std::span<TileInfo, tile_count> &ti,
+		std::atomic<uint32_t> &stub_router_count,
+		std::barrier<> &bar,
+		std::atomic<uint32_t> &stubs_to_handle
+	) {
 		std::span<const TileInfo, tile_count> cti( ti.cbegin(), ti.size() );
 
 		for (;;) {
@@ -890,9 +984,20 @@ public:
 			move_unhandled_to_handled(offset, group_size, ti, stubs_to_handle);
 
 			bar.arrive_and_wait();
-			if (!offset) puts(std::format("stubs_to_handle: {}, stubs_further: {}, stubs_deadend: {}, stubs_finished: {}", stubs_to_handle.load(), stubs_further.load(), stubs_deadend.load(), stubs_finished.load()).c_str());
+			// if (!offset) puts(std::format("stubs_to_handle: {}, stubs_further: {}, stubs_deadend: {}, stubs_finished: {}", stubs_to_handle.load(), stubs_further.load(), stubs_deadend.load(), stubs_finished.load()).c_str());
 
-			route_each_tile(offset, group_size, cti, ti, stub_router_count);
+			route_each_tile(
+				routed_indices,
+				routed_index_count,
+				unrouted_index_count,
+				search_node_tile_pip,
+				search_tile_tile_wire_pip,
+				offset,
+				group_size,
+				cti,
+				ti,
+				stub_router_count
+			);
 
 			bar.arrive_and_wait();
 			if (!stubs_to_handle) {
