@@ -709,11 +709,10 @@ public:
         glProgramUniform4f(fragmentShader, 0, 1.0f, 0.0f, 0.0f, 1.0f);
         glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 2));
 
-        glInvalidateBufferData(vio_routed);
-        glInvalidateBufferData(vio_unrouted);
-        glInvalidateBufferData(vio_stubs);
-        glClearNamedBufferData(indirect_buf_id, GL_RGBA32UI, GL_RGBA, GL_UNSIGNED_INT, nullptr);
-
+        // glInvalidateBufferData(vio_routed);
+        // glInvalidateBufferData(vio_unrouted);
+        // glInvalidateBufferData(vio_stubs);
+        // glClearNamedBufferData(indirect_buf_id, GL_RGBA32UI, GL_RGBA, GL_UNSIGNED_INT, nullptr);
 
         glDisable(GL_BLEND);
 

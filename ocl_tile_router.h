@@ -12,7 +12,7 @@ public:
     std::vector<ocl::buffer> buffers;
     ocl::buffer stubLocations;
     inline static constexpr cl_uint max_workgroup_size{ 256 };
-    inline static constexpr cl_uint workgroup_count{ 2048 };
+    inline static constexpr cl_uint workgroup_count{ 1 };
     inline static constexpr cl_uint total_group_size{ max_workgroup_size * workgroup_count };
 
     std::expected<void, ocl::status> step() {
