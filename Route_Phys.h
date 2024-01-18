@@ -61,6 +61,16 @@ struct Tile_Info {
 		return ret;
 	}
 
+	std::vector<std::array<uint16_t, 2>> get_tile_locations() {
+		std::vector<std::array<uint16_t, 2>> ret;
+		ret.reserve(numCol * numRow);
+		for (uint16_t row{}; row < numRow; row++) {
+			for (uint16_t col{}; col < numCol; col++) {
+				ret.emplace_back(std::array<uint16_t, 2>{ col, row });
+			}
+		}
+		return ret;
+	}
 };
 
 #include "wire_tile_node.h"

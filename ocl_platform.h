@@ -128,6 +128,9 @@ public:
         ::each(get_devices<device_type>().value(), lambda);
     }
 
+    static always_inline ::ocl::platform make_null() noexcept {
+        return ::ocl::platform{};
+    }
 };
 
 };

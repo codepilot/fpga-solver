@@ -19,6 +19,20 @@ public:
 #endif
 
 #include "gl46_base.h"
+#include "GL_Texture.h"
+#include "GL_Buffer.h"
+
+typedef  struct {
+    uint32_t  count;
+    uint32_t  instanceCount;
+    uint32_t  firstIndex;
+    int32_t  baseVertex;
+    uint32_t  baseInstance;
+} DrawElementsIndirectCommand;
+constexpr static inline size_t DrawElementsIndirectCommand_size{sizeof(DrawElementsIndirectCommand)};
+
+#include "ocl_tile_router.h"
+
 class GL46: public GL46_Base {
 public:
 
@@ -99,11 +113,22 @@ public:
       WS_VISIBLE,
     }) };
 
-    Route_Phys rp;
-    std::span<std::array<uint16_t, 2>> unrouted_locations{ rp.unrouted_locations };
-    std::span<uint32_t> routed_indices{ rp.routed_indices };
+    // Route_Phys rp;
+    // std::span<std::array<uint16_t, 2>> unrouted_locations{ rp.unrouted_locations };
+    // std::span<uint32_t> routed_indices{ rp.routed_indices };
 
-    Tile_Info tileInfo{ Tile_Info::get_tile_info(rp.tiles) };
+    // Tile_Info tileInfo{ Tile_Info::get_tile_info(rp.tiles) };
+
+    Tile_Info tileInfo{
+        .minCol{0},
+        .minRow{0},
+        .maxCol{669},
+        .maxRow{310},
+        .numCol{670},
+        .numRow{311},
+    };
+
+    std::vector<DrawElementsIndirectCommand> draw_commands{ std::vector<DrawElementsIndirectCommand>(3, DrawElementsIndirectCommand{}) };
 
     UINT clientWidth{ 1 };
     UINT clientHeight{ 1 };
@@ -351,6 +376,7 @@ public:
                 wglMakeCurrent(hdc, new_hglrc);
                 gl = this;
                 wglDeleteContext(hglrc);
+                hglrc = new_hglrc;
             }
             getExtensions(hdc);
             {
@@ -370,48 +396,46 @@ public:
 
         }
 
+#if 0
+        {
+            std::vector<cl_context_properties> context_properties{
+                CL_CONTEXT_PLATFORM, reinterpret_cast<cl_context_properties>(ocl::platform::get_ids().value().at(0)),
+                CL_GL_CONTEXT_KHR, reinterpret_cast<cl_context_properties>(hglrc),
+                CL_WGL_HDC_KHR, reinterpret_cast<cl_context_properties>(hdc),
+                0, 0,
+            };
+            cl_device_id ogl_dev{};
+            size_t param_value_size_ret{};
+            clGetGLContextInfoKHR_fn clGetGLContextInfoKHR{ reinterpret_cast<clGetGLContextInfoKHR_fn>(clGetExtensionFunctionAddressForPlatform(nullptr, "clGetGLContextInfoKHR")) };
+            ocl::status sts{ clGetGLContextInfoKHR(context_properties.data(), CL_CURRENT_DEVICE_FOR_GL_CONTEXT_KHR, sizeof(cl_device_id), &ogl_dev, &param_value_size_ret)};
+            if (sts != ocl::status::SUCCESS) {
+                puts("error");  
+            }
+
+            puts("good");
+        }
+        {
+            std::vector<cl_context_properties> context_properties{
+                CL_CONTEXT_PLATFORM, reinterpret_cast<cl_context_properties>(ocl::platform::get_ids().value().at(0)),
+                CL_GL_CONTEXT_KHR, reinterpret_cast<cl_context_properties>(hglrc),
+                CL_WGL_HDC_KHR, reinterpret_cast<cl_context_properties>(hdc),
+                0, 0,
+            };
+            //auto devices{ ocl::device::get_gl_devices(context_properties).value() };
+            auto context{ ocl::context::create(context_properties).value() };
+            puts("good");
+        }
+
+#endif
+
+
     }
 
-    template<GLenum target>
-    class Textures {
-        std::vector<GLuint> vec;
-    public:
-        GLsizei sizei() {
-            return SafeInt<GLsizei>(vec.size());
-        }
-        Textures(const Textures&) = delete;
-        Textures& operator=(const Textures&) = delete;
-        Textures(Textures&& src) {
-            vec = std::move(src.vec);
-        }
-        Textures& operator=(Textures&& src) {
-            vec = std::move(src.vec);
-            return *this;
-        }
-        Textures(GLsizei n = 0) {
-            vec.resize(n);
-            if (sizei() > 0) {
-                gl->glCreateTextures(target, sizei(), vec.data());
-                OutputDebugStringW(L"glCreateTextures\r\n");
-            }
-        }
-        ~Textures() {
-            if (sizei() > 0 && gl) {
-                gl->glDeleteTextures(sizei(), vec.data());
-                OutputDebugStringW(L"glDeleteTextures\r\n");
-            }
-        }
-        void bindImages() {
-            gl->glBindImageTextures(0, sizei(), vec.data());
-        }
-        GLuint operator [](GLsizei i) {
-            return vec[i];
-        }
-    };
 
 
+    OCL_Tile_Router ocltr;
     GLuint fb{};
-    Textures<GL_TEXTURE_RECTANGLE> textures{};
+    GL_Textures<GL_TEXTURE_RECTANGLE> textures{};
     MemoryMappedFile vertexGlsl{ "shaders\\vertex.vert.spv" };
     MemoryMappedFile fragmentGlsl{ "shaders\\fragment.frag.spv" };
 
@@ -425,6 +449,8 @@ public:
 
     GLuint vaStubs{};
     GLuint vio_stubs{};
+
+    GLuint indirect_buf_id{};
 
     GLuint pipe{};
 
@@ -492,7 +518,7 @@ public:
     GLuint vertexShader{};
     GLuint fragmentShader{};
 
-	GL46(): hwnd{ make_window(this) }, hdc{ GetDC(hwnd) } {
+    GL46() : hwnd{ make_window(this) }, hdc{ GetDC(hwnd) } {
         ShowWindow(hwnd, SW_MAXIMIZE);
         if (false) {
             SetFocus(hwnd);
@@ -513,7 +539,11 @@ public:
         // glTextureSubImage2D(textures[0], 0, 0, 0, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow), GL_RGBA, GL_UNSIGNED_BYTE, dev.sp_tile_drawing.data());
 
         glCreateBuffers(1, &vbo_locations);
-        glNamedBufferStorage(vbo_locations, unrouted_locations.size_bytes(), unrouted_locations.data(), 0);
+        {
+            std::vector<std::array<uint16_t, 2>> v_unrouted_locations{ tileInfo.get_tile_locations() };
+            std::span<std::array<uint16_t, 2>> unrouted_locations{ v_unrouted_locations };
+            glNamedBufferStorage(vbo_locations, unrouted_locations.size_bytes(), unrouted_locations.data(), 0);
+        }
 
         glCreateVertexArrays(1, &vaRouted);
         glVertexArrayAttribBinding(vaRouted, 0, 0);
@@ -534,27 +564,33 @@ public:
         glEnableVertexArrayAttrib(vaStubs, 0);
 
 
-        GLsizei index_buf_bytes{ static_cast<GLsizei>( rp.rw.alt_nodes.size() * sizeof(std::array<uint32_t, 2>)) };
+        GLsizei index_buf_bytes{ static_cast<GLsizei>((1ull * 1024ull * 1024ull) * sizeof(std::array<uint32_t, 2>)) };
         size_t index_buf_lines{ static_cast<size_t>(index_buf_bytes / sizeof(std::array<uint32_t, 2>)) };
 
         glCreateBuffers(1, &vio_routed);
-        glNamedBufferStorage(vio_routed, index_buf_bytes, nullptr, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT | GL_CLIENT_STORAGE_BIT);
+        glNamedBufferStorage(vio_routed, index_buf_bytes, nullptr, 0/*GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT | GL_CLIENT_STORAGE_BIT*/);
         glVertexArrayElementBuffer(vaRouted, vio_routed);
 
         glCreateBuffers(1, &vio_unrouted);
-        glNamedBufferStorage(vio_unrouted, index_buf_bytes, nullptr, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT | GL_CLIENT_STORAGE_BIT);
+        glNamedBufferStorage(vio_unrouted, index_buf_bytes, nullptr, 0/*GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT | GL_CLIENT_STORAGE_BIT*/);
         glVertexArrayElementBuffer(vaUnrouted, vio_unrouted);
 
         glCreateBuffers(1, &vio_stubs);
-        glNamedBufferStorage(vio_stubs, index_buf_bytes, nullptr, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT | GL_CLIENT_STORAGE_BIT);
+        glNamedBufferStorage(vio_stubs, index_buf_bytes, nullptr, 0/*GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT | GL_CLIENT_STORAGE_BIT*/);
         glVertexArrayElementBuffer(vaStubs, vio_stubs);
 
+        glCreateBuffers(1, &indirect_buf_id);
+        glNamedBufferStorage(indirect_buf_id, DrawElementsIndirectCommand_size * 3, nullptr, 0);
+        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, indirect_buf_id);
+
         std::span<uint32_t> mRouted{};
+#if 0
         rp.start_routing(
             std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_routed, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines },
             std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_unrouted, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines },
             std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_stubs, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines }
         );
+#endif
         wglSwapIntervalEXT(1);
 
 #if 0
@@ -572,6 +608,33 @@ public:
         glValidateProgramPipeline(pipe);
         glBindProgramPipeline(pipe);
         glProgramUniform2f(vertexShader, 0, static_cast<GLfloat>(tileInfo.numCol), static_cast<GLfloat>(tileInfo.numRow));
+
+#if 1
+        ocltr = OCL_Tile_Router::make({
+            CL_CONTEXT_PLATFORM, reinterpret_cast<cl_context_properties>(ocl::platform::get_ids().value().at(0)),
+            CL_GL_CONTEXT_KHR, reinterpret_cast<cl_context_properties>(hglrc),
+            CL_WGL_HDC_KHR, reinterpret_cast<cl_context_properties>(hdc),
+            0, 0,
+        }, { vio_routed, vio_unrouted, vio_stubs, indirect_buf_id }//,
+        //draw_commands
+        ).value();
+#else
+        auto sp_routed{ std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_routed, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines } };
+        auto sp_unrouted{ std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_unrouted, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines } };
+        auto sp_stubs{ std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_stubs, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines } };
+
+        auto d_routed{ sp_routed.data() };
+        auto d_unrouted{ sp_unrouted.data() };
+        auto d_stubs{ sp_stubs.data() };
+
+        for (uint32_t n{}; n < 300 * 300; n++) {
+            d_routed[draw_commands[0].count] = n;
+            d_routed[draw_commands[0].count + 1] = n + 1;
+            draw_commands[0].count += 2;
+            draw_commands[0].instanceCount = 1;
+        }
+#endif
+
     }
 
     UINT step() {
@@ -632,17 +695,21 @@ public:
 
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+        ocltr.step();
+
         glBindVertexArray(vaRouted);
-        glProgramUniform4f(fragmentShader, 0, 0.0f, 1.0f, 0.0f, 0.1f);
-        glDrawElements(GL_LINES, rp.routed_index_count, GL_UNSIGNED_INT, nullptr);
+        glProgramUniform4f(fragmentShader, 0, 0.0f, 1.0f, 0.0f, 1.0f);
+        glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, nullptr);
 
         glBindVertexArray(vaStubs);
         glProgramUniform4f(fragmentShader, 0, 0.0f, 0.0f, 1.0f, 1.0f);
-        glDrawElements(GL_LINES, rp.stubs_index_count, GL_UNSIGNED_INT, nullptr);
+        // glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, &draw_commands.at(1));
+        //glDrawElements(GL_LINES, stubs_index_count, GL_UNSIGNED_INT, nullptr);
 
         glBindVertexArray(vaUnrouted);
         glProgramUniform4f(fragmentShader, 0, 1.0f, 0.0f, 0.0f, 1.0f/255.0f);
-        glDrawElements(GL_LINES, rp.unrouted_index_count, GL_UNSIGNED_INT, nullptr);
+        // glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, &draw_commands.at(2));
+        //glDrawElements(GL_LINES, unrouted_index_count, GL_UNSIGNED_INT, nullptr);
 
         glDisable(GL_BLEND);
 

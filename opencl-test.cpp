@@ -10,8 +10,8 @@ void test_opencl() {
             auto context{ device.create_context().value() };
             std::cout << std::format("context.refcount: {}\n", context.get_reference_count().value());
 
-            auto queue{ context.create_queue().value() };
-            std::cout << std::format("queue.refcount: {}\n", queue.get_reference_count().value());
+            auto queues{ context.create_queues().value() };
+            std::cout << std::format("queue.refcount: {}\n", queues[0].get_reference_count().value());
 
             size_t svmSpanSize{sizeof(uint32_t) * max_workgroup_size};
             auto svm{ context.alloc_svm<uint32_t>(device.supports_svm_fine_grain_buffer().value() ? (CL_MEM_READ_WRITE | CL_MEM_SVM_FINE_GRAIN_BUFFER) : CL_MEM_READ_WRITE, svmSpanSize).value()};
@@ -23,7 +23,7 @@ void test_opencl() {
             std::cout << std::format("program.refcount: {}\n", program.get_reference_count().value());
 
             program.build().value();
-            std::cout << std::format("program.build_log: {}\n", program.get_build_info_string(CL_PROGRAM_BUILD_LOG).value());
+            // std::cout << std::format("program.build_log: {}\n", program.get_build_info_string(CL_PROGRAM_BUILD_LOG).value());
             std::cout << std::format("program.kernels: {}\n", program.get_info_string(CL_PROGRAM_KERNEL_NAMES).value());
 
             auto kernel{ program.create_kernel("test_kernel_1").value() };
@@ -36,7 +36,7 @@ void test_opencl() {
             std::cout << std::format("kerenl[0].CL_KERNEL_ARG_TYPE_NAME: {}\n", kernel.get_arg_info_string(0, CL_KERNEL_ARG_TYPE_NAME).value());
 
             kernel.set_arg(0, svm).value();
-            auto kernel_event{ queue.enqueue<1>(kernel.kernel, { 0 }, { svm.size() }, {max_workgroup_size}).value()};
+            auto kernel_event{ queues[0].enqueue<1>(kernel.kernel, {0}, {svm.size()}, {max_workgroup_size}).value()};
             std::cout << std::format("kernel_event.refcount: {}\n", kernel_event.get_reference_count().value());
             std::cout << std::format("kernel_event.CL_EVENT_COMMAND_TYPE : {}\n", kernel_event.get_info_integral<cl_command_type>(CL_EVENT_COMMAND_TYPE).value());
             std::cout << std::format("kernel_event.CL_EVENT_COMMAND_EXECUTION_STATUS : {}\n", kernel_event.get_info_integral<cl_int>(CL_EVENT_COMMAND_EXECUTION_STATUS).value());

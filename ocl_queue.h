@@ -65,8 +65,28 @@ public:
         return std::expected<ocl::event, status>(ocl::event{ .event{event} });
     }
 
+    template<cl_uint work_dim>
+    always_inline std::expected<void, status> enqueue_no_event(cl_kernel kernel, std::array<size_t, work_dim> global_work_offset, std::array<size_t, work_dim> global_work_size, std::array<size_t, work_dim> local_work_size) {
+        cl_int errcode_ret{ clEnqueueNDRangeKernel(
+            queue,
+            kernel,
+            work_dim,
+            global_work_offset.data(),
+            global_work_size.data(),
+            local_work_size.data(),
+            0,
+            nullptr,
+            nullptr
+        ) };
+
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<void, status>();
+    }
+
     template<typename T>
-    always_inline std::expected<ocl::event, status> enqueueRead(cl_mem buffer, cl_bool blocking_read, size_t offset, std::span<T> dest, std::vector<cl_event> event_wait_list) {
+    always_inline std::expected<ocl::event, status> enqueueRead(cl_mem buffer, cl_bool blocking_read, size_t offset, std::span<T> dest, std::vector<cl_event> event_wait_list = {}) {
         cl_event event{};
         cl_int errcode_ret{ clEnqueueReadBuffer(
             queue,
@@ -76,7 +96,7 @@ public:
             dest.size_bytes(),
             dest.data(),
             static_cast<cl_uint>(event_wait_list.size()),
-            event_wait_list.data(),
+            event_wait_list.size()?event_wait_list.data():nullptr,
             &event
         )};
 

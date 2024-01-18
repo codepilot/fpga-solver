@@ -177,6 +177,27 @@ target_link_libraries(opencl-test PRIVATE Kernel32.lib)
 target_link_libraries(opencl-test PRIVATE WindowsApp.lib)
 endif()
 
+add_executable(opencl-tile-router opencl-tile-router.cpp)
+target_include_directories(opencl-tile-router PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" ${PROJECT_BINARY_DIR}/interchange OpenCL-CLHPP/include OpenCL-Headers)
+target_include_directories(opencl-tile-router PRIVATE ${ZLIB_INCLUDE_DIR})
+target_include_directories(opencl-tile-router PUBLIC capnproto/c++/src)
+target_compile_definitions(opencl-tile-router PRIVATE NOMINMAX)
+target_compile_features(opencl-tile-router PUBLIC cxx_std_23)
+if(MSVC)
+target_compile_options(opencl-tile-router PRIVATE /arch:AVX2 /Zc:__cplusplus /MP /GR-)
+else()
+target_compile_options(opencl-tile-router PRIVATE -march=native -std=c++2b)
+endif()
+target_link_libraries(opencl-tile-router PRIVATE capnp)
+target_link_libraries(opencl-tile-router PRIVATE zlibstatic)
+target_link_libraries(opencl-tile-router PRIVATE OpenCL)
+
+if(MSVC)
+target_link_libraries(opencl-tile-router PRIVATE Kernel32.lib)
+target_link_libraries(opencl-tile-router PRIVATE WindowsApp.lib)
+endif()
+
+
 
 
 if(MSVC)

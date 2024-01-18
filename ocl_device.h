@@ -191,8 +191,31 @@ public:
     }
 
     always_inline auto create_context() {
-        return context::create(device);
+        std::vector<cl_device_id> devices{ device };
+        return context::create(devices);
     }
 
+    static std::expected<size_t, ocl::status> get_gl_device_count(std::span<cl_context_properties> context_properties) {
+        size_t param_value_size_ret{};
+        clGetGLContextInfoKHR_fn clGetGLContextInfoKHR{ reinterpret_cast<clGetGLContextInfoKHR_fn>(clGetExtensionFunctionAddressForPlatform(nullptr, "clGetGLContextInfoKHR")) };
+        ocl::status stsA{ clGetGLContextInfoKHR(context_properties.data(), CL_DEVICES_FOR_GL_CONTEXT_KHR, 0, nullptr, &param_value_size_ret) };
+        if (stsA != ocl::status::SUCCESS) {
+            return std::unexpected(stsA);
+        }
+        return param_value_size_ret / sizeof(cl_device_id);
+    }
+
+    static std::expected<std::vector<cl_device_id>, ocl::status> get_gl_devices(std::span<cl_context_properties> context_properties) {
+        return get_gl_device_count(context_properties).and_then([context_properties](size_t device_count)-> std::expected<std::vector<cl_device_id>, ocl::status> {
+            std::vector<cl_device_id> ogl_dev(device_count, nullptr);
+            std::span<cl_device_id> s_ogl_dev(ogl_dev);
+            clGetGLContextInfoKHR_fn clGetGLContextInfoKHR{ reinterpret_cast<clGetGLContextInfoKHR_fn>(clGetExtensionFunctionAddressForPlatform(nullptr, "clGetGLContextInfoKHR")) };
+            ocl::status stsB{ clGetGLContextInfoKHR(context_properties.data(), CL_DEVICES_FOR_GL_CONTEXT_KHR, s_ogl_dev.size_bytes(), s_ogl_dev.data(), nullptr) };
+            if (stsB != ocl::status::SUCCESS) {
+                return std::unexpected(stsB);
+            }
+            return ogl_dev;
+        });
+    }
 };
 };

@@ -12,6 +12,33 @@ public:
         }
         return std::expected<ocl::kernel, status>(ocl::kernel{ .kernel{kernel} });
     }
+    always_inline static std::expected<cl_uint, status> create_count(cl_program program) noexcept {
+        cl_uint num_kernels_ret{};
+        ocl::status sts{ clCreateKernelsInProgram(program, 0, nullptr, &num_kernels_ret) };
+        if (sts != ocl::status::SUCCESS) return std::unexpected(sts);
+        return num_kernels_ret;
+    }
+
+    always_inline static std::expected<std::vector<cl_kernel>, status> create_kernels(cl_program program) noexcept {
+        return create_count(program).and_then([&](cl_uint num_kernels)->std::expected<std::vector<cl_kernel>, status> {
+            auto kernels{ std::vector<cl_kernel>(static_cast<size_t>(num_kernels), static_cast<cl_kernel>(nullptr)) };
+
+            ocl::status sts{ clCreateKernelsInProgram(program, static_cast<cl_uint>(kernels.size()), kernels.data(), nullptr)};
+            if (sts != ocl::status::SUCCESS) return std::unexpected(sts);
+            return kernels;
+        });
+    }
+
+    always_inline static std::expected<std::vector<ocl::kernel>, status> create(cl_program program) noexcept {
+        return create_kernels(program).and_then([](std::vector<cl_kernel> kernels)->std::expected<std::vector<ocl::kernel>, status> {
+            std::vector<ocl::kernel> ret;
+            ret.reserve(kernels.size());
+            for (auto&& kernel : kernels) {
+                ret.emplace_back(kernel);
+            }
+            return ret;
+        });
+    }
 
     always_inline static std::expected<size_t, status> get_info_size(cl_kernel kernel, cl_kernel_info param_name) noexcept {
         size_t param_value_size_ret{};

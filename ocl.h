@@ -1,7 +1,11 @@
 #pragma once
 
+#ifndef  CL_TARGET_OPENCL_VERSION
 #define CL_TARGET_OPENCL_VERSION 300
+#endif // ! CL_TARGET_OPENCL_VERSION
+
 #include <CL/cl.h>
+#include <CL/cl_gl.h>
 #include <format>
 #include <vector>
 #include <optional>

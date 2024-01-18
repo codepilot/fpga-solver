@@ -4,21 +4,34 @@ namespace ocl {
 class context {
 public:
 	cl_context context;
-    cl_device_id device;
 #if 0
     ~context() {
         clReleaseContext(context);
     }
 #endif
-    always_inline static std::expected<ocl::context, status> create(cl_device_id device) noexcept {
+
+    always_inline static std::expected<ocl::context, status> create(std::span<cl_device_id> devices) noexcept {
         cl_int errcode_ret{};
-        cl_context context{ clCreateContext(nullptr, 1, &device, [](const char* errinfo, const void* private_info, size_t cb, void* user_data) {
+        cl_context context{ clCreateContext(nullptr, static_cast<cl_uint>(devices.size()), devices.data(), [](const char* errinfo, const void* private_info, size_t cb, void* user_data) {
             puts(errinfo);
         }, nullptr, &errcode_ret) };
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
         }
-        return std::expected<ocl::context, status>(ocl::context{ .context{context}, .device{device} });
+        return std::expected<ocl::context, status>(ocl::context{ .context{context} });
+    }
+
+
+    template<cl_device_type device_type = CL_DEVICE_TYPE_ALL>
+    always_inline static std::expected<ocl::context, status> create(std::span<cl_context_properties> context_properties = {}) noexcept {
+        cl_int errcode_ret{};
+        cl_context context{ clCreateContextFromType(context_properties.size()?context_properties.data():nullptr, device_type, [](const char* errinfo, const void* private_info, size_t cb, void* user_data) {
+            puts(errinfo);
+        }, nullptr, &errcode_ret) };
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<ocl::context, status>(ocl::context{ .context{context} });
     }
 
     always_inline static std::expected<size_t, status> get_info_size(cl_context context, cl_context_info param_name) noexcept {
@@ -52,8 +65,30 @@ public:
         return get_info_integral<cl_uint>(CL_CONTEXT_REFERENCE_COUNT);
     }
 
-    always_inline std::expected<ocl::queue, status> create_queue() noexcept {
+    always_inline std::expected<ocl::queue, status> create_queue(cl_device_id device) noexcept {
         return queue::create(context, device);
+    }
+
+    always_inline std::expected<std::vector<ocl::queue>, status> create_queues(std::vector<cl_device_id> devices) noexcept {
+        std::vector<ocl::queue> queues;
+        for (auto&& device : devices) {
+            queues.emplace_back(queue::create(context, device).value());
+        }
+        return queues;
+    }
+
+    always_inline std::expected<std::vector<cl_device_id>, status> get_devices() const noexcept {
+        return get_info_integral<cl_uint>(CL_CONTEXT_NUM_DEVICES).and_then([&](cl_uint num_devices)->std::expected<std::vector<cl_device_id>, status> {
+            auto devices{ std::vector<cl_device_id>(static_cast<size_t>(num_devices), static_cast<cl_device_id>(nullptr)) };
+            std::span<cl_device_id> s_devices{devices};
+            ocl::status sts{ clGetContextInfo(context, CL_CONTEXT_DEVICES, s_devices.size_bytes(), s_devices.data(), nullptr) };
+            if (sts != ocl::status::SUCCESS) return std::unexpected(sts);
+            return devices;
+        });
+    }
+
+    always_inline std::expected<std::vector<ocl::queue>, status> create_queues() noexcept {
+        return get_devices().and_then([this](std::vector<cl_device_id> devices) {return create_queues(devices); });
     }
 
     always_inline std::expected<ocl::buffer, status> create_buffer(cl_mem_flags flags, size_t size, void* host_ptr=nullptr) noexcept {
@@ -66,11 +101,11 @@ public:
     }
 
     always_inline std::expected<ocl::program, status> create_program(std::string_view source) noexcept {
-        return program::create(context, device, source);
+        return program::create(context, source);
     }
 
     always_inline std::expected<ocl::program, status> create_program(std::span<char> source) noexcept {
-        return program::create(context, device, source);
+        return program::create(context, source);
     }
 
     template<typename T>
