@@ -29,3 +29,4 @@ using net_reader = ::PhysicalNetlist::PhysNetlist::PhysNet::Reader;
 using node_reader = ::DeviceResources::Device::Node::Reader;
 using wire_reader = ::DeviceResources::Device::Wire::Reader;
 using pip_reader = ::DeviceResources::Device::PIP::Reader;
+using wire_list_reader = ::capnp::List< ::DeviceResources::Device::Wire, ::capnp::Kind::STRUCT>::Reader;

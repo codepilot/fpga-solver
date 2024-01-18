@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <span>
 #include <set>
+#include <map>
 
 #ifndef always_inline
 #ifdef _WIN32
@@ -27,6 +28,32 @@
 
 
 namespace ocl {
+    const inline static std::map<cl_kernel_arg_address_qualifier, std::string> ADDRESS_QUALIFIER{
+        {CL_KERNEL_ARG_ADDRESS_GLOBAL, "global"},
+        {CL_KERNEL_ARG_ADDRESS_LOCAL, "local"},
+        {CL_KERNEL_ARG_ADDRESS_CONSTANT, "constant"},
+        {CL_KERNEL_ARG_ADDRESS_PRIVATE, "private"},
+    };
+
+    const inline static std::map<cl_kernel_arg_access_qualifier, std::string> ACCESS_QUALIFIER{
+        {CL_KERNEL_ARG_ACCESS_READ_ONLY, "read_only"},
+        {CL_KERNEL_ARG_ACCESS_WRITE_ONLY, "write_only"},
+        {CL_KERNEL_ARG_ACCESS_READ_WRITE, "read_write"},
+        {CL_KERNEL_ARG_ACCESS_NONE, ""},
+    };
+
+    const inline static std::map<cl_kernel_arg_type_qualifier, std::string> TYPE_QUALIFIER{
+        {CL_KERNEL_ARG_TYPE_NONE, "none"},
+        {CL_KERNEL_ARG_TYPE_CONST, "const"},
+        {CL_KERNEL_ARG_TYPE_RESTRICT, "restrict"},
+        {CL_KERNEL_ARG_TYPE_CONST | CL_KERNEL_ARG_TYPE_RESTRICT, "const restrict"},
+        {CL_KERNEL_ARG_TYPE_VOLATILE, "volatile"},
+        {CL_KERNEL_ARG_TYPE_CONST | CL_KERNEL_ARG_TYPE_VOLATILE, "const volatile"},
+        {CL_KERNEL_ARG_TYPE_RESTRICT | CL_KERNEL_ARG_TYPE_VOLATILE, "restrict volatile"},
+        {CL_KERNEL_ARG_TYPE_CONST | CL_KERNEL_ARG_TYPE_RESTRICT | CL_KERNEL_ARG_TYPE_VOLATILE, "const restrict volatile"},
+        {CL_KERNEL_ARG_TYPE_PIPE, "pipe"},
+    };
+
     inline static std::set<std::string> split(std::string str) noexcept {
         uint64_t start{};
         std::set<std::string> ret;
@@ -138,9 +165,9 @@ template<typename T> class svm;
 #include "ocl_platform.h"
 #include "ocl_svm.h"
 #include "ocl_event.h"
+#include "ocl_buffer.h"
 #include "ocl_kernel.h"
 #include "ocl_program.h"
 #include "ocl_queue.h"
-#include "ocl_buffer.h"
 #include "ocl_context.h"
 #include "ocl_device.h"

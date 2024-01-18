@@ -698,7 +698,7 @@ public:
         ocltr.step().value();
 
         glBindVertexArray(vaRouted);
-        glProgramUniform4f(fragmentShader, 0, 0.0f, 1.0f, 0.0f, 1.0f);
+        glProgramUniform4f(fragmentShader, 0, 0.0f, 1.0f, 0.0f, 0.01f);
         glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void *>(DrawElementsIndirectCommand_size * 0));
 
         glBindVertexArray(vaStubs);

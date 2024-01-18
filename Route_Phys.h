@@ -10,11 +10,28 @@
 #include "PIP_Index.h"
 #include "stub_router.h"
 #include <barrier>
+#include "each.h"
 
 class Counter {
 public:
 	uint64_t value{};
 	constexpr void increment() noexcept { value++; }
+};
+
+class InverseWires {
+public:
+	inline static constexpr uint64_t wire_count{ 83282368ull };
+	inline static constexpr uint64_t str_count{ 467843ull };
+
+	static std::vector<uint64_t> make(wire_list_reader wires) {
+		std::priority_queue<uint64_t, std::vector<uint64_t>> q;
+		each(wires, [&](uint64_t wire_idx, wire_reader wire) {
+			q.push(((static_cast<uint64_t>(wire.getTile()) * str_count) + static_cast<uint64_t>(wire.getWire())) * wire_count);
+		});
+	}
+
+	InverseWires(wire_list_reader wires) {
+	}
 };
 
 struct Tile_Info {
@@ -454,6 +471,148 @@ public:
 		puts("ti finish");
 
 		return upti;
+	}
+
+	static void make_cl_files() {
+		DevFlat dev{ "_deps/device-file-src/xcvu3p.device" };
+		auto devRoot{ dev.root };
+		auto tiles{ devRoot.getTileList() };
+		auto nodes{ devRoot.getNodes() };
+		auto wires{ devRoot.getWires() };
+		auto tile_types{ devRoot.getTileTypeList() };
+		auto tile_bounds{ Tile_Info::get_tile_info(tiles) };
+		auto devStrs{ devRoot.getStrList() };
+
+		puts(std::format("devStrs: {}, {} bits", devStrs.size(), ceil(log2(devStrs.size()))).c_str());
+		puts(std::format("tiles: {}, {} bits", tiles.size(), ceil(log2(tiles.size()))).c_str());
+		puts(std::format("nodes: {}, {} bits", nodes.size(), ceil(log2(nodes.size()))).c_str());
+		puts(std::format("wires: {}, {} bits", wires.size(), ceil(log2(wires.size()))).c_str());
+
+		puts("inverse_tiles");
+		std::unordered_map<uint32_t, uint32_t> inverse_tiles;
+		inverse_tiles.reserve(tiles.size());
+		each(tiles, [&](uint64_t tile_idx, tile_reader tile) {
+			inverse_tiles.insert({ tile.getName(), static_cast<uint32_t>(tile_idx) });
+		});
+
+		puts("inverse_wires");
+		std::unordered_map<uint64_t, uint32_t> inverse_wires; //wire str, tile str, wire idx log2(467843 * 467843 * 83282368) < 64
+		inverse_wires.reserve(wires.size());
+		each(wires, [&](uint64_t wire_idx, wire_reader wire) {
+			inverse_wires.insert({ std::bit_cast<uint64_t>(std::array<uint32_t, 2>{wire.getTile(), wire.getWire()}), static_cast<uint32_t>(wire_idx) });
+		});
+
+		puts("inverse_nodes");
+		std::unordered_map<uint32_t, uint32_t> inverse_nodes;
+		inverse_nodes.reserve(wires.size());
+		each(nodes, [&](uint64_t node_idx, node_reader node) {
+			for (uint32_t wire_idx : node.getWires()) {
+				inverse_nodes.insert({ wire_idx, static_cast<uint32_t>(node_idx) });
+			}
+		});
+
+		puts("v_tt");
+		std::vector<std::vector<std::array<uint16_t, 2>>> v_tt(static_cast<size_t>(tiles.size()), std::vector<std::array<uint16_t, 2>>{});
+		for (auto&& tile : tiles) {
+			auto tile_strIdx{ tile.getName() };
+			auto tile_type{ tile_types[tile.getType()] };
+			auto tile_type_wire_strs{ tile_type.getWires() };
+			auto tileIndex{ Tile_Index::make(tile) };
+			auto pips{ tile_type.getPips() };
+			decltype(auto) v_tti{ v_tt.at(tileIndex._value) };
+			for (auto&& pip : pips) {
+				if (!pip.isConventional()) continue;
+				auto wire0_strIdx{ tile_type_wire_strs[pip.getWire0()] };
+				auto wire1_strIdx{ tile_type_wire_strs[pip.getWire1()] };
+				auto wire0_key{ std::bit_cast<uint64_t>(std::array<uint32_t, 2>{tile_strIdx, wire0_strIdx}) };
+				auto wire1_key{ std::bit_cast<uint64_t>(std::array<uint32_t, 2>{tile_strIdx, wire1_strIdx}) };
+				if (!inverse_wires.contains(wire0_key)) {
+					puts(std::format("!inverse_wires {} {}", devStrs[tile_strIdx].cStr(), devStrs[wire0_strIdx].cStr()).c_str());
+					continue;
+				}
+				if (!inverse_wires.contains(wire1_key)) {
+					puts(std::format("!inverse_wires {} {}", devStrs[tile_strIdx].cStr(), devStrs[wire1_strIdx].cStr()).c_str());
+					continue;
+				}
+				auto wire0_idx{ inverse_wires.at(wire0_key) };
+				auto wire1_idx{ inverse_wires.at(wire1_key) };
+				if (!inverse_nodes.contains(wire0_idx)) {
+					puts(std::format("!inverse_nodes {} {}", devStrs[tile_strIdx].cStr(), devStrs[wire0_strIdx].cStr()).c_str());
+					continue;
+				}
+				if (!inverse_nodes.contains(wire1_idx)) {
+					puts(std::format("!inverse_nodes {} {}", devStrs[tile_strIdx].cStr(), devStrs[wire1_strIdx].cStr()).c_str());
+					continue;
+				}
+				auto wire0_wires{ nodes[inverse_nodes.at(wire0_idx)].getWires() };
+				auto wire1_wires{ nodes[inverse_nodes.at(wire1_idx)].getWires() };
+				for (auto wire_n : wire0_wires) {
+					auto wire_n_tile{ tiles[inverse_tiles.at(wires[wire_n].getTile())] };
+					v_tti.emplace_back(std::array<uint16_t, 2>{ wire_n_tile.getCol(), wire_n_tile.getRow() });
+				}
+				if (!pip.getDirectional()) {
+					for (auto wire_n : wire1_wires) {
+						auto wire_n_tile{ tiles[inverse_tiles.at(wires[wire_n].getTile())] };
+						v_tti.emplace_back(std::array<uint16_t, 2>{ wire_n_tile.getCol(), wire_n_tile.getRow() });
+					}
+				}
+			}
+		}
+
+		puts("v_tt_count_offset");
+		std::vector<std::array<std::uint32_t, 2>> v_tt_count_offset;
+		v_tt_count_offset.reserve(static_cast<size_t>(tiles.size()));
+		size_t offset{};
+		for (auto&& v_tti : v_tt) {
+			v_tt_count_offset.emplace_back(std::array<uint32_t, 2>{ static_cast<uint32_t>(v_tti.size()), static_cast<uint32_t>(offset) });
+			offset += v_tti.size();
+		};
+
+		puts("v_tt_body");
+		std::vector<std::array<uint16_t, 2>> v_tt_body;
+		v_tt_body.reserve(offset);
+		for (auto&& v_tti : v_tt) {
+			for (auto&& v_ttin : v_tti) {
+				v_tt_body.emplace_back(v_ttin);
+			}
+		}
+		{
+			std::span<std::array<std::uint32_t, 2>> s_tt_count_offset{ v_tt_count_offset };
+			MemoryMappedFile mmf_v_tt_count_offset{ "tt_count_offset.bin", s_tt_count_offset.size_bytes() };
+			memcpy(mmf_v_tt_count_offset.fp, s_tt_count_offset.data(), s_tt_count_offset.size_bytes());
+		}
+		{
+			std::span<std::array<std::uint16_t, 2>> s_tt_body{ v_tt_body };
+			MemoryMappedFile mmf_v_tt_count_offset{ "tt_body.bin", s_tt_body.size_bytes() };
+			memcpy(mmf_v_tt_count_offset.fp, s_tt_body.data(), s_tt_body.size_bytes());
+		}
+#if 0
+		for (uint16_t row{}; row < 311; row++) {
+			OutputDebugStringA(std::format("row: {}\n", row).c_str());
+			for (uint16_t col{}; col < 670; col++) {
+
+				uint16_t wire_count{};
+				// _rdrand16_step(&wire_count);
+				wire_count = std::rand();
+				wire_count %= 766;
+
+				v_tile_tile_offset_count.emplace_back(std::array<uint32_t, 2>{static_cast<uint32_t>(v_dest_tile.size()), wire_count});
+				for (uint16_t wire{}; wire < wire_count; wire++) {
+					uint16_t dx{};
+					dx = std::rand();
+					//_rdrand16_step(&dx);
+					dx %= 670;
+
+					uint16_t dy{};
+					dy = std::rand();
+					//_rdrand16_step(&dy);
+					dy %= 311;
+
+					v_dest_tile.emplace_back(std::array<uint16_t, 2>{dx, dy});
+				}
+			}
+		}
+#endif
 	}
 
 	static void make_search_files() {

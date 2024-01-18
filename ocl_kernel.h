@@ -99,7 +99,7 @@ public:
 
     template<typename cl_integral>
     always_inline static std::expected<cl_integral, status> get_arg_info_integral(cl_kernel kernel, cl_uint arg_index, cl_kernel_info param_name) noexcept {
-        return get_arg_info_size<cl_integral>(kernel, param_name).and_then([&](size_t size) -> std::expected<cl_integral, status> {
+        return get_arg_info_size(kernel, arg_index, param_name).and_then([&](size_t size) -> std::expected<cl_integral, status> {
             cl_integral integral_pointer{};
 
             status sts1{ clGetKernelArgInfo(kernel, arg_index, param_name, sizeof(integral_pointer), &integral_pointer, 0) };
@@ -129,12 +129,12 @@ public:
         return get_arg_info_string(kernel, arg_index, param_name);
     }
 
-    always_inline std::expected<void, status> set_arg(cl_uint arg_index, cl_mem mem) noexcept {
+    always_inline std::expected<void, status> set_arg(cl_uint arg_index, ocl::buffer buf) noexcept {
         cl_int errcode_ret{ clSetKernelArg(
             kernel,
             arg_index,
             sizeof(cl_mem),
-            &mem) };
+            &buf.mem) };
 
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
@@ -155,5 +155,36 @@ public:
         return std::expected<void, status>();
     }
 
+
+
+
+
+
+    always_inline static std::expected<size_t, status> get_work_group_info_size(cl_kernel kernel, cl_kernel_work_group_info param_name) noexcept {
+        size_t param_value_size_ret{};
+        status sts0{ clGetKernelWorkGroupInfo(kernel, nullptr, param_name, 0, nullptr, &param_value_size_ret) };
+        if (sts0 != status::SUCCESS) return std::unexpected(sts0);
+        return std::expected<size_t, status>(param_value_size_ret);
+    }
+    always_inline std::expected<size_t, status> get_work_group_info_size(cl_kernel_work_group_info param_name) const noexcept {
+        return get_work_group_info_size(kernel, param_name);
+    }
+
+    template<typename cl_integral>
+    always_inline static std::expected<cl_integral, status> get_work_group_info_integral(cl_kernel kernel, cl_kernel_work_group_info param_name) noexcept {
+        return get_work_group_info_size(kernel, param_name).and_then([&](size_t size) -> std::expected<cl_integral, status> {
+            cl_integral integral_pointer{};
+
+            status sts1{ clGetKernelWorkGroupInfo(kernel, nullptr, param_name, sizeof(integral_pointer), &integral_pointer, 0) };
+            if (sts1 != status::SUCCESS) return std::unexpected(sts1);
+
+            return std::expected<cl_integral, status>(integral_pointer);
+            });
+    }
+
+    template<typename cl_integral>
+    always_inline std::expected<cl_integral, status> get_work_group_info_integral(cl_kernel_work_group_info param_name) const noexcept {
+        return get_work_group_info_integral<cl_integral>(kernel, param_name);
+    }
 };
 };
