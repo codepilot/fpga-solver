@@ -162,7 +162,7 @@ public:
     }
 
     always_inline std::expected<void, status> acquireGL_no_event(std::span<ocl::buffer> buffers) noexcept {
-        ocl::status sts{ clEnqueueAcquireGLObjects(queue, buffers.size(), reinterpret_cast<cl_mem*>(buffers.data()), 0, nullptr, 0) };
+        ocl::status sts{ clEnqueueAcquireGLObjects(queue, static_cast<cl_uint>(buffers.size()), reinterpret_cast<cl_mem*>(buffers.data()), 0, nullptr, 0) };
         if (sts != ocl::status::SUCCESS) {
             return std::unexpected(sts);
         }
@@ -170,7 +170,7 @@ public:
     }
 
     always_inline std::expected<void, status> releaseGL_no_event(std::span<ocl::buffer> buffers) noexcept {
-        ocl::status sts{ clEnqueueReleaseGLObjects(queue, buffers.size(), reinterpret_cast<cl_mem*>(buffers.data()), 0, nullptr, 0) };
+        ocl::status sts{ clEnqueueReleaseGLObjects(queue, static_cast<cl_uint>(buffers.size()), reinterpret_cast<cl_mem*>(buffers.data()), 0, nullptr, 0) };
         if (sts != ocl::status::SUCCESS) {
             return std::unexpected(sts);
         }

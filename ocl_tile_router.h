@@ -10,11 +10,12 @@ public:
     ocl::program program;
     std::vector<ocl::kernel> kernels;
     std::vector<ocl::buffer> buffers;
-    cl_uint max_workgroup_size{ 256 };
+    ocl::buffer stubLocations;
+    inline static constexpr cl_uint max_workgroup_size{ 256 };
 
     std::expected<void, ocl::status> step() {
         return queues.at(0).useGL(buffers, [&]() {
-            queues.at(0).enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * 64 }, { max_workgroup_size }).value();
+            queues.at(0).enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * 1 }, { max_workgroup_size }).value();
         });
     }
     static std::expected<OCL_Tile_Router, ocl::status> make(
@@ -38,10 +39,18 @@ public:
                             return ocl::buffer::from_gl(context.context, CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, gl_buffers).and_then([&](std::vector<ocl::buffer> buffers) {
                                 decltype(auto) kernel{ kernels.at(0) };
 
+                                std::vector<uint16_t> v_stubLocations(static_cast<size_t>(max_workgroup_size), 0);
+                                for (auto&& stubLocation : v_stubLocations) {
+                                    _rdseed16_step(&stubLocation);
+                                }
+
+                                auto buf_stubLocations{ context.create_buffer<uint16_t>(CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, v_stubLocations).value() };
+
                                 kernel.set_arg(0, buffers[0].mem).value();
                                 kernel.set_arg(1, buffers[1].mem).value();
                                 kernel.set_arg(2, buffers[2].mem).value();
                                 kernel.set_arg(3, buffers[3].mem).value();
+                                kernel.set_arg(4, buf_stubLocations.mem).value();
 
                                 return std::expected<OCL_Tile_Router, ocl::status>(OCL_Tile_Router{
                                     .context{context},
@@ -49,6 +58,7 @@ public:
                                     .program{program},
                                     .kernels{kernels},
                                     .buffers{buffers},
+                                    .stubLocations{buf_stubLocations},
                                 });
                             });
                         });
