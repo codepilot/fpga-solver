@@ -11,7 +11,7 @@ typedef struct {
     uint netIdx
 
   nets
-    ushort2 sourceTile // source
+    short2 sourceTile // source
 
 */
 
@@ -27,13 +27,19 @@ kernel void draw_wires(global int * routed, global int * unrouted, global int * 
   // { uint pos = atom_inc(&drawIndirect[1].count); unrouted[pos] = pos * 2; drawIndirect[1].instanceCount = 1; }
   // { uint pos = atom_inc(&drawIndirect[2].count); stubs[pos] = pos * 3; drawIndirect[2].instanceCount = 1; }
   global Stub * currentStub = stubLocations + get_global_id(0);
-  currentStub->curTile += (ushort2)(2,1);
+
+  ushort2 sourcePos = ((currentStub->sourceTile % tileSize) + tileSize) % tileSize;
+  ushort2 curPos = ((currentStub->curTile % tileSize) + tileSize) % tileSize;
 
   {
-    uint pos = atomic_add(&drawIndirect[0].count, 2);
-    routed[pos]     = ((((uint)tileSize.x) * (((uint)currentStub->sourceTile.y) % ((uint)tileSize.y)))) + ((((uint)currentStub->sourceTile.x) % ((uint)tileSize.x)));
-    routed[pos + 1] = ((((uint)tileSize.x) * (((uint)currentStub->curTile.y) % ((uint)tileSize.y))))    + ((((uint)currentStub->curTile.x) % ((uint)tileSize.x)));
+    //uint pos = atomic_add(&drawIndirect[0].count, 2);
+    uint pos = get_global_id(0) * 2;
+    routed[pos]     = ((((uint)tileSize.x) * (((uint)sourcePos.y)))) + ((((uint)sourcePos.x)));
+    routed[pos + 1] = ((((uint)tileSize.x) * (((uint)curPos.y))))    + ((((uint)curPos.x)));
     drawIndirect[0].instanceCount = 1;
+    drawIndirect[0].count = 256 * 2048;
   }
 
+  short2 delta = convert_short2(sourcePos) - convert_short2(curPos);
+  currentStub->curTile = convert_ushort2(convert_short2(curPos) + clamp(delta, (short2)(-1, -1), (short2)(1, 1)));
 }

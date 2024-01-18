@@ -12,10 +12,12 @@ public:
     std::vector<ocl::buffer> buffers;
     ocl::buffer stubLocations;
     inline static constexpr cl_uint max_workgroup_size{ 256 };
+    inline static constexpr cl_uint workgroup_count{ 2048 };
+    inline static constexpr cl_uint total_group_size{ max_workgroup_size * workgroup_count };
 
     std::expected<void, ocl::status> step() {
         return queues.at(0).useGL(buffers, [&]() {
-            queues.at(0).enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * 1 }, { max_workgroup_size }).value();
+            queues.at(0).enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }).value();
         });
     }
     static std::expected<OCL_Tile_Router, ocl::status> make(
@@ -39,7 +41,7 @@ public:
                             return ocl::buffer::from_gl(context.context, CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, gl_buffers).and_then([&](std::vector<ocl::buffer> buffers) {
                                 decltype(auto) kernel{ kernels.at(0) };
 
-                                std::vector<uint16_t> v_stubLocations(static_cast<size_t>(max_workgroup_size), 0);
+                                std::vector<uint16_t> v_stubLocations(static_cast<size_t>(total_group_size * 4), 0);
                                 for (auto&& stubLocation : v_stubLocations) {
                                     _rdseed16_step(&stubLocation);
                                 }
