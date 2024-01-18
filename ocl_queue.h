@@ -66,10 +66,10 @@ public:
     }
 
     template<cl_uint work_dim>
-    always_inline std::expected<void, status> enqueue_no_event(cl_kernel kernel, std::array<size_t, work_dim> global_work_offset, std::array<size_t, work_dim> global_work_size, std::array<size_t, work_dim> local_work_size) {
+    always_inline std::expected<void, status> enqueue_no_event(ocl::kernel kernel, std::array<size_t, work_dim> global_work_offset, std::array<size_t, work_dim> global_work_size, std::array<size_t, work_dim> local_work_size) {
         cl_int errcode_ret{ clEnqueueNDRangeKernel(
             queue,
-            kernel,
+            kernel.kernel,
             work_dim,
             global_work_offset.data(),
             global_work_size.data(),
@@ -159,6 +159,29 @@ public:
             return std::unexpected<status>(status{ errcode_ret });
         }
         return std::expected<void, status>();
+    }
+
+    always_inline std::expected<void, status> acquireGL_no_event(std::span<ocl::buffer> buffers) noexcept {
+        ocl::status sts{ clEnqueueAcquireGLObjects(queue, buffers.size(), reinterpret_cast<cl_mem*>(buffers.data()), 0, nullptr, 0) };
+        if (sts != ocl::status::SUCCESS) {
+            return std::unexpected(sts);
+        }
+        return std::expected<void, status>();
+    }
+
+    always_inline std::expected<void, status> releaseGL_no_event(std::span<ocl::buffer> buffers) noexcept {
+        ocl::status sts{ clEnqueueReleaseGLObjects(queue, buffers.size(), reinterpret_cast<cl_mem*>(buffers.data()), 0, nullptr, 0) };
+        if (sts != ocl::status::SUCCESS) {
+            return std::unexpected(sts);
+        }
+        return std::expected<void, status>();
+    }
+
+    always_inline std::expected<void, status> useGL(std::span<ocl::buffer> buffers, auto lambda) noexcept {
+        return acquireGL_no_event(buffers).and_then([&]()->std::expected<void, status> {
+            lambda();
+            return releaseGL_no_event(buffers);
+        });
     }
 
 };

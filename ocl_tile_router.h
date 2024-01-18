@@ -12,11 +12,10 @@ public:
     std::vector<ocl::buffer> buffers;
     cl_uint max_workgroup_size{ 256 };
 
-    void step() {
-        decltype(auto) kernel{ kernels.at(0) };
-        decltype(auto) queue{ queues.at(0) };
-        queue.enqueue_no_event<1>(kernel.kernel, { 0 }, { max_workgroup_size * 1 }, { max_workgroup_size }).value();
-        queue.flush().value();
+    std::expected<void, ocl::status> step() {
+        return queues.at(0).useGL(buffers, [&]() {
+            queues.at(0).enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * 64 }, { max_workgroup_size }).value();
+        });
     }
     static std::expected<OCL_Tile_Router, ocl::status> make(
         std::vector<cl_context_properties> context_properties = {},
@@ -36,7 +35,7 @@ public:
                     }
                     return program.build().and_then([&]()-> std::expected<OCL_Tile_Router, ocl::status> {
                         return program.create_kernels().and_then([&](std::vector<ocl::kernel> kernels)->std::expected<OCL_Tile_Router, ocl::status> {
-                            return ocl::buffer::from_gl(context.context, CL_MEM_READ_WRITE, gl_buffers).and_then([&](std::vector<ocl::buffer> buffers) {
+                            return ocl::buffer::from_gl(context.context, CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, gl_buffers).and_then([&](std::vector<ocl::buffer> buffers) {
                                 decltype(auto) kernel{ kernels.at(0) };
 
                                 kernel.set_arg(0, buffers[0].mem).value();

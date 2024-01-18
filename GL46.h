@@ -591,7 +591,7 @@ public:
             std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_stubs, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines }
         );
 #endif
-        wglSwapIntervalEXT(1);
+        wglSwapIntervalEXT(0);
 
 #if 0
         MemoryMappedFile vertexGlsl{ L"../shaders/vertex.vert" };
@@ -695,21 +695,25 @@ public:
 
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-        ocltr.step();
+        ocltr.step().value();
 
         glBindVertexArray(vaRouted);
         glProgramUniform4f(fragmentShader, 0, 0.0f, 1.0f, 0.0f, 1.0f);
-        glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, nullptr);
+        glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void *>(DrawElementsIndirectCommand_size * 0));
 
         glBindVertexArray(vaStubs);
         glProgramUniform4f(fragmentShader, 0, 0.0f, 0.0f, 1.0f, 1.0f);
-        // glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, &draw_commands.at(1));
-        //glDrawElements(GL_LINES, stubs_index_count, GL_UNSIGNED_INT, nullptr);
+        glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 1));
 
         glBindVertexArray(vaUnrouted);
-        glProgramUniform4f(fragmentShader, 0, 1.0f, 0.0f, 0.0f, 1.0f/255.0f);
-        // glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, &draw_commands.at(2));
-        //glDrawElements(GL_LINES, unrouted_index_count, GL_UNSIGNED_INT, nullptr);
+        glProgramUniform4f(fragmentShader, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+        glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 2));
+
+        glInvalidateBufferData(vio_routed);
+        glInvalidateBufferData(vio_unrouted);
+        glInvalidateBufferData(vio_stubs);
+        glClearNamedBufferData(indirect_buf_id, GL_RGBA32UI, GL_RGBA, GL_UNSIGNED_INT, nullptr);
+
 
         glDisable(GL_BLEND);
 
