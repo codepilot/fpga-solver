@@ -1,0 +1,5 @@
+include_guard(GLOBAL)
+block()
+  standard_executable(win-desktop WIN32)
+  add_dependencies(win-desktop shaders)
+endblock()

@@ -1,0 +1,8 @@
+include_guard(GLOBAL)
+block()
+  set(OPENCL_ICD_LOADER_BUILD_TESTING off)
+  set(OPENCL_ICD_LOADER_BUILD_SHARED_LIBS off)
+  set(BUILD_TESTING off)
+  set(BUILD_SHARED_LIBS off)
+  find_package(OpenCL)
+endblock()

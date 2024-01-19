@@ -31,7 +31,7 @@
 
 #include "MemoryMappedFile.h"
 
-#include <zlib/zlib.h>
+#include <zlib.h>
 
 void debug_belpin(uint32_t indent, PhysicalNetlist::PhysNetlist::Reader physRoot, ::PhysicalNetlist::PhysNetlist::PhysBelPin::Reader belpin) {
 	puts(std::format("{:>{}}BelPin Site:{} Bel:{} Pin:{}",

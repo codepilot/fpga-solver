@@ -19,23 +19,19 @@
 #include <Windows.h>
 #include "MemoryMappedFile.h"
 
-#include <zlib/zlib.h>
+#include <zlib.h>
 
 int main(int argc, char* argv[]) {
-	std::vector<std::wstring> wargs;
-	std::vector<std::string_view> args;
+	std::vector<std::string> args;
 	args.reserve(argc);
 	for (int i{}; i != argc; i++) {
 		args.emplace_back(argv[i]);
 	}
 	if(args.size() != 4) return 1;
-	for(auto &&arg: args) {
-		wargs.emplace_back(std::wstring_convert<std::codecvt_utf8<wchar_t>>().from_bytes(std::string{ arg }));
-	}
 
 	{
-		MemoryMappedFile mmf_args{ wargs.at(1) };
-		MemoryMappedFile mmf_dst{ wargs.at(2), 4294967296ui64 };
+		MemoryMappedFile mmf_args{ args.at(1) };
+		MemoryMappedFile mmf_dst{ args.at(2), 4294967296ui64 };
 		auto read_span{ mmf_args.get_span<Bytef>() };
 		auto write_span{ mmf_dst.get_span<Bytef>()};
 		z_stream strm{
@@ -54,17 +50,17 @@ int main(int argc, char* argv[]) {
 		capnp::FlatArrayMessageReader famr{ words, {.traversalLimitInWords = UINT64_MAX, .nestingLimit = INT32_MAX} };
 		auto anyReader{ famr.getRoot<capnp::AnyStruct>() };
 
-		MemoryMappedFile mmf_canon_dst{ wargs.at(3), mmf_unzipped.fsize };
+		MemoryMappedFile mmf_canon_dst{ args.at(3), mmf_unzipped.fsize };
 		auto mmf_canon_dst_span{ mmf_canon_dst.get_span<capnp::word>() };
 		kj::ArrayPtr<capnp::word> backing{ mmf_canon_dst_span.data(), mmf_canon_dst_span.size() };
-		auto canonical_size = anyReader.canonicalize(backing);
-		auto mmf_canon_dst_shrunk{ mmf_canon_dst.shrink(canonical_size * sizeof(capnp::word)) };
+		auto canonical_size = anyReader.canonicalize(/*backing*/);
+		auto mmf_canon_dst_shrunk{ mmf_canon_dst.shrink(canonical_size.size() * sizeof(capnp::word)) };
 		std::print("canon_size:   {}\n", mmf_canon_dst_shrunk.fsize);
 		// mmf_unzipped.reopen_delete();
 		std::print("mmf_unzipped: {}\n", mmf_unzipped.fsize);
 	}
 	{
-		MemoryMappedFile mmf_canon_dst{ wargs.at(3) };
+		MemoryMappedFile mmf_canon_dst{ args.at(3) };
 
 		auto span_words{ mmf_canon_dst.get_span<capnp::word>() };
 		kj::ArrayPtr<capnp::word> words{ span_words.data(), span_words.size() };

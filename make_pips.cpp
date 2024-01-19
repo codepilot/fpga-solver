@@ -34,7 +34,7 @@
 #include <vector>
 #include "MMF_Dense_Sets.h"
 
-#include <zlib/zlib.h>
+#include <zlib.h>
 #include <queue>
 
 #include "RenumberedWires.h"

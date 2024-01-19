@@ -31,9 +31,7 @@
 #include <format>
 #include <fstream>
 
-#include <CL/opencl.hpp>
-
-#include <zlib/zlib.h>
+#include <zlib.h>
 
 using msl::utilities::SafeInt;
 class GL46;

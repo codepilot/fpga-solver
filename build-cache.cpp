@@ -24,11 +24,11 @@
 #include "MemoryMappedFile.h"
 #include "cached_node_lookup.h"
 
-#include <zlib/zlib.h>
+#include <zlib.h>
 
 int main(int argc, char* argv[]) {
-	std::vector<std::string_view> args;
-	std::vector<std::wstring> wargs;
+	std::vector<std::string> args;
+
 	for (int i{}; i != argc; i++) {
 		args.emplace_back(argv[i]);
 	}
@@ -41,9 +41,6 @@ int main(int argc, char* argv[]) {
 	if (args.size() != 5) {
 		return 1;
 	}
-	for (auto&& arg : args) {
-		wargs.emplace_back(std::wstring_convert<std::codecvt_utf8<wchar_t>>().from_bytes(std::string{ arg }));
-	}
 	{
 		int32_t arg_index{};
 		for (auto&& arg : args) {
@@ -53,9 +50,9 @@ int main(int argc, char* argv[]) {
 		std::print("\n");
 	}
 
-	MemoryMappedFile mmf2{ wargs.at(2), 65536 };
-	MemoryMappedFile mmf3{ wargs.at(3), 65536 };
-	MemoryMappedFile mmf4{ wargs.at(4), 65536 };
+	MemoryMappedFile mmf2{ args.at(2), 65536 };
+	MemoryMappedFile mmf3{ args.at(3), 65536 };
+	MemoryMappedFile mmf4{ args.at(4), 65536 };
 
 
 	return 0;
