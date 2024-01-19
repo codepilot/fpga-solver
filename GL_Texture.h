@@ -8,6 +8,10 @@ public:
         GL46_Base::glCreateTextures(target, 1, &id);
         return id;
     }
-    inline GL_Texture(): GL_Label<GL_Label_Type::TEXTURE, label>(create_id()) {
+    inline GL_Texture(GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height): GL_Label<GL_Label_Type::TEXTURE, label>(create_id()) {
+        GL46_Base::glTextureStorage2D(this->id, levels, internalformat, width, height);
+    }
+    inline void clear(GLint level, GLenum format, GLenum type, const void* data) {
+        GL46_Base::glClearTexImage(this->id, level, format, type, data);
     }
 };

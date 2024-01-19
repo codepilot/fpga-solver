@@ -22,4 +22,8 @@ public:
     inline void validate() {
         GL46_Base::glValidateProgramPipeline(this->id);
     }
+    template<constexpr_string label, GL_ShaderType shaderType>
+    inline void use(GLbitfield stages, GL_Program<label, shaderType> &program) {
+        GL46_Base::glUseProgramStages(this->id, stages, program.id);
+    }
 };

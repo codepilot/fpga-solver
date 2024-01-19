@@ -13,6 +13,12 @@ public:
 	}
 	inline GL_Program() : GL_Label<GL_Label_Type::PROGRAM, label>{ create_id() } {
     }
+	inline void uniform2f(GLint location, GLfloat v0, GLfloat v1) {
+		GL46_Base::glProgramUniform2f(this->id, location, v0, v1);
+	}
+	inline void uniform4f(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3) {
+		GL46_Base::glProgramUniform4f(this->id, location, v0, v1, v2, v3);
+	}
 	inline static GL_Program spirv_span(std::span<unsigned char> spirv) {
 		// Read our shaders into the appropriate buffers
 

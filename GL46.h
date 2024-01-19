@@ -149,8 +149,8 @@ public:
     HGLRC hglrc;
     std::unordered_set <std::string> extensions;
 
-    GL_FrameBuffer<"fb"> fb;
     GL_Texture<GL_TEXTURE_RECTANGLE, "texture"> texture;
+    GL_FrameBuffer<"fb"> fb;
     std::vector<std::array<uint16_t, 2>> v_unrouted_locations;
     std::span<std::array<uint16_t, 2>> unrouted_locations;
 
@@ -184,7 +184,7 @@ public:
         hglrc{ load_opengl(hdc) },
         extensions{ getExtensions(hdc) },
         fb{ },
-        texture{ },
+        texture{ 1, GL_RGBA8, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow) },
         v_unrouted_locations{ tileInfo.get_tile_locations() },
         unrouted_locations{ v_unrouted_locations },
         vbo_locations{ static_cast<GLsizeiptr>(unrouted_locations.size_bytes()), unrouted_locations.data() },
@@ -221,29 +221,29 @@ public:
         }
 
         // phys.build();
-        glTextureStorage2D(texture.id, 1, GL_RGBA8, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow));
+        texture.clear(0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 
-        glClearTexSubImage(texture.id, 0, 0, 0, 0, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow), 1, GL_RGBA, GL_FLOAT, nullptr);
+        fb.texture(GL_COLOR_ATTACHMENT0, texture, 0);
 
         // glTextureSubImage2D(textures[0], 0, 0, 0, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow), GL_RGBA, GL_UNSIGNED_BYTE, dev.sp_tile_drawing.data());
 
-        glVertexArrayAttribBinding(vaRouted.id, 0, 0);
-        glVertexArrayAttribFormat(vaRouted.id, 0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
-        glVertexArrayVertexBuffer(vaRouted.id, 0, vbo_locations.id, 0, 4);
-        glEnableVertexArrayAttrib(vaRouted.id, 0);
-        glVertexArrayElementBuffer(vaRouted.id, vio_routed.id);
+        vaRouted.attribBinding(0, 0);
+        vaRouted.attribFormat(0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
+        vaRouted.attribBuffer(0, vbo_locations, 0, 4);
+        vaRouted.attribEnable(0);
+        vaRouted.elementBuffer(vio_routed);
 
-        glVertexArrayAttribBinding(vaUnrouted.id, 0, 0);
-        glVertexArrayAttribFormat(vaUnrouted.id, 0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
-        glVertexArrayVertexBuffer(vaUnrouted.id, 0, vbo_locations.id, 0, 4);
-        glEnableVertexArrayAttrib(vaUnrouted.id, 0);
-        glVertexArrayElementBuffer(vaUnrouted.id, vio_unrouted.id);
+        vaUnrouted.attribBinding(0, 0);
+        vaUnrouted.attribFormat(0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
+        vaUnrouted.attribBuffer(0, vbo_locations, 0, 4);
+        vaUnrouted.attribEnable(0);
+        vaUnrouted.elementBuffer(vio_unrouted);
 
-        glVertexArrayAttribBinding(vaStubs.id, 0, 0);
-        glVertexArrayAttribFormat(vaStubs.id, 0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
-        glVertexArrayVertexBuffer(vaStubs.id, 0, vbo_locations.id, 0, 4);
-        glEnableVertexArrayAttrib(vaStubs.id, 0);
-        glVertexArrayElementBuffer(vaStubs.id, vio_stubs.id);
+        vaStubs.attribBinding(0, 0);
+        vaStubs.attribFormat(0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
+        vaStubs.attribBuffer(0, vbo_locations, 0, 4);
+        vaStubs.attribEnable(0);
+        vaStubs.elementBuffer(vio_stubs);
 
         std::span<uint32_t> mRouted{};
 #if 0
@@ -261,11 +261,11 @@ public:
         vertexShader = createShader(ShaderType::vertex, std::string{ reinterpret_cast<char*>(vertexGlsl.fp), vertexGlsl.fsize });
         fragmentShader = createShader(ShaderType::fragment, std::string{ reinterpret_cast<char*>(fragmentGlsl.fp), fragmentGlsl.fsize });
 #endif
-        GL46_Base::glUseProgramStages(program_pipeline.id, GL_VERTEX_SHADER_BIT, vertex_program.id);
-        GL46_Base::glUseProgramStages(program_pipeline.id, GL_FRAGMENT_SHADER_BIT, fragment_program.id);
+        program_pipeline.use(GL_VERTEX_SHADER_BIT, vertex_program);
+        program_pipeline.use(GL_FRAGMENT_SHADER_BIT, fragment_program);
 
         program_pipeline.validate();
-        glProgramUniform2f(vertex_program.id, 0, static_cast<GLfloat>(tileInfo.numCol), static_cast<GLfloat>(tileInfo.numRow));
+        vertex_program.uniform2f(0, static_cast<GLfloat>(tileInfo.numCol), static_cast<GLfloat>(tileInfo.numRow));
 
 #if 1
         ;
@@ -334,10 +334,8 @@ public:
         glViewport(0, 0, clientWidth, clientHeight);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(or_reduce<GLbitfield>({ GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT, GL_STENCIL_BUFFER_BIT }));
-        glNamedFramebufferTexture(fb.id, GL_COLOR_ATTACHMENT0, texture.id, 0);
 
-        glBlitNamedFramebuffer(fb.id, 0,
-            0, 0, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow),
+        fb.blitDefault(0, 0, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow),
             0, 0, static_cast<GLint>(clientWidth), static_cast<GLint>(clientHeight),
             GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
@@ -352,17 +350,17 @@ public:
         indirect_buf.bind(GL_DRAW_INDIRECT_BUFFER, [&]() {
             program_pipeline.bind([&]() {
                 vaRouted.bind([&]() {
-                    glProgramUniform4f(fragment_program.id, 0, 0.0f, 1.0f, 0.0f, 0.01f);
+                    fragment_program.uniform4f(0, 0.0f, 1.0f, 0.0f, 0.01f);
                     glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 0));
                 });
 
                 vaStubs.bind([&]() {
-                    glProgramUniform4f(fragment_program.id, 0, 0.0f, 0.0f, 1.0f, 1.0f);
+                    fragment_program.uniform4f(0, 0.0f, 0.0f, 1.0f, 1.0f);
                     glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 1));
                 });
 
                 vaUnrouted.bind([&]() {
-                    glProgramUniform4f(fragment_program.id, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+                    fragment_program.uniform4f(0, 1.0f, 0.0f, 0.0f, 1.0f);
                     glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 2));
                 });
             });
