@@ -2,21 +2,18 @@
 
 #include "gl46_base.h"
 
-class GL_VertexArray {
+template<constexpr_string label>
+class GL_VertexArray : public GL_Label<GL_Label_Type::VERTEX_ARRAY, label> {
 public:
-    GLuint id;
-    ~GL_VertexArray() {
-        OutputDebugStringW(L"~glDeleteVertexArrays()\r\n");
-        GL46_Base::glDeleteVertexArrays(1, &id); id = 0;
-    }
-    static GL_VertexArray create() {
+    inline static GLuint create_id() {
         GLuint id{};
         GL46_Base::glCreateVertexArrays(1, &id);
-        OutputDebugStringW(L"glCreateVertexArrays\r\n");
-        return GL_VertexArray{.id{id}};
+        return id;
     }
-    void bind(auto lambda) const {
-      GL46_Base::glBindVertexArray(id);
+    inline GL_VertexArray(): GL_Label<GL_Label_Type::VERTEX_ARRAY, label>(create_id()) {
+    }
+    inline void bind(auto lambda) const {
+      GL46_Base::glBindVertexArray(this->id);
       lambda();
       GL46_Base::glBindVertexArray(0);
     }

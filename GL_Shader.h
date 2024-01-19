@@ -12,20 +12,17 @@ enum class GL_ShaderType : GLenum {
     fragment = GL_FRAGMENT_SHADER,
 };
 
-class GL_Shader {
+template<constexpr_string label, GL_ShaderType shaderType>
+class GL_Shader : public GL_Label<GL_Label_Type::SHADER, label> {
 public:
-    GLuint id;
-	inline ~GL_Shader() {
-        OutputDebugStringW(L"~glDeleteShader()\r\n");
-        GL46_Base::glDeleteShader(id); id = 0;
-    }
-	inline static GL_Shader create(GL_ShaderType shaderType) {
+    inline static GLuint create_id() {
         GLuint id{ GL46_Base::glCreateShader(static_cast<GLenum>(shaderType)) };
-        OutputDebugStringW(L"glCreateShader\r\n");
-        return GL_Shader{.id{id}};
+        return id;
     }
-    inline static GL_Shader spirv_span(GL_ShaderType shaderType, std::span<unsigned char> spirv) {
-        GL_Shader shader{ GL_Shader::create(shaderType) };
+    inline GL_Shader() : GL_Label<GL_Label_Type::SHADER, label>{ create_id() } {
+    }
+    inline static GL_Shader spirv_span(std::span<unsigned char> spirv) {
+        GL_Shader shader;
 
         // Apply the vertex shader SPIR-V to the shader object.
         GL46_Base::glShaderBinary(1, &shader.id, GL_SHADER_BINARY_FORMAT_SPIR_V, spirv.data(), static_cast<GLsizei>(spirv.size()));

@@ -4,25 +4,22 @@
 
 #include "GL_Shader.h"
 
-class GL_Program {
+template<constexpr_string label, GL_ShaderType shaderType>
+class GL_Program: public GL_Label<GL_Label_Type::PROGRAM, label> {
 public:
-    GLuint id;
-    ~GL_Program() {
-        OutputDebugStringW(L"~glDeleteProgram()\r\n");
-        GL46_Base::glDeleteProgram(id); id = 0;
+	inline GLuint static create_id() {
+		GLuint id{ GL46_Base::glCreateProgram() };
+		return id;
+	}
+	inline GL_Program() : GL_Label<GL_Label_Type::PROGRAM, label>{ create_id() } {
     }
-    static GL_Program create() {
-        GLuint id{ GL46_Base::glCreateProgram() };
-        OutputDebugStringW(L"glCreatePrograms\r\n");
-        return GL_Program{.id{id}};
-    }
-	inline static GL_Program spirv_span(GL_ShaderType shaderType, std::span<unsigned char> spirv) {
+	inline static GL_Program spirv_span(std::span<unsigned char> spirv) {
 		// Read our shaders into the appropriate buffers
 
 		// Create an empty vertex shader handle
-		GL_Shader shader{ GL_Shader::spirv_span(shaderType, spirv) };
+		auto shader{ GL_Shader<label, shaderType>::spirv_span(spirv) };
 
-		GL_Program program{ create() };
+		GL_Program<label, shaderType> program;
 
 		// Attach our shaders to our program
 		GL46_Base::glProgramParameteri(program.id, GL_PROGRAM_SEPARABLE, GL_TRUE);

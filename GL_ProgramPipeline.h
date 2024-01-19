@@ -2,22 +2,24 @@
 
 #include "gl46_base.h"
 
-class GL_ProgramPipeline {
+#include "GL_Program.h"
+
+template<constexpr_string label>
+class GL_ProgramPipeline : public GL_Label<GL_Label_Type::PROGRAM_PIPELINE, label> {
 public:
-    GLuint id;
-    ~GL_ProgramPipeline() {
-        OutputDebugStringW(L"~glDeleteProgramPipelines()\r\n");
-        GL46_Base::glDeleteProgramPipelines(1, &id); id = 0;
-    }
-    static GL_ProgramPipeline create() {
+    inline GLuint static create_id() {
         GLuint id{};
         GL46_Base::glCreateProgramPipelines(1, &id);
-        OutputDebugStringW(L"glCreateProgramPipelines\r\n");
-        return GL_ProgramPipeline{.id{id}};
+        return id;
     }
-    void bind(auto lambda) const {
-      GL46_Base::glBindProgramPipeline(id);
+    inline GL_ProgramPipeline() : GL_Label<GL_Label_Type::PROGRAM_PIPELINE, label>{ create_id() } {
+    }
+    inline void bind(auto lambda) const {
+      GL46_Base::glBindProgramPipeline(this->id);
       lambda();
       GL46_Base::glBindProgramPipeline(0);
+    }
+    inline void validate() {
+        GL46_Base::glValidateProgramPipeline(this->id);
     }
 };

@@ -19,6 +19,7 @@ public:
 #endif
 
 #include "gl46_base.h"
+#include "GL_Label.h"
 #include "GL_Texture.h"
 #include "GL_Buffer.h"
 #include "GL_FrameBuffer.h"
@@ -148,32 +149,32 @@ public:
     HGLRC hglrc;
     std::unordered_set <std::string> extensions;
 
-    GL_FrameBuffer fb;
-    GL_Textures<GL_TEXTURE_RECTANGLE> textures{};
+    GL_FrameBuffer<"fb"> fb;
+    GL_Texture<GL_TEXTURE_RECTANGLE, "texture"> texture;
     std::vector<std::array<uint16_t, 2>> v_unrouted_locations;
     std::span<std::array<uint16_t, 2>> unrouted_locations;
 
-    GL_Buffer vbo_locations;
+    GL_Buffer<"vbo_locations"> vbo_locations;
 
-    GL_Buffer vio_routed;
-    GL_Buffer vio_unrouted;
-    GL_Buffer vio_stubs;
+    GL_Buffer<"vio_routed"> vio_routed;
+    GL_Buffer<"vio_unrouted"> vio_unrouted;
+    GL_Buffer<"vio_stubs"> vio_stubs;
 
-    GL_VertexArray vaRouted;
-    GL_VertexArray vaUnrouted;
-    GL_VertexArray vaStubs;
+    GL_VertexArray<"vaRouted"> vaRouted;
+    GL_VertexArray<"vaUnrouted"> vaUnrouted;
+    GL_VertexArray<"vaStubs"> vaStubs;
 
-    GL_Buffer indirect_buf;
+    GL_Buffer<"indirect_buf"> indirect_buf;
 
     OCL_Tile_Router ocltr;
 
     MemoryMappedFile vertex_spirv;
     MemoryMappedFile fragment_spirv;
 
-    GL_Program vertex_program{};
-    GL_Program fragment_program{};
+    GL_Program<"vertex_program", GL_ShaderType::vertex> vertex_program;
+    GL_Program<"fragment_program", GL_ShaderType::fragment> fragment_program;
 
-    GL_ProgramPipeline pipe;
+    GL_ProgramPipeline<"program_pipeline"> program_pipeline;
 
     GL46() :
         clientWidth{ 1 },
@@ -182,17 +183,18 @@ public:
         hdc{ GetDC(hwnd) },
         hglrc{ load_opengl(hdc) },
         extensions{ getExtensions(hdc) },
-        fb{ GL_FrameBuffer::create() },
+        fb{ },
+        texture{ },
         v_unrouted_locations{ tileInfo.get_tile_locations() },
         unrouted_locations{ v_unrouted_locations },
-        vbo_locations{ GL_Buffer::create(unrouted_locations.size_bytes(), unrouted_locations.data()) },
-        vio_routed{ GL_Buffer::create(index_buf_bytes) },
-        vio_unrouted{ GL_Buffer::create(index_buf_bytes) },
-        vio_stubs{ GL_Buffer::create(index_buf_bytes) },
-        vaRouted{ GL_VertexArray::create() },
-        vaUnrouted{ GL_VertexArray::create() },
-        vaStubs{ GL_VertexArray::create() },
-        indirect_buf{ GL_Buffer::create(DrawElementsIndirectCommand_size * 3) },
+        vbo_locations{ static_cast<GLsizeiptr>(unrouted_locations.size_bytes()), unrouted_locations.data() },
+        vio_routed{ index_buf_bytes },
+        vio_unrouted{ index_buf_bytes },
+        vio_stubs{ index_buf_bytes },
+        vaRouted{ },
+        vaUnrouted{ },
+        vaStubs{ },
+        indirect_buf{ DrawElementsIndirectCommand_size * 3 },
         ocltr{ OCL_Tile_Router::make(
             {
                 CL_CONTEXT_PLATFORM, reinterpret_cast<cl_context_properties>(ocl::platform::get_ids().value().at(0)),
@@ -204,9 +206,9 @@ public:
         ) },
         vertex_spirv{ "shaders\\vertex.vert.spv" },
         fragment_spirv{ "shaders\\fragment.frag.spv" },
-        vertex_program{ GL_Program::spirv_span(GL_ShaderType::vertex, vertex_spirv.get_span<unsigned char>()) },
-        fragment_program{ GL_Program::spirv_span(GL_ShaderType::fragment, fragment_spirv.get_span<unsigned char>()) },
-        pipe{ GL_ProgramPipeline::create() }
+        vertex_program{ GL_Program<"vertex_program", GL_ShaderType::vertex>::spirv_span(vertex_spirv.get_span<unsigned char>()) },
+        fragment_program{ GL_Program<"fragment_program", GL_ShaderType::fragment>::spirv_span(fragment_spirv.get_span<unsigned char>())},
+        program_pipeline{ }
     {
         ShowWindow(hwnd, SW_MAXIMIZE);
         if (false) {
@@ -219,10 +221,9 @@ public:
         }
 
         // phys.build();
-        textures = 1;
-        glTextureStorage2D(textures[0], 1, GL_RGBA8, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow));
+        glTextureStorage2D(texture.id, 1, GL_RGBA8, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow));
 
-        glClearTexSubImage(textures[0], 0, 0, 0, 0, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow), 1, GL_RGBA, GL_FLOAT, nullptr);
+        glClearTexSubImage(texture.id, 0, 0, 0, 0, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow), 1, GL_RGBA, GL_FLOAT, nullptr);
 
         // glTextureSubImage2D(textures[0], 0, 0, 0, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow), GL_RGBA, GL_UNSIGNED_BYTE, dev.sp_tile_drawing.data());
 
@@ -244,8 +245,6 @@ public:
         glEnableVertexArrayAttrib(vaStubs.id, 0);
         glVertexArrayElementBuffer(vaStubs.id, vio_stubs.id);
 
-        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, indirect_buf.id);
-
         std::span<uint32_t> mRouted{};
 #if 0
         rp.start_routing(
@@ -262,10 +261,10 @@ public:
         vertexShader = createShader(ShaderType::vertex, std::string{ reinterpret_cast<char*>(vertexGlsl.fp), vertexGlsl.fsize });
         fragmentShader = createShader(ShaderType::fragment, std::string{ reinterpret_cast<char*>(fragmentGlsl.fp), fragmentGlsl.fsize });
 #endif
-        glUseProgramStages(pipe.id, GL_VERTEX_SHADER_BIT, vertex_program.id);
-        glUseProgramStages(pipe.id, GL_FRAGMENT_SHADER_BIT, fragment_program.id);
-        glValidateProgramPipeline(pipe.id);
-        glBindProgramPipeline(pipe.id);
+        GL46_Base::glUseProgramStages(program_pipeline.id, GL_VERTEX_SHADER_BIT, vertex_program.id);
+        GL46_Base::glUseProgramStages(program_pipeline.id, GL_FRAGMENT_SHADER_BIT, fragment_program.id);
+
+        program_pipeline.validate();
         glProgramUniform2f(vertex_program.id, 0, static_cast<GLfloat>(tileInfo.numCol), static_cast<GLfloat>(tileInfo.numRow));
 
 #if 1
@@ -325,6 +324,7 @@ public:
         while (step() != WM_QUIT) {
             draw();
         }
+        OutputDebugStringA("WM_QUIT\r\n");
     }
 
     bool first_capture_png{ true };
@@ -334,7 +334,7 @@ public:
         glViewport(0, 0, clientWidth, clientHeight);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(or_reduce<GLbitfield>({ GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT, GL_STENCIL_BUFFER_BIT }));
-        glNamedFramebufferTexture(fb.id, GL_COLOR_ATTACHMENT0, textures[0], 0);
+        glNamedFramebufferTexture(fb.id, GL_COLOR_ATTACHMENT0, texture.id, 0);
 
         glBlitNamedFramebuffer(fb.id, 0,
             0, 0, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow),
@@ -349,19 +349,23 @@ public:
 
         ocltr.step().value();
 
-        vaRouted.bind([&]() {
-            glProgramUniform4f(fragment_program.id, 0, 0.0f, 1.0f, 0.0f, 0.01f);
-            glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 0));
-        });
+        indirect_buf.bind(GL_DRAW_INDIRECT_BUFFER, [&]() {
+            program_pipeline.bind([&]() {
+                vaRouted.bind([&]() {
+                    glProgramUniform4f(fragment_program.id, 0, 0.0f, 1.0f, 0.0f, 0.01f);
+                    glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 0));
+                });
 
-        vaStubs.bind([&]() {
-            glProgramUniform4f(fragment_program.id, 0, 0.0f, 0.0f, 1.0f, 1.0f);
-            glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 1));
-        });
+                vaStubs.bind([&]() {
+                    glProgramUniform4f(fragment_program.id, 0, 0.0f, 0.0f, 1.0f, 1.0f);
+                    glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 1));
+                });
 
-        vaUnrouted.bind([&]() {
-            glProgramUniform4f(fragment_program.id, 0, 1.0f, 0.0f, 0.0f, 1.0f);
-            glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 2));
+                vaUnrouted.bind([&]() {
+                    glProgramUniform4f(fragment_program.id, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+                    glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 2));
+                });
+            });
         });
 
         // glInvalidateBufferData(vio_routed);
