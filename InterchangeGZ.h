@@ -3,6 +3,8 @@
 #include "DeviceResources.capnp.h"
 #include "LogicalNetlist.capnp.h"
 #include "PhysicalNetlist.capnp.h"
+#include <capnp/serialize.h>
+#include <zlib.h>
 
 template<typename T>
 class InterchangeGZ {
@@ -10,7 +12,7 @@ public:
 	MemoryMappedFile mmf_unzipped;
 	std::span<capnp::word> span_words;
 	kj::ArrayPtr<capnp::word> words;
-	capnp::FlatArrayMessageReader famr;
+	capnp::FlatArrayMessageReader famr{ kj::ArrayPtr<const capnp::word>{} };
 	T::Reader root;
 
 	static MemoryMappedFile inflate_mmf(std::string fn, bool delete_temp = true) {
@@ -34,6 +36,19 @@ public:
 
 		if(delete_temp) mmf_unzipped.reopen_delete();
 		return mmf_unzipped;
+	}
+	InterchangeGZ() {
+
+	}
+
+	InterchangeGZ(InterchangeGZ&& other):
+		mmf_unzipped{ std::move(other.mmf_unzipped) },
+		span_words{ mmf_unzipped.get_span<capnp::word>() },
+		words{ span_words.data(), span_words.size() },
+		famr{ words, {.traversalLimitInWords = UINT64_MAX, .nestingLimit = INT32_MAX} },
+		root{ famr.getRoot<T>() }
+	{
+
 	}
 
 	InterchangeGZ(std::string fn, bool delete_temp = true) :

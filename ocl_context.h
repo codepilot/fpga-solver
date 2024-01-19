@@ -113,5 +113,37 @@ public:
         return ocl::svm<T>::alloc(context, flags, size, alignment);
     }
 
+    always_inline static std::expected<buffer, status> from_gl(ocl::context context, cl_mem_flags flags, cl_uint bufobj) {
+        cl_int errcode_ret{};
+        cl_mem mem{ clCreateFromGLBuffer(context.context, flags, bufobj, &errcode_ret) };
+
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<ocl::buffer, status>(ocl::buffer{ .mem{mem} });
+
+    }
+
+    always_inline std::expected<buffer, status> from_gl(cl_mem_flags flags, cl_uint bufobj) {
+        return ocl::context::from_gl(*this, flags, bufobj);
+    }
+
+    always_inline static std::expected<std::vector<ocl::buffer>, status> from_gl(ocl::context context, cl_mem_flags flags, std::span<cl_uint> bufobjs) {
+        std::vector<buffer> ret;
+        for (auto&& bufobj : bufobjs) {
+            auto mem{ from_gl(context, flags, bufobj) };
+            if (mem.has_value()) {
+                ret.emplace_back(std::move(mem.value()));
+            }
+            else {
+                return std::unexpected(mem.error());
+            }
+        }
+        return ret;
+    }
+
+    always_inline std::expected<std::vector<ocl::buffer>, status> from_gl(cl_mem_flags flags, std::span<cl_uint> bufobjs) {
+        return from_gl(*this, flags, bufobjs);
+    }
 };
 };

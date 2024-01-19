@@ -1,5 +1,9 @@
 #pragma once
 
+#include <GL/glcorearb.h>
+#include <GL/glext.h>
+#include <GL/wglext.h>
+
 class GL46_Base {
 public:
 
@@ -3435,7 +3439,7 @@ public:
 	static inline PFNWGLWAITFORMSCOMLPROC wglWaitForMscOML{};
 	static inline PFNWGLWAITFORSBCOMLPROC wglWaitForSbcOML{};
 
-	template<typename T> static inline T load(std::string procName) {
+	template<typename T> inline static T load(std::string procName) {
 		T p = reinterpret_cast<T>(wglGetProcAddress(procName.c_str()));
 		if (p == 0 ||
 			(p == (void*)0x1) || (p == (void*)0x2) || (p == (void*)0x3) ||
@@ -3449,7 +3453,7 @@ public:
 		return p;
 	}
 
-	void loadAll() {
+	inline static void loadAll() {
 #define loadProc(n) {n = load<decltype(n)>(#n);}
 		// loadProc(glAccum);
 		loadProc(glAccumxOES);
@@ -6885,4 +6889,293 @@ public:
 		loadProc(wglWaitForSbcOML);
 #undef loadProc
 	}
+
+	inline static DWORD dwExStyle{ or_reduce<DWORD>({
+	  WS_EX_APPWINDOW,
+	  WS_EX_OVERLAPPEDWINDOW,
+	  WS_EX_LEFT,
+	  WS_EX_LTRREADING,
+	}) };
+	inline static DWORD dwStyle{ or_reduce<DWORD>({
+	  WS_CAPTION,
+	  WS_CLIPCHILDREN,
+	  WS_CLIPSIBLINGS,
+	  WS_OVERLAPPEDWINDOW,
+	  WS_VISIBLE,
+	}) };
+
+	inline static constexpr BYTE color_channel_bits{ 8ui8 };
+	inline static PIXELFORMATDESCRIPTOR make_pixel_format() {
+
+		return {
+			  .nSize = sizeof(PIXELFORMATDESCRIPTOR),
+			  .nVersion = 1,
+			  .dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,    // Flags
+			  .iPixelType = PFD_TYPE_RGBA,        // The kind of framebuffer. RGBA or palette.
+			  .cColorBits = 32,                   // Colordepth of the framebuffer.
+			  .cRedBits = color_channel_bits,
+			  .cRedShift = 0,
+			  .cGreenBits = color_channel_bits,
+			  .cGreenShift = 0,
+			  .cBlueBits = color_channel_bits,
+			  .cBlueShift = 0,
+			  .cAlphaBits = 0,
+			  .cAlphaShift = 0,
+			  .cAccumBits = 0,
+			  .cAccumRedBits = 0,
+			  .cAccumGreenBits = 0,
+			  .cAccumBlueBits = 0,
+			  .cAccumAlphaBits = 0,
+			  .cDepthBits = 24,                   // Number of bits for the depthbuffer
+			  .cStencilBits = 0,                    // Number of bits for the stencilbuffer
+			  .cAuxBuffers = 0,                    // Number of Aux buffers in the framebuffer.
+			  .iLayerType = PFD_MAIN_PLANE,
+			  .bReserved = 0,
+			  .dwLayerMask = 0,
+			  .dwVisibleMask = 0,
+			  .dwDamageMask = 0
+		};
+	}
+
+	inline static std::unordered_set <std::string> getExtensions(HDC hdc) {
+		std::unordered_set <std::string> extensions;
+		{
+			GLint numExtensions{};
+			glGetIntegerv(GL_NUM_EXTENSIONS, &numExtensions);
+			for (GLint i = 0; i < numExtensions; i++) {
+				std::string extI = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, i));
+				extensions.insert(extI);
+				// OutputDebugStringA((extI + "\r\n").c_str());
+			}
+		}
+		{
+			std::string ext{ wglGetExtensionsStringARB(hdc) };
+			// OutputDebugStringA((ext + "\r\n").c_str());
+		}
+		return extensions;
+	}
+
+	inline static HGLRC load_opengl(HDC hdc) {
+		HGLRC hglrc{};
+		{
+			auto pfd{ make_pixel_format() };
+
+			auto chosenFormat = ChoosePixelFormat(hdc, &pfd);
+			SetPixelFormat(hdc, chosenFormat, &pfd);
+
+			hglrc = wglCreateContext(hdc);
+			wglMakeCurrent(hdc, hglrc);
+
+			loadAll();
+			{
+				std::vector<int> iAttribIList;
+				std::vector<FLOAT> fAttribFList;
+				std::vector<int> iFormats;
+				UINT nNumFormats{ 0 };
+
+				iAttribIList.push_back(WGL_DRAW_TO_WINDOW_ARB); iAttribIList.push_back(GL_TRUE);
+				iAttribIList.push_back(WGL_SUPPORT_OPENGL_ARB); iAttribIList.push_back(GL_TRUE);
+				iAttribIList.push_back(WGL_ACCELERATION_ARB); iAttribIList.push_back(WGL_FULL_ACCELERATION_ARB);
+				//iAttribIList.push_back(WGL_SWAP_METHOD_ARB); iAttribIList.push_back(WGL_SWAP_EXCHANGE_EXT);
+
+				//iAttribIList.push_back(WGL_COLOR_BITS_ARB); iAttribIList.push_back(30);
+				iAttribIList.push_back(WGL_RED_BITS_ARB); iAttribIList.push_back(8/*10*/);
+
+				iAttribIList.push_back(WGL_ALPHA_BITS_ARB); iAttribIList.push_back(0);
+				iAttribIList.push_back(WGL_DEPTH_BITS_ARB); iAttribIList.push_back(24);
+				iAttribIList.push_back(WGL_STENCIL_BITS_ARB); iAttribIList.push_back(0);
+				iAttribIList.push_back(WGL_DOUBLE_BUFFER_ARB); iAttribIList.push_back(GL_TRUE);
+
+				//iAttribIList.push_back(WGL_SAMPLE_BUFFERS_ARB); iAttribIList.push_back(GL_TRUE);
+				//iAttribIList.push_back(WGL_SAMPLES_ARB); iAttribIList.push_back(16);
+				//iAttribIList.push_back(WGL_COLORSPACE_EXT); iAttribIList.push_back(WGL_COLORSPACE_LINEAR_EXT);
+
+				// iAttribIList.push_back(WGL_COLORSPACE_EXT); iAttribIList.push_back(WGL_COLORSPACE_SRGB_EXT);
+
+				iAttribIList.push_back(0);
+
+				fAttribFList.push_back(0);
+
+				iFormats.resize(100);
+
+				const auto results = wglChoosePixelFormatARB(
+					hdc,
+					iAttribIList.data(),
+					fAttribFList.data(),
+					SafeInt<UINT>(iFormats.size()),
+					iFormats.data(),
+					&nNumFormats
+				);
+
+				if (!results) {
+					DebugBreak();
+				}
+
+				iFormats.resize(nNumFormats);
+
+				std::vector<int> iAttributes;
+
+				iAttributes.push_back(WGL_DRAW_TO_WINDOW_ARB);
+				iAttributes.push_back(WGL_ACCELERATION_ARB);
+				iAttributes.push_back(WGL_SWAP_METHOD_ARB);
+				iAttributes.push_back(WGL_TRANSPARENT_ARB);
+				iAttributes.push_back(WGL_SUPPORT_OPENGL_ARB);
+				iAttributes.push_back(WGL_DOUBLE_BUFFER_ARB);
+				iAttributes.push_back(WGL_PIXEL_TYPE_ARB);
+				iAttributes.push_back(WGL_COLOR_BITS_ARB);
+				iAttributes.push_back(WGL_RED_BITS_ARB);
+				iAttributes.push_back(WGL_GREEN_BITS_ARB);
+				iAttributes.push_back(WGL_BLUE_BITS_ARB);
+				iAttributes.push_back(WGL_ALPHA_BITS_ARB);
+				iAttributes.push_back(WGL_DEPTH_BITS_ARB);
+				iAttributes.push_back(WGL_STENCIL_BITS_ARB);
+				iAttributes.push_back(WGL_SAMPLE_BUFFERS_ARB);
+				iAttributes.push_back(WGL_SAMPLES_ARB);
+				iAttributes.push_back(WGL_COLORSPACE_EXT);
+				iAttributes.push_back(WGL_COVERAGE_SAMPLES_NV);
+				iAttributes.push_back(WGL_COLOR_SAMPLES_NV);
+
+				iAttributes.push_back(WGL_FLOAT_COMPONENTS_NV);
+				iAttributes.push_back(WGL_BIND_TO_TEXTURE_RECTANGLE_FLOAT_R_NV);
+				iAttributes.push_back(WGL_BIND_TO_TEXTURE_RECTANGLE_FLOAT_RG_NV);
+				iAttributes.push_back(WGL_BIND_TO_TEXTURE_RECTANGLE_FLOAT_RGB_NV);
+				iAttributes.push_back(WGL_BIND_TO_TEXTURE_RECTANGLE_FLOAT_RGBA_NV);
+
+				for (const auto& iPixelFormat : iFormats) {
+					std::vector<int> iValues;
+					iValues.resize(iAttributes.size());
+
+					wglGetPixelFormatAttribivARB(
+						hdc,
+						iPixelFormat,
+						0,
+						SafeInt<UINT>(iAttributes.size()),
+						iAttributes.data(),
+						iValues.data()
+					);
+
+					std::wstring info;
+
+					if (iValues[11] != 0) continue;
+					if (iValues[13] != 0) continue;
+
+					info += L"format: " + std::to_wstring(iPixelFormat) + L"\r\n";
+					info += L"WGL_DRAW_TO_WINDOW_ARB:  " + std::to_wstring(iValues[0]) + L"\r\n";
+					info += L"WGL_ACCELERATION_ARB:    " + std::to_wstring(iValues[1]) + L"\r\n";
+					info += L"WGL_SWAP_METHOD_ARB:     " + std::to_wstring(iValues[2]) + L"\r\n";
+					info += L"WGL_TRANSPARENT_ARB:     " + std::to_wstring(iValues[3]) + L"\r\n";
+					info += L"WGL_SUPPORT_OPENGL_ARB:  " + std::to_wstring(iValues[4]) + L"\r\n";
+					info += L"WGL_DOUBLE_BUFFER_ARB:   " + std::to_wstring(iValues[5]) + L"\r\n";
+					info += L"WGL_PIXEL_TYPE_ARB:      " + std::to_wstring(iValues[6]) + L"\r\n";
+					info += L"WGL_COLOR_BITS_ARB:      " + std::to_wstring(iValues[7]) + L"\r\n";
+					info += L"WGL_RED_BITS_ARB:        " + std::to_wstring(iValues[8]) + L"\r\n";
+					info += L"WGL_GREEN_BITS_ARB:      " + std::to_wstring(iValues[9]) + L"\r\n";
+					info += L"WGL_BLUE_BITS_ARB:       " + std::to_wstring(iValues[10]) + L"\r\n";
+					info += L"WGL_ALPHA_BITS_ARB:      " + std::to_wstring(iValues[11]) + L"\r\n";
+					info += L"WGL_DEPTH_BITS_ARB:      " + std::to_wstring(iValues[12]) + L"\r\n";
+					info += L"WGL_STENCIL_BITS_ARB:    " + std::to_wstring(iValues[13]) + L"\r\n";
+					info += L"WGL_SAMPLE_BUFFERS_ARB:  " + std::to_wstring(iValues[14]) + L"\r\n";
+					info += L"WGL_SAMPLES_ARB:         " + std::to_wstring(iValues[15]) + L"\r\n";
+					info += L"WGL_COLORSPACE_EXT:      " + std::to_wstring(iValues[16]) + L"\r\n";
+					info += L"WGL_COVERAGE_SAMPLES_NV: " + std::to_wstring(iValues[17]) + L"\r\n";
+					info += L"WGL_COLOR_SAMPLES_NV:    " + std::to_wstring(iValues[18]) + L"\r\n";
+					info += L"WGL_FLOAT_COMPONENTS_NV: " + std::to_wstring(iValues[19]) + L"\r\n";
+					info += L"WGL_BIND_TO_TEXTURE_RECTANGLE_FLOAT_R_NV:    " + std::to_wstring(iValues[20]) + L"\r\n";
+					info += L"WGL_BIND_TO_TEXTURE_RECTANGLE_FLOAT_RG_NV:   " + std::to_wstring(iValues[21]) + L"\r\n";
+					info += L"WGL_BIND_TO_TEXTURE_RECTANGLE_FLOAT_RGB_NV:  " + std::to_wstring(iValues[22]) + L"\r\n";
+					info += L"WGL_BIND_TO_TEXTURE_RECTANGLE_FLOAT_RGBA_NV: " + std::to_wstring(iValues[23]) + L"\r\n";
+					info += L"\r\n";
+					info += L"\r\n";
+
+					OutputDebugStringW(info.c_str());
+				}
+			}
+			{
+				std::array<int, 15> attribList{
+				  WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
+				  WGL_CONTEXT_MINOR_VERSION_ARB, 6,
+				  WGL_CONTEXT_FLAGS_ARB,
+				  or_reduce<int>({
+		#if _DEBUG
+					  WGL_CONTEXT_DEBUG_BIT_ARB,
+		#endif
+					  // WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB,
+		#if _DEBUG
+					  WGL_CONTEXT_ROBUST_ACCESS_BIT_ARB,
+		#endif
+					  WGL_CONTEXT_RESET_ISOLATION_BIT_ARB,
+					}),
+
+					WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+		#if _DEBUG
+					WGL_CONTEXT_OPENGL_NO_ERROR_ARB, FALSE,
+		#else
+					WGL_CONTEXT_OPENGL_NO_ERROR_ARB, TRUE,
+		#endif
+					WGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB, WGL_NO_RESET_NOTIFICATION_ARB,
+					WGL_CONTEXT_RELEASE_BEHAVIOR_ARB, WGL_CONTEXT_RELEASE_BEHAVIOR_NONE_ARB,
+					0,
+				};
+
+				auto new_hglrc = wglCreateContextAttribsARB(hdc, nullptr, attribList.data());
+				if (new_hglrc == nullptr) {
+					OutputDebugStringW(L"new_hglrc error\r\n");
+					DebugBreak();
+				}
+				wglMakeCurrent(hdc, new_hglrc);
+				wglDeleteContext(hglrc);
+				hglrc = new_hglrc;
+			}
+			getExtensions(hdc);
+			{
+				glDebugMessageCallbackARB([](GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
+					std::string strOut{ message };
+					strOut += "\r\n";
+					if (severity == GL_DEBUG_SEVERITY_HIGH_ARB) {
+						OutputDebugStringA(strOut.c_str());
+						DebugBreak();
+					}
+					else {
+						OutputDebugStringA(strOut.c_str());
+					}
+					}, nullptr);
+				glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
+			}
+		}
+
+#if 0
+		{
+			std::vector<cl_context_properties> context_properties{
+				CL_CONTEXT_PLATFORM, reinterpret_cast<cl_context_properties>(ocl::platform::get_ids().value().at(0)),
+				CL_GL_CONTEXT_KHR, reinterpret_cast<cl_context_properties>(hglrc),
+				CL_WGL_HDC_KHR, reinterpret_cast<cl_context_properties>(hdc),
+				0, 0,
+			};
+			cl_device_id ogl_dev{};
+			size_t param_value_size_ret{};
+			clGetGLContextInfoKHR_fn clGetGLContextInfoKHR{ reinterpret_cast<clGetGLContextInfoKHR_fn>(clGetExtensionFunctionAddressForPlatform(nullptr, "clGetGLContextInfoKHR")) };
+			ocl::status sts{ clGetGLContextInfoKHR(context_properties.data(), CL_CURRENT_DEVICE_FOR_GL_CONTEXT_KHR, sizeof(cl_device_id), &ogl_dev, &param_value_size_ret) };
+			if (sts != ocl::status::SUCCESS) {
+				puts("error");
+			}
+
+			puts("good");
+		}
+		{
+			std::vector<cl_context_properties> context_properties{
+				CL_CONTEXT_PLATFORM, reinterpret_cast<cl_context_properties>(ocl::platform::get_ids().value().at(0)),
+				CL_GL_CONTEXT_KHR, reinterpret_cast<cl_context_properties>(hglrc),
+				CL_WGL_HDC_KHR, reinterpret_cast<cl_context_properties>(hdc),
+				0, 0,
+			};
+			//auto devices{ ocl::device::get_gl_devices(context_properties).value() };
+			auto context{ ocl::context::create(context_properties).value() };
+			puts("good");
+		}
+
+#endif
+		return hglrc;
+
+	}
+
 };

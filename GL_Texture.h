@@ -45,7 +45,7 @@ public:
         }
     }
     ~GL_Textures() {
-        if (sizei() > 0 && gl) {
+        if (sizei() > 0) {
             GL46_Base::glDeleteTextures(sizei(), vec.data());
             OutputDebugStringW(L"glDeleteTextures\r\n");
         }

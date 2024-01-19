@@ -7,7 +7,5 @@ int main() {
 		// CL_WGL_HDC_KHR, 0,
 		0, 0,
 	}) };
-	if(sts.has_value()) return 0;
-	std::cout << std::format("status: {}\n", static_cast<int32_t>(sts.error()));
 	return 1;
 }

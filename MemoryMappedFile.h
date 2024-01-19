@@ -34,6 +34,7 @@ public:
   inline static api_MapViewOfFile3 MapViewOfFile3{ reinterpret_cast<api_MapViewOfFile3>(GetProcAddress(lib_kernelbase, "MapViewOfFile3")) };
   inline static api_CreateFileMapping2 CreateFileMapping2{ reinterpret_cast<api_CreateFileMapping2>(GetProcAddress(lib_kernelbase, "CreateFileMapping2")) };
 
+  std::string file_name{};
   HANDLE fh{ INVALID_HANDLE_VALUE };
 #else
   int fh{-1};
@@ -195,7 +196,35 @@ public:
     return true;
   }
 
+  inline MemoryMappedFile() : file_name{ "<EMPTY>" } {
+  }
+
+  inline MemoryMappedFile(MemoryMappedFile&& other) :
+      file_name{ std::move(other.file_name) },
+      fh{ other.fh },
+      sparse{ other.sparse },
+      fsize{ other.fsize },
+      fm{ other.fm },
+      fp{ other.fp }
+  {
+      other.file_name = "<EMPTY>";
+#ifdef _WIN32
+      other.fh = INVALID_HANDLE_VALUE;
+#else
+      other.fh = 0;
+#endif
+      other.sparse = false;
+      other.fsize = 0;
+#ifdef _WIN32
+      other.fm = nullptr;
+#else
+      other.fm = -1;
+#endif
+      other.fp = nullptr;
+  }
+
   inline MemoryMappedFile(std::string fn):
+    file_name{ fn },
     is_writable{ false },
     fh{open_readonly_file_handle(fn)},
     fsize{getFileSize(fh)},
@@ -205,6 +234,7 @@ public:
   }
 
   inline MemoryMappedFile(decltype(fh) fh, bool is_writable = false) :
+    file_name{ "<FROM HANDLE>" },
     is_writable{ is_writable },
     fh{fh},
     fsize{getFileSize(fh)},
@@ -214,6 +244,7 @@ public:
   }
 
   inline MemoryMappedFile(std::string fn, uint64_t requestedSize):
+    file_name{ fn },
     is_writable{ true },
     fh{ create_readwrite_file_handle(fn)},
     sparse{ make_sparse(fh) },
@@ -255,11 +286,11 @@ public:
 
   inline void unmap() {
 #ifdef __GNUC__
-    munmap(fp, fsize); fp = nullptr;
+    if(fp) munmap(fp, fsize); fp = nullptr;
 #endif
 #ifdef _WIN32
-    UnmapViewOfFile2(GetCurrentProcess(), fp, 0); fp = nullptr;
-    CloseHandle(fm); fm = nullptr;
+    if(fp) UnmapViewOfFile2(GetCurrentProcess(), fp, 0); fp = nullptr;
+    if(fm) CloseHandle(fm); fm = nullptr;
 #endif
   }
 
@@ -268,6 +299,8 @@ public:
     setFileSize(fh, EndOfFile);
     fsize = 0;
     MemoryMappedFile ret{ fh, is_writable };
+    ret.file_name = std::move(file_name);
+    file_name = "<EMPTY>";
     invalidate_file_handle();
     return ret;
   }
@@ -286,9 +319,9 @@ public:
 
   inline void close_file() {
 #ifdef _WIN32
-    CloseHandle(fh); fh = INVALID_HANDLE_VALUE;
+    if (fh != INVALID_HANDLE_VALUE) CloseHandle(fh); fh = INVALID_HANDLE_VALUE;
 #else
-    close(fh); fh = -1;
+    if (fh != -1) close(fh); fh = -1;
 #endif
   }
 

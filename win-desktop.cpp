@@ -37,8 +37,6 @@
 
 using msl::utilities::SafeInt;
 class GL46;
-thread_local GL46* gl{};
-
 
 #include "constexpr_intrinsics.h"
 #include "Trivial_Span.h"
@@ -49,7 +47,7 @@ thread_local GL46* gl{};
 #include "MemoryMappedFile.h"
 #include "cached_node_lookup.h"
 
-#include "Route_Phys.h"
+// #include "Route_Phys.h"
 
 
 #include "MMF_Dense_Sets.h"
