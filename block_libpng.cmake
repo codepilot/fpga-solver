@@ -16,6 +16,7 @@ block()
   set(SKIP_INSTALL_PROGRAMS ON)
   set(SKIP_INSTALL_FILES ON)
   set(SKIP_INSTALL_EXPORT ON)
+  set(PNG_BUILD_ZLIB ON)
 
   find_package(libpng)
   add_library(libpng::png_static ALIAS png_static)

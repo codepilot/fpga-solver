@@ -9,7 +9,7 @@ set(CMAKE_POLICY_DEFAULT_CMP0079 NEW)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 FetchContent_Declare(capnproto GIT_REPOSITORY https://github.com/codepilot/capnproto.git OVERRIDE_FIND_PACKAGE)
-FetchContent_Declare(zlib GIT_REPOSITORY https://github.com/madler/zlib.git GIT_TAG v1.3 OVERRIDE_FIND_PACKAGE)
+# FetchContent_Declare(zlib GIT_REPOSITORY https://github.com/madler/zlib.git GIT_TAG v1.2.11 OVERRIDE_FIND_PACKAGE)
 FetchContent_Declare(tclap GIT_REPOSITORY https://github.com/mirror/tclap.git GIT_TAG v1.2.5 OVERRIDE_FIND_PACKAGE)
 FetchContent_Declare(stb https://github.com/nothings/stb.git OVERRIDE_FIND_PACKAGE)
 FetchContent_Declare(whereami GIT_REPOSITORY https://github.com/gpakosz/whereami.git OVERRIDE_FIND_PACKAGE)

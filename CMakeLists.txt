@@ -4,9 +4,9 @@ project(fpga-solver LANGUAGES CXX)
 
 include(repos.cmake)
 
-include(block_zlib.cmake)
-
 include(block_capnproto.cmake)
+
+include(block_zlib.cmake)
 
 include(block_libpng.cmake)
 
@@ -38,10 +38,10 @@ include(standard_executable.cmake)
 
 if(MSVC)
   include(win-desktop.cmake)
+  include(build-cache.cmake)
+  include(canonize.cmake)
 endif()
 
-include(build-cache.cmake)
-include(canonize.cmake)
 include(show_phys_nets.cmake)
 
 include(make_pips.cmake)
