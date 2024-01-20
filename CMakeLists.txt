@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.27.7)
 
 project(fpga-solver LANGUAGES CXX)
 
+set(USE_SPIRV off)
+
 include(repos.cmake)
 
 include(block_capnproto.cmake)
@@ -10,7 +12,9 @@ include(block_zlib.cmake)
 
 include(block_libpng.cmake)
 
-include(shaders.cmake)
+if(USE_SPIRV)
+  include(shaders.cmake)
+endif()
 
 include(standard_executable.cmake)
 # set(ZLIB_INCLUDE_DIR "$<TARGET_PROPERTY:zlib,SOURCE_DIR>;$<TARGET_PROPERTY:zlib,BINARY_DIR>")
