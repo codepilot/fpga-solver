@@ -355,7 +355,7 @@ public:
 
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-        ocltr.step().value();
+        ocltr.gl_step().value();
 
         indirect_buf.bind(GL_DRAW_INDIRECT_BUFFER, [&]() {
             program_pipeline.bind([&]() {

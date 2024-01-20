@@ -38,23 +38,42 @@ public:
     inline static constexpr cl_uint workgroup_count{ 4096 };
     inline static constexpr cl_uint total_group_size{ max_workgroup_size * workgroup_count };
 
-    std::expected<void, ocl::status> step() {
-        return queues.at(0).useGL(buffers, [&]() {
-            queues.at(0).enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }).value();
-        });
+    std::expected<void, ocl::status> step(ocl::queue &queue) {
+        return queue.enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size });
+    }
+    std::expected<void, ocl::status> step_all() {
+        for (auto&& queue : queues) {
+            auto result{ queue.enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
+            if (!result.has_value()) return result;
+        }
+        return std::expected<void, ocl::status>();
+    }
+    std::expected<void, ocl::status> gl_step() {
+        for (auto&& queue : queues) {
+            auto result{ queue.useGL(buffers, [&]()->std::expected<void, ocl::status> {
+                return step(queue);
+            }) };
+            if (!result.has_value()) return result;
+        }
+        return std::expected<void, ocl::status>();
     }
     static OCL_Tile_Router make(
         std::vector<cl_context_properties> context_properties = {},
         std::vector<cl_uint> gl_buffers = {}//,
     ) {
         MemoryMappedFile source{ "../kernels/draw_wires.cl" };
-        auto gl_devices{ ocl::device::get_gl_devices(context_properties).value() };
-        ocl::context context{ ocl::context::create(context_properties, gl_devices).value() };
+        auto req_devices{ context_properties.size() ? ocl::device::get_gl_devices(context_properties).value() : std::vector<cl_device_id>{} };
+        ocl::context context{ req_devices.size() ? ocl::context::create(context_properties, req_devices).value(): ocl::context::create<CL_DEVICE_TYPE_GPU>().value() };
+        auto devices{ context.get_devices() };
         std::vector<ocl::queue> queues{ context.create_queues().value() };
         ocl::program program{ context.create_program(source.get_span<char>()).value() };
         program.build().value();
         std::vector<ocl::kernel> kernels{ program.create_kernels().value() };
         std::vector<ocl::buffer> buffers{ context.from_gl(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, gl_buffers).value() };
+
+        while (buffers.size() < 4) {
+            buffers.emplace_back(context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, 8 * 1024 * 1024).value());
+        }
 
         decltype(auto) kernel{ kernels.at(0) };
 
@@ -110,10 +129,10 @@ public:
         auto buf_dest_tile{ context.create_buffer<std::array<uint16_t, 2>>(CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, span_b).value() };
 
 #endif
-        kernel.set_arg(0, buffers[0]).value();
-        kernel.set_arg(1, buffers[1]).value();
-        kernel.set_arg(2, buffers[2]).value();
-        kernel.set_arg(3, buffers[3]).value();
+        kernel.set_arg(0, buffers.at(0)).value();
+        kernel.set_arg(1, buffers.at(1)).value();
+        kernel.set_arg(2, buffers.at(2)).value();
+        kernel.set_arg(3, buffers.at(3)).value();
         kernel.set_arg(4, buf_stubLocations).value();
         kernel.set_arg(5, buf_tile_tile_offset_count).value();
         kernel.set_arg(6, buf_dest_tile).value();
