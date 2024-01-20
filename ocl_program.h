@@ -142,8 +142,8 @@ public:
     }
     always_inline std::expected<std::vector<size_t>, status> get_build_info_size(cl_program_build_info param_name) const noexcept {
         std::vector<size_t> ret;
-
-        for (auto&& device : get_devices().value()) {
+        auto devices{ get_devices().value() };
+        for (auto&& device : devices) {
             ret.emplace_back(get_build_info_size(program, device, param_name).value());
         }
         return ret;
@@ -160,11 +160,33 @@ public:
         });
     }
 
+    template<typename cl_integral>
+    always_inline static std::expected<cl_integral, status> get_build_info_integral(cl_program program, cl_device_id device, cl_program_build_info param_name) noexcept {
+        return get_build_info_size(program, device, param_name).and_then([&](size_t size) -> std::expected<cl_integral, status> {
+            cl_integral integral_pointer{};
+
+            status sts1{ clGetProgramBuildInfo(program, device, param_name, sizeof(integral_pointer), &integral_pointer, 0) };
+            if (sts1 != status::SUCCESS) return std::unexpected(sts1);
+
+            return std::expected<cl_integral, status>(integral_pointer);
+            });
+    }
+
     always_inline std::expected<std::vector<std::string>, status> get_build_info_string(cl_program_build_info param_name) const noexcept {
         std::vector<std::string> ret;
-
-        for (auto&& device : get_devices().value()) {
+        auto devices{ get_devices().value() };
+        for (auto&& device : devices) {
             ret.emplace_back(get_build_info_string(program, device, param_name).value());
+        }
+        return ret;
+    }
+
+    template<typename cl_integral>
+    always_inline std::expected<std::vector<cl_integral>, status> get_build_info_integral(cl_program_build_info param_name) const noexcept {
+        std::vector<cl_integral> ret;
+        auto devices{ get_devices().value() };
+        for (auto&& device : devices) {
+            ret.emplace_back(get_build_info_integral<cl_integral>(program, device, param_name).value());
         }
         return ret;
     }

@@ -160,22 +160,22 @@ public:
 
 
 
-    always_inline static std::expected<size_t, status> get_work_group_info_size(cl_kernel kernel, cl_kernel_work_group_info param_name) noexcept {
+    always_inline static std::expected<size_t, status> get_work_group_info_size(cl_kernel kernel, cl_device_id device, cl_kernel_work_group_info param_name) noexcept {
         size_t param_value_size_ret{};
-        status sts0{ clGetKernelWorkGroupInfo(kernel, nullptr, param_name, 0, nullptr, &param_value_size_ret) };
+        status sts0{ clGetKernelWorkGroupInfo(kernel, device, param_name, 0, nullptr, &param_value_size_ret) };
         if (sts0 != status::SUCCESS) return std::unexpected(sts0);
         return std::expected<size_t, status>(param_value_size_ret);
     }
-    always_inline std::expected<size_t, status> get_work_group_info_size(cl_kernel_work_group_info param_name) const noexcept {
-        return get_work_group_info_size(kernel, param_name);
+    always_inline std::expected<size_t, status> get_work_group_info_size(cl_kernel_work_group_info param_name, cl_device_id device) const noexcept {
+        return get_work_group_info_size(kernel, device, param_name);
     }
 
     template<typename cl_integral>
-    always_inline static std::expected<cl_integral, status> get_work_group_info_integral(cl_kernel kernel, cl_kernel_work_group_info param_name) noexcept {
-        return get_work_group_info_size(kernel, param_name).and_then([&](size_t size) -> std::expected<cl_integral, status> {
+    always_inline static std::expected<cl_integral, status> get_work_group_info_integral(cl_kernel kernel, cl_device_id device, cl_kernel_work_group_info param_name) noexcept {
+        return get_work_group_info_size(kernel, device, param_name).and_then([&](size_t size) -> std::expected<cl_integral, status> {
             cl_integral integral_pointer{};
 
-            status sts1{ clGetKernelWorkGroupInfo(kernel, nullptr, param_name, sizeof(integral_pointer), &integral_pointer, 0) };
+            status sts1{ clGetKernelWorkGroupInfo(kernel, device, param_name, sizeof(integral_pointer), &integral_pointer, 0) };
             if (sts1 != status::SUCCESS) return std::unexpected(sts1);
 
             return std::expected<cl_integral, status>(integral_pointer);
@@ -183,8 +183,8 @@ public:
     }
 
     template<typename cl_integral>
-    always_inline std::expected<cl_integral, status> get_work_group_info_integral(cl_kernel_work_group_info param_name) const noexcept {
-        return get_work_group_info_integral<cl_integral>(kernel, param_name);
+    always_inline std::expected<cl_integral, status> get_work_group_info_integral(cl_device_id device, cl_kernel_work_group_info param_name) const noexcept {
+        return get_work_group_info_integral<cl_integral>(kernel, device, param_name);
     }
 };
 };
