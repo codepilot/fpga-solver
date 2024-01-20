@@ -48,7 +48,8 @@ public:
         std::vector<cl_uint> gl_buffers = {}//,
     ) {
         MemoryMappedFile source{ "../kernels/draw_wires.cl" };
-        ocl::context context{ ocl::context::create<CL_DEVICE_TYPE_GPU>(context_properties).value() };
+        auto gl_devices{ ocl::device::get_gl_devices(context_properties).value() };
+        ocl::context context{ ocl::context::create(context_properties, gl_devices).value() };
         std::vector<ocl::queue> queues{ context.create_queues().value() };
         ocl::program program{ context.create_program(source.get_span<char>()).value() };
         program.build().value();

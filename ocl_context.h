@@ -21,6 +21,16 @@ public:
         return std::expected<ocl::context, status>(ocl::context{ .context{context} });
     }
 
+    always_inline static std::expected<ocl::context, status> create(std::span<cl_context_properties> context_properties, std::span<cl_device_id> devices) noexcept {
+        cl_int errcode_ret{};
+        cl_context context{ clCreateContext(context_properties.size() ? context_properties.data() : nullptr, static_cast<cl_uint>(devices.size()), devices.data(), [](const char* errinfo, const void* private_info, size_t cb, void* user_data) {
+            puts(errinfo);
+        }, nullptr, &errcode_ret) };
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<ocl::context, status>(ocl::context{ .context{context} });
+    }
 
     template<cl_device_type device_type = CL_DEVICE_TYPE_ALL>
     always_inline static std::expected<ocl::context, status> create(std::span<cl_context_properties> context_properties = {}) noexcept {
