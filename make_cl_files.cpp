@@ -48,6 +48,11 @@
 #include "Route_Phys.h"
 
 int main(int argc, char* argv[]) {
+	{
+		MemoryMappedFile mmf_v_tt_count_offset{ "tt_count_offset.bin" };
+		MemoryMappedFile mmf_v_tt_body{ "tt_body.bin" };
+		if (mmf_v_tt_count_offset.fsize && mmf_v_tt_body.fsize) return 0;
+	}
 	Route_Phys::make_cl_files();
 
 	return 0;

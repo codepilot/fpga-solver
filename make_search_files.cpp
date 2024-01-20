@@ -48,6 +48,10 @@
 #include "Route_Phys.h"
 
 int main(int argc, char* argv[]) {
+	{
+		MemoryMappedFile mmf_dev{ "_deps/device-file-src/xcvu3p.device.temp" };
+		if (mmf_dev.fsize) return 0;
+	}
 	Route_Phys::make_search_files();
 
 	return 0;

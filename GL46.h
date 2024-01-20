@@ -171,6 +171,9 @@ public:
     MemoryMappedFile vertex_spirv;
     MemoryMappedFile fragment_spirv;
 
+    MemoryMappedFile vertex_glsl;
+    MemoryMappedFile fragment_glsl;
+
     GL_Program<"vertex_program", GL_ShaderType::vertex> vertex_program;
     GL_Program<"fragment_program", GL_ShaderType::fragment> fragment_program;
 
@@ -206,8 +209,15 @@ public:
         ) },
         vertex_spirv{ "shaders\\vertex.vert.spv" },
         fragment_spirv{ "shaders\\fragment.frag.spv" },
+        vertex_glsl{ "..\\shaders\\vertex.vert" },
+        fragment_glsl{ "..\\shaders\\fragment.frag" },
+#if 0
         vertex_program{ GL_Program<"vertex_program", GL_ShaderType::vertex>::spirv_span(vertex_spirv.get_span<unsigned char>()) },
-        fragment_program{ GL_Program<"fragment_program", GL_ShaderType::fragment>::spirv_span(fragment_spirv.get_span<unsigned char>())},
+        fragment_program{ GL_Program<"fragment_program", GL_ShaderType::fragment>::spirv_span(fragment_spirv.get_span<unsigned char>()) },
+#else
+        vertex_program{ GL_Program<"vertex_program", GL_ShaderType::vertex>::glsl(vertex_glsl.get_span<char>().data()) },
+        fragment_program{ GL_Program<"fragment_program", GL_ShaderType::fragment>::glsl(fragment_glsl.get_span<char>().data()) },
+#endif
         program_pipeline{ }
     {
         ShowWindow(hwnd, SW_MAXIMIZE);

@@ -2,8 +2,8 @@ include_guard(GLOBAL)
 block()
   FetchContent_MakeAvailable(device-file)
 
-  set(DEVICE_SOURCE_FILE ${device-file_SOURCE_DIR})
-  set(DEVICE_DEST_FILE ${device-file_SOURCE_DIR}.temp)
+  set(DEVICE_SOURCE_FILE ${device-file_SOURCE_DIR}/xcvu3p.device)
+  set(DEVICE_DEST_FILE ${device-file_SOURCE_DIR}/xcvu3p.device.temp)
   message("DEVICE_SOURCE_FILE = ${DEVICE_SOURCE_FILE}")
   message("DEVICE_DEST_FILE   = ${DEVICE_DEST_FILE}")
 
