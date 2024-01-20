@@ -46,8 +46,10 @@ include(show_phys_nets.cmake)
 
 include(make_pips.cmake)
 include(make_search_files.cmake)
+include(search_files.cmake)
 
 include(make_cl_files.cmake)
+include(cl_files.cmake)
 include(route_phys.cmake)
 
 
