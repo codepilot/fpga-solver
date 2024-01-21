@@ -101,7 +101,12 @@ public:
     }
 
     always_inline static void each(auto lambda) noexcept {
-        ::each(get().value(), lambda);
+        auto platforms{get()};
+        if(platforms.has_value()) {
+            ::each(platforms.value(), lambda);
+        } else {
+            puts(std::format("platform error: {}\n", static_cast<cl_int>(platforms.error())).c_str());
+        }
     }
 
     template<cl_device_type device_type = CL_DEVICE_TYPE_DEFAULT>
