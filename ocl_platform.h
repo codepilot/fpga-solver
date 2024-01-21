@@ -130,7 +130,13 @@ public:
 
     template<cl_device_type device_type = CL_DEVICE_TYPE_DEFAULT>
     always_inline void each_device(auto lambda) noexcept {
-        ::each(get_devices<device_type>().value(), lambda);
+        auto devices{ get_devices<device_type>() };
+        if (devices.has_value()) {
+            ::each(devices.value(), lambda);
+        }
+        else {
+            puts(std::format("devices error: {}\n", static_cast<cl_int>(devices.error())).c_str());
+        }
     }
 
     static always_inline ::ocl::platform make_null() noexcept {
