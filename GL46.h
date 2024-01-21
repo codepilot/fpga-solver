@@ -157,13 +157,15 @@ public:
     GL_Buffer<"vbo_locations"> vbo_locations;
 
     GL_Buffer<"vio_routed"> vio_routed;
-    GL_Buffer<"vio_unrouted"> vio_unrouted;
-    GL_Buffer<"vio_stubs"> vio_stubs;
+    // GL_Buffer<"vio_unrouted"> vio_unrouted;
+    // GL_Buffer<"vio_stubs"> vio_stubs;
 
     GL_VertexArray<"vaRouted"> vaRouted;
-    GL_VertexArray<"vaUnrouted"> vaUnrouted;
-    GL_VertexArray<"vaStubs"> vaStubs;
+    // GL_VertexArray<"vaUnrouted"> vaUnrouted;
+    // GL_VertexArray<"vaStubs"> vaStubs;
 
+    PhysGZ phys;
+    uint32_t netCount;
     GL_Buffer<"indirect_buf"> indirect_buf;
 
     OCL_Tile_Router ocltr;
@@ -192,20 +194,28 @@ public:
         unrouted_locations{ v_unrouted_locations },
         vbo_locations{ static_cast<GLsizeiptr>(unrouted_locations.size_bytes()), unrouted_locations.data() },
         vio_routed{ index_buf_bytes },
-        vio_unrouted{ index_buf_bytes },
-        vio_stubs{ index_buf_bytes },
+        // vio_unrouted{ index_buf_bytes },
+        // vio_stubs{ index_buf_bytes },
         vaRouted{ },
-        vaUnrouted{ },
-        vaStubs{ },
-        indirect_buf{ DrawElementsIndirectCommand_size * 3 },
+        // vaUnrouted{ },
+        // vaStubs{ },
+        phys{ "_deps/benchmark-files-src/boom_med_pb_unrouted.phys" },
+        netCount{ phys.root.getPhysNets().size() },
+        indirect_buf{ DrawElementsIndirectCommand_size * (((netCount + 255ul) >> 8ul) << 8ul) },
         ocltr{ OCL_Tile_Router::make(
+            phys.root,
             {
                 CL_CONTEXT_PLATFORM, reinterpret_cast<cl_context_properties>(ocl::platform::get_ids().value().at(0)),
                 CL_GL_CONTEXT_KHR, reinterpret_cast<cl_context_properties>(hglrc),
                 CL_WGL_HDC_KHR, reinterpret_cast<cl_context_properties>(hdc),
                 0, 0,
             },
-            { vio_routed.id, vio_unrouted.id, vio_stubs.id, indirect_buf.id }
+            {
+                vio_routed.id,
+                // vio_unrouted.id,
+                // vio_stubs.id,
+                indirect_buf.id
+            }
         ) },
         vertex_spirv{ "shaders\\vertex.vert.spv" },
         fragment_spirv{ "shaders\\fragment.frag.spv" },
@@ -243,17 +253,17 @@ public:
         vaRouted.attribEnable(0);
         vaRouted.elementBuffer(vio_routed);
 
-        vaUnrouted.attribBinding(0, 0);
-        vaUnrouted.attribFormat(0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
-        vaUnrouted.attribBuffer(0, vbo_locations, 0, 4);
-        vaUnrouted.attribEnable(0);
-        vaUnrouted.elementBuffer(vio_unrouted);
+        //vaUnrouted.attribBinding(0, 0);
+        //vaUnrouted.attribFormat(0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
+        //vaUnrouted.attribBuffer(0, vbo_locations, 0, 4);
+        //vaUnrouted.attribEnable(0);
+        //vaUnrouted.elementBuffer(vio_unrouted);
 
-        vaStubs.attribBinding(0, 0);
-        vaStubs.attribFormat(0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
-        vaStubs.attribBuffer(0, vbo_locations, 0, 4);
-        vaStubs.attribEnable(0);
-        vaStubs.elementBuffer(vio_stubs);
+        //vaStubs.attribBinding(0, 0);
+        //vaStubs.attribFormat(0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
+        //vaStubs.attribBuffer(0, vbo_locations, 0, 4);
+        //vaStubs.attribEnable(0);
+        //vaStubs.elementBuffer(vio_stubs);
 
         std::span<uint32_t> mRouted{};
 #if 0
@@ -360,19 +370,19 @@ public:
         indirect_buf.bind(GL_DRAW_INDIRECT_BUFFER, [&]() {
             program_pipeline.bind([&]() {
                 vaRouted.bind([&]() {
-                    fragment_program.uniform4f(0, 0.0f, 1.0f, 0.0f, 0.01f);
-                    glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 0));
+                    fragment_program.uniform4f(0, 0.0f, 1.0f, 0.0f, 1.0f);
+                    glMultiDrawElementsIndirect(GL_LINE_STRIP, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 0), netCount, DrawElementsIndirectCommand_size);
                 });
 
-                vaStubs.bind([&]() {
-                    fragment_program.uniform4f(0, 0.0f, 0.0f, 1.0f, 1.0f);
-                    glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 1));
-                });
+                //vaStubs.bind([&]() {
+                //    fragment_program.uniform4f(0, 0.0f, 0.0f, 1.0f, 1.0f);
+                //    glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 1));
+                //});
 
-                vaUnrouted.bind([&]() {
-                    fragment_program.uniform4f(0, 1.0f, 0.0f, 0.0f, 1.0f);
-                    glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 2));
-                });
+                //vaUnrouted.bind([&]() {
+                //    fragment_program.uniform4f(0, 1.0f, 0.0f, 0.0f, 1.0f);
+                //    glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 2));
+                //});
             });
         });
 

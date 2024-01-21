@@ -14,7 +14,7 @@ public:
     ocl::buffer stubLocations;
     ocl::buffer tile_tile_offset_count;
     ocl::buffer dest_tile;
-    PhysGZ phys;
+    PhysicalNetlist::PhysNetlist::Reader phys;
 
 #if 0
     OCL_Tile_Router() = default;
@@ -35,7 +35,7 @@ public:
 #endif
 
     inline static constexpr cl_uint max_workgroup_size{ 256 };
-    inline static constexpr cl_uint workgroup_count{ 4096 };
+    inline static constexpr cl_uint workgroup_count{ 8 };
     inline static constexpr cl_uint total_group_size{ max_workgroup_size * workgroup_count };
 
     std::expected<void, ocl::status> step(ocl::queue &queue) {
@@ -58,6 +58,7 @@ public:
         return std::expected<void, ocl::status>();
     }
     static OCL_Tile_Router make(
+        PhysicalNetlist::PhysNetlist::Reader phys,
         std::vector<cl_context_properties> context_properties = {},
         std::vector<cl_uint> gl_buffers = {}//,
     ) {
@@ -71,7 +72,7 @@ public:
         std::vector<ocl::kernel> kernels{ program.create_kernels().value() };
         std::vector<ocl::buffer> buffers{ context.from_gl(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, gl_buffers).value() };
 
-        while (buffers.size() < 4) {
+        while (buffers.size() < 2) {
             buffers.emplace_back(context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, 8 * 1024 * 1024).value());
         }
 
@@ -129,6 +130,7 @@ public:
         auto buf_dest_tile{ context.create_buffer<std::array<uint16_t, 2>>(CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, span_b).value() };
 
 #endif
+#if 0
         kernel.set_arg(0, buffers.at(0)).value();
         kernel.set_arg(1, buffers.at(1)).value();
         kernel.set_arg(2, buffers.at(2)).value();
@@ -136,6 +138,15 @@ public:
         kernel.set_arg(4, buf_stubLocations).value();
         kernel.set_arg(5, buf_tile_tile_offset_count).value();
         kernel.set_arg(6, buf_dest_tile).value();
+#else
+        kernel.set_arg(0, buffers.at(0)).value();
+        //kernel.set_arg(1, buffers.at(1)).value();
+        //kernel.set_arg(2, buffers.at(2)).value();
+        kernel.set_arg(1, buffers.at(1)).value();
+        kernel.set_arg(2, buf_stubLocations).value();
+        kernel.set_arg(3, buf_tile_tile_offset_count).value();
+        kernel.set_arg(4, buf_dest_tile).value();
+#endif
 
         return OCL_Tile_Router{
             .context{context},
@@ -146,7 +157,7 @@ public:
             .stubLocations{buf_stubLocations},
             .tile_tile_offset_count{buf_tile_tile_offset_count},
             .dest_tile{buf_dest_tile},
-            .phys{ "_deps/benchmark-files-src/boom_soc_unrouted.phys" },
+            .phys{ phys },
         };
     }
 };

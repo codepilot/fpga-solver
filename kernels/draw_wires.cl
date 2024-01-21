@@ -54,8 +54,8 @@ __attribute__((work_group_size_hint(256, 1, 1)))
 //__attribute__((reqd_work_group_size(256, 1, 1)))
 draw_wires(
   global uint * restrict routed,
-  global uint * restrict unrouted,
-  global uint * restrict stubs,
+  // global uint * restrict unrouted,
+  // global uint * restrict stubs,
   global DrawElementsIndirectCommand * restrict drawIndirect,
   global Stub * restrict stubLocations,
   global const uint2 * restrict tile_tile_count_offset,
@@ -75,12 +75,11 @@ draw_wires(
     ushort2 newPos = best_next_tile(sourcePos, curPos, tile_tile_count_offset[tile_coords(curPos)], dest_tile);
     currentStub->curTile = newPos;
     if(newPos.x != curPos.x || newPos.y != curPos.y) {
-      uint pos = atomic_add(&drawIndirect[0].count, 2);
+      // uint pos = drawIndirect[get_global_id(0)].count += 2;
       // uint pos = get_global_id(0) * 2;
-      routed[pos]     = tile_coords(newPos);
-      routed[pos + 1] = tile_coords(curPos);
-      drawIndirect[0].instanceCount = 1;
-      // drawIndirect[0].count = get_global_size(0);
+      routed[drawIndirect[get_global_id(0)].count++] = tile_coords(newPos);
+      drawIndirect[get_global_id(0)].instanceCount = 1;
+      // drawIndirect[get_global_id(0)].count = get_global_size(0);
     }
   }
 
