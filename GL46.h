@@ -37,6 +37,14 @@ typedef  struct {
 } DrawElementsIndirectCommand;
 constexpr static inline size_t DrawElementsIndirectCommand_size{sizeof(DrawElementsIndirectCommand)};
 
+typedef  struct {
+    uint32_t  count;
+    uint32_t  instanceCount;
+    uint32_t  first;
+    uint32_t  baseInstance;
+} DrawArraysIndirectCommand;
+constexpr static inline size_t DrawArraysIndirectCommand_size{ sizeof(DrawArraysIndirectCommand) };
+
 #include "ocl_tile_router.h"
 #include "Tile_Info.h"
 
@@ -151,12 +159,11 @@ public:
 
     GL_Texture<GL_TEXTURE_RECTANGLE, "texture"> texture;
     GL_FrameBuffer<"fb"> fb;
-    std::vector<std::array<uint16_t, 2>> v_unrouted_locations;
-    std::span<std::array<uint16_t, 2>> unrouted_locations;
+    // std::vector<std::array<uint16_t, 2>> v_unrouted_locations;
+    // std::span<std::array<uint16_t, 2>> unrouted_locations;
 
-    GL_Buffer<"vbo_locations"> vbo_locations;
+    // GL_Buffer<"vbo_locations"> vbo_locations;
 
-    GL_Buffer<"vio_routed"> vio_routed;
     // GL_Buffer<"vio_unrouted"> vio_unrouted;
     // GL_Buffer<"vio_stubs"> vio_stubs;
 
@@ -165,7 +172,12 @@ public:
     // GL_VertexArray<"vaStubs"> vaStubs;
 
     PhysGZ phys;
-    uint32_t netCount;
+    uint32_t netCount, netCountAligned, ocl_counter;
+    constexpr inline static uint32_t ocl_counter_max{ 1024 };
+
+    GL_Buffer<"vbo_routed"> vbo_routed;
+
+//    std::vector<DrawArraysIndirectCommand> indirect_vec;
     GL_Buffer<"indirect_buf"> indirect_buf;
 
     OCL_Tile_Router ocltr;
@@ -190,10 +202,9 @@ public:
         extensions{ getExtensions(hdc) },
         fb{ },
         texture{ 1, GL_RGBA8, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow) },
-        v_unrouted_locations{ tileInfo.get_tile_locations() },
-        unrouted_locations{ v_unrouted_locations },
-        vbo_locations{ static_cast<GLsizeiptr>(unrouted_locations.size_bytes()), unrouted_locations.data() },
-        vio_routed{ index_buf_bytes },
+        // v_unrouted_locations{ tileInfo.get_tile_locations() },
+        // unrouted_locations{ v_unrouted_locations },
+        // vbo_locations{ static_cast<GLsizeiptr>(unrouted_locations.size_bytes()), unrouted_locations.data() },
         // vio_unrouted{ index_buf_bytes },
         // vio_stubs{ index_buf_bytes },
         vaRouted{ },
@@ -201,7 +212,11 @@ public:
         // vaStubs{ },
         phys{ "_deps/benchmark-files-src/boom_med_pb_unrouted.phys" },
         netCount{ phys.root.getPhysNets().size() },
-        indirect_buf{ DrawElementsIndirectCommand_size * (((netCount + 255ul) >> 8ul) << 8ul) },
+        netCountAligned{ (((netCount + 255ul) >> 8ul) << 8ul) },
+        ocl_counter{},
+        vbo_routed{ ocl_counter_max * netCountAligned * sizeof(std::array<uint16_t, 2>)},
+        // indirect_vec{ make_indirect(netCountAligned) },
+        indirect_buf{ netCountAligned * sizeof(std::array<uint32_t, 4>) },
         ocltr{ OCL_Tile_Router::make(
             phys.root,
             {
@@ -211,9 +226,7 @@ public:
                 0, 0,
             },
             {
-                vio_routed.id,
-                // vio_unrouted.id,
-                // vio_stubs.id,
+                vbo_routed.id,
                 indirect_buf.id
             }
         ) },
@@ -249,9 +262,8 @@ public:
 
         vaRouted.attribBinding(0, 0);
         vaRouted.attribFormat(0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
-        vaRouted.attribBuffer(0, vbo_locations, 0, 4);
+        vaRouted.attribBuffer(0, vbo_routed, 0, 4);
         vaRouted.attribEnable(0);
-        vaRouted.elementBuffer(vio_routed);
 
         //vaUnrouted.attribBinding(0, 0);
         //vaUnrouted.attribFormat(0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
@@ -365,13 +377,17 @@ public:
 
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-        ocltr.gl_step().value();
+        if (ocl_counter < ocl_counter_max) {
+            ocltr.gl_step(ocl_counter).value();
+            ocl_counter++;
+        }
 
         indirect_buf.bind(GL_DRAW_INDIRECT_BUFFER, [&]() {
             program_pipeline.bind([&]() {
                 vaRouted.bind([&]() {
-                    fragment_program.uniform4f(0, 0.0f, 1.0f, 0.0f, 1.0f);
-                    glMultiDrawElementsIndirect(GL_LINE_STRIP, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 0), netCount, DrawElementsIndirectCommand_size);
+                    fragment_program.uniform4f(0, 0.0f, 1.0f, 0.0f, 0.01f);
+                    glMultiDrawArraysIndirect(GL_LINE_STRIP, nullptr, netCount, 0);
+                    //glMultiDrawElementsIndirect(GL_LINE_STRIP, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 0), netCount, DrawElementsIndirectCommand_size);
                 });
 
                 //vaStubs.bind([&]() {
@@ -390,6 +406,8 @@ public:
         // glInvalidateBufferData(vio_unrouted);
         // glInvalidateBufferData(vio_stubs);
         // glClearNamedBufferData(indirect_buf_id, GL_RGBA32UI, GL_RGBA, GL_UNSIGNED_INT, nullptr);
+        // glInvalidateBufferData(indirect_buf.id);
+        // glClearNamedBufferData(indirect_buf.id, GL_RGBA32UI, GL_RGBA, GL_UNSIGNED_INT, nullptr);
 
         glDisable(GL_BLEND);
 
@@ -440,7 +458,7 @@ public:
         time_steps[step_num] = diff_ts;
         double_t divisor{ time_step_count>=1024?1024.0: time_step_count };
         double_t fps{1.0 / (static_cast<double_t>(time_step_sum) / static_cast<double_t>(time_step_freq.QuadPart) / divisor)};
-        auto title_text{ std::format(L"{:03.2f} fps", fps) };
+        auto title_text{ std::format(L"{:03.2f} fps, step: {}", fps, ocl_counter) };
         SetWindowTextW(hwnd, title_text.c_str());
     }
 

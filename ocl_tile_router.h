@@ -15,6 +15,9 @@ public:
     ocl::buffer tile_tile_offset_count;
     ocl::buffer dest_tile;
     PhysicalNetlist::PhysNetlist::Reader phys;
+    uint32_t netCount;
+    uint32_t netCountAligned;
+    uint32_t workgroup_count;
 
 #if 0
     OCL_Tile_Router() = default;
@@ -35,20 +38,24 @@ public:
 #endif
 
     inline static constexpr cl_uint max_workgroup_size{ 256 };
-    inline static constexpr cl_uint workgroup_count{ 8 };
-    inline static constexpr cl_uint total_group_size{ max_workgroup_size * workgroup_count };
+    // inline static constexpr cl_uint workgroup_count{ 1 };
+    // inline static constexpr cl_uint total_group_size{ max_workgroup_size * workgroup_count };
 
     std::expected<void, ocl::status> step(ocl::queue &queue) {
         return queue.enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size });
     }
-    std::expected<void, ocl::status> step_all() {
+    std::expected<void, ocl::status> step_all(const uint32_t count) {
+        kernels.at(0).set_arg_t(0, count);
+
         for (auto&& queue : queues) {
             auto result{ queue.enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
             if (!result.has_value()) return result;
         }
         return std::expected<void, ocl::status>();
     }
-    std::expected<void, ocl::status> gl_step() {
+    std::expected<void, ocl::status> gl_step(const uint32_t count) {
+        kernels.at(0).set_arg_t(0, count);
+
         for (auto&& queue : queues) {
             auto result{ queue.useGL(buffers, [&]()->std::expected<void, ocl::status> {
                 return step(queue);
@@ -62,6 +69,10 @@ public:
         std::vector<cl_context_properties> context_properties = {},
         std::vector<cl_uint> gl_buffers = {}//,
     ) {
+
+        const uint32_t netCount{ phys.getPhysNets().size() };
+        const uint32_t netCountAligned{ (((netCount + 255ul) >> 8ul) << 8ul) };
+
         MemoryMappedFile source{ "../kernels/draw_wires.cl" };
         auto req_devices{ context_properties.size() ? ocl::device::get_gl_devices(context_properties).value() : std::vector<cl_device_id>{} };
         ocl::context context{ req_devices.size() ? ocl::context::create(context_properties, req_devices).value(): ocl::context::create<CL_DEVICE_TYPE_GPU>().value() };
@@ -78,7 +89,7 @@ public:
 
         decltype(auto) kernel{ kernels.at(0) };
 
-        std::vector<uint16_t> v_stubLocations(static_cast<size_t>(total_group_size * 4), 0);
+        std::vector<uint16_t> v_stubLocations(static_cast<size_t>(netCountAligned * 4), 0);
         for (auto&& stubLocation : v_stubLocations) {
             // _rdrand16_step(&stubLocation);
             stubLocation = std::rand();
@@ -139,13 +150,11 @@ public:
         kernel.set_arg(5, buf_tile_tile_offset_count).value();
         kernel.set_arg(6, buf_dest_tile).value();
 #else
-        kernel.set_arg(0, buffers.at(0)).value();
-        //kernel.set_arg(1, buffers.at(1)).value();
-        //kernel.set_arg(2, buffers.at(2)).value();
-        kernel.set_arg(1, buffers.at(1)).value();
-        kernel.set_arg(2, buf_stubLocations).value();
-        kernel.set_arg(3, buf_tile_tile_offset_count).value();
-        kernel.set_arg(4, buf_dest_tile).value();
+        kernel.set_arg(1, buffers.at(0)).value();
+        kernel.set_arg(2, buffers.at(1)).value();
+        kernel.set_arg(3, buf_stubLocations).value();
+        kernel.set_arg(4, buf_tile_tile_offset_count).value();
+        kernel.set_arg(5, buf_dest_tile).value();
 #endif
 
         return OCL_Tile_Router{
@@ -158,6 +167,9 @@ public:
             .tile_tile_offset_count{buf_tile_tile_offset_count},
             .dest_tile{buf_dest_tile},
             .phys{ phys },
+            .netCount{ netCount },
+            .netCountAligned{ netCountAligned },
+            .workgroup_count{ netCountAligned / max_workgroup_size },
         };
     }
 };

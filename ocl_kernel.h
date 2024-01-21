@@ -129,6 +129,19 @@ public:
         return get_arg_info_string(kernel, arg_index, param_name);
     }
 
+    always_inline std::expected<void, status> set_arg_t(cl_uint arg_index, auto arg) noexcept {
+        cl_int errcode_ret{ clSetKernelArg(
+            kernel,
+            arg_index,
+            sizeof(arg),
+            &arg) };
+
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<void, status>();
+    }
+
     always_inline std::expected<void, status> set_arg(cl_uint arg_index, ocl::buffer buf) noexcept {
         cl_int errcode_ret{ clSetKernelArg(
             kernel,
