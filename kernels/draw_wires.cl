@@ -59,19 +59,29 @@ draw_wires(
   constant uint2 * restrict tile_tile_count_offset,
   constant ushort2 * restrict dest_tile
 ) {
+  if(drawIndirect[get_global_id(0)].w != 0) return; //dead end or success already
+
   global Stub * currentStub = stubLocations + get_global_id(0);
 
   ushort2 sourcePos = ((currentStub->sourceTile % tileSize) + tileSize) % tileSize;
   ushort2 curPos = ((currentStub->curTile % tileSize) + tileSize) % tileSize;
 
-  if(sourcePos.x != curPos.x || sourcePos.y != curPos.y) {
-    ushort2 newPos = best_next_tile(sourcePos, curPos, tile_tile_count_offset[tile_coords(curPos)], dest_tile);
-    currentStub->curTile = newPos;
-    if(newPos.x != curPos.x || newPos.y != curPos.y) {
-      const uint first = get_global_id(0) * 1024;
-      drawIndirect[get_global_id(0)] = (uint4)(count, 1, first, 0);
-      routed[first + count] = newPos;
-    }
+  if(sourcePos.x == curPos.x && sourcePos.y == curPos.y) {
+    // finished successfully
+    drawIndirect[get_global_id(0)].w = 1;
+    return;
   }
+
+  ushort2 newPos = best_next_tile(sourcePos, curPos, tile_tile_count_offset[tile_coords(curPos)], dest_tile);
+  if(newPos.x == curPos.x && newPos.y == curPos.y) {
+    // dead end
+    drawIndirect[get_global_id(0)].w = 2;
+    return;
+  }
+
+  currentStub->curTile = newPos;
+  const uint first = get_global_id(0) * 1024;
+  drawIndirect[get_global_id(0)] = (uint4)(count, 1, first, 0);
+  routed[first + count] = newPos;
 
 }

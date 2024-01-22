@@ -176,6 +176,7 @@ public:
     constexpr inline static uint32_t ocl_counter_max{ 1024 };
 
     GL_Buffer<"vbo_routed"> vbo_routed;
+    GL_Buffer<"vbo_status"> vbo_status;
 
 //    std::vector<DrawArraysIndirectCommand> indirect_vec;
     GL_Buffer<"indirect_buf"> indirect_buf;
@@ -215,6 +216,11 @@ public:
         netCountAligned{ (((netCount + 255ul) >> 8ul) << 8ul) },
         ocl_counter{},
         vbo_routed{ ocl_counter_max * netCountAligned * sizeof(std::array<uint16_t, 2>)},
+        vbo_status{ std::array<std::array<float, 4>, 3>{
+            std::array<float, 4>{0.0f, 1.0f, 0.0f, 0.01f}, // routing
+            std::array<float, 4>{0.0f, 0.0f, 1.0f, 0.01f}, // success
+            std::array<float, 4>{1.0f, 0.0f, 0.0f, 0.01f}, // failure
+        } },
         // indirect_vec{ make_indirect(netCountAligned) },
         indirect_buf{ netCountAligned * sizeof(std::array<uint32_t, 4>) },
         ocltr{ OCL_Tile_Router::make(
@@ -260,10 +266,17 @@ public:
 
         // glTextureSubImage2D(textures[0], 0, 0, 0, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow), GL_RGBA, GL_UNSIGNED_BYTE, dev.sp_tile_drawing.data());
 
-        vaRouted.attribBinding(0, 0);
-        vaRouted.attribFormat(0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
-        vaRouted.attribBuffer(0, vbo_routed, 0, 4);
-        vaRouted.attribEnable(0);
+        auto vab_routed{ vaRouted.attribBinding(0, 0) };
+        vab_routed.bindingDivisor(0);
+        vab_routed.attribFormat(2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
+        vab_routed.attribBuffer(vbo_routed, 0, 4);
+        vab_routed.attribEnable();
+
+        auto vab_status{ vaRouted.attribBinding(1, 1) };
+        vab_status.bindingDivisor(1);
+        vab_status.attribFormat(4, GL_FLOAT, GL_FALSE, 0);
+        vab_status.attribBuffer(vbo_status, 0, 16);
+        vab_status.attribEnable();
 
         //vaUnrouted.attribBinding(0, 0);
         //vaUnrouted.attribFormat(0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
@@ -385,7 +398,7 @@ public:
         indirect_buf.bind(GL_DRAW_INDIRECT_BUFFER, [&]() {
             program_pipeline.bind([&]() {
                 vaRouted.bind([&]() {
-                    fragment_program.uniform4f(0, 0.0f, 1.0f, 0.0f, 0.01f);
+                    // fragment_program.uniform4f(0, 0.0f, 1.0f, 0.0f, 0.1f);
                     glMultiDrawArraysIndirect(GL_LINE_STRIP, nullptr, netCount, 0);
                     //glMultiDrawElementsIndirect(GL_LINE_STRIP, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 0), netCount, DrawElementsIndirectCommand_size);
                 });
