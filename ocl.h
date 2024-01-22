@@ -22,7 +22,8 @@
 #ifdef _WIN32
 #define always_inline inline __forceinline
 #else
-#define always_inline inline __attribute__((always_inline))
+#define always_inline inline
+//__attribute__((always_inline))
 #endif
 #endif // !always_inline
 

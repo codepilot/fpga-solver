@@ -1,4 +1,5 @@
 include_guard(GLOBAL)
 block()
   standard_executable(opencl-tile-router)
+  add_dependencies(opencl-tile-router cl_files)
 endblock()

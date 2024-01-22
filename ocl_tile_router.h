@@ -89,13 +89,16 @@ public:
 
         decltype(auto) kernel{ kernels.at(0) };
 
+        puts("making v_stubLocations start");
         std::vector<uint16_t> v_stubLocations(static_cast<size_t>(netCountAligned * 4), 0);
         for (auto&& stubLocation : v_stubLocations) {
             // _rdrand16_step(&stubLocation);
             stubLocation = std::rand();
         }
+        puts("making v_stubLocations finished");
 
         auto buf_stubLocations{ context.create_buffer<uint16_t>(CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, v_stubLocations).value() };
+        puts("buf_stubLocations finished");
 
 #if 0
         std::vector<std::array<uint32_t, 2>> v_tile_tile_offset_count;

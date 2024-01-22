@@ -1,6 +1,11 @@
 include_guard(GLOBAL)
 block()
+  include(block_libpng.cmake)
+
   standard_executable(win-desktop WIN32)
+  target_include_directories(${ARGV0} PUBLIC $<TARGET_PROPERTY:png_static,SOURCE_DIR>)
+  target_include_directories(${ARGV0} PUBLIC $<TARGET_PROPERTY:png_static,BINARY_DIR>)
+  target_link_libraries(${ARGV0} PRIVATE libpng::png_static)
   add_dependencies(win-desktop cl_files)
   if(USE_SPIRV)
     add_dependencies(win-desktop shaders)

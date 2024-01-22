@@ -10,8 +10,6 @@ include(block_capnproto.cmake)
 
 include(block_zlib.cmake)
 
-include(block_libpng.cmake)
-
 if(USE_SPIRV)
   include(shaders.cmake)
 endif()
