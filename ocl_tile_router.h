@@ -79,7 +79,12 @@ public:
         auto devices{ context.get_devices() };
         std::vector<ocl::queue> queues{ context.create_queues().value() };
         ocl::program program{ context.create_program(source.get_span<char>()).value() };
-        program.build().value();
+        auto build_result{ program.build() };
+        auto build_log{ program.get_build_info_string(CL_PROGRAM_BUILD_LOG).value() };
+        if (!build_result.has_value()) {
+            abort();
+        }
+        build_result.value();
         std::vector<ocl::kernel> kernels{ program.create_kernels().value() };
         std::vector<ocl::buffer> buffers{ context.from_gl(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, gl_buffers).value() };
 
@@ -140,8 +145,8 @@ public:
         MemoryMappedFile mmf_b{ "tt_body.bin" };
         auto span_a{ mmf_a.get_span<std::array<uint32_t, 2>>() };
         auto span_b{ mmf_b.get_span<std::array<uint16_t, 2>>() };
-        auto buf_tile_tile_offset_count{ context.create_buffer<std::array<uint32_t, 2>>(CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, span_a).value() };
-        auto buf_dest_tile{ context.create_buffer<std::array<uint16_t, 2>>(CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, span_b).value() };
+        auto buf_tile_tile_offset_count{ context.create_buffer<std::array<uint32_t, 2>>(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, span_a).value() };
+        auto buf_dest_tile{ context.create_buffer<std::array<uint16_t, 2>>(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, span_b).value() };
 
 #endif
 #if 0

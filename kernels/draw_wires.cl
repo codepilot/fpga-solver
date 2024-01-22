@@ -17,7 +17,7 @@
 typedef struct {
     ushort2 sourceTile;
     ushort2 curTile;
-} Stub __attribute__ ((aligned(4))) __attribute__ ((packed));
+} Stub __attribute__ ((aligned(4)));
 
 constant ushort2 tileSize = (ushort2)(670, 311);
 constant uint2 utileSize = (uint2)(670, 311);
@@ -31,7 +31,7 @@ float tile_distance(ushort2 a, ushort2 b) {
   return distance(convert_float2(a), convert_float2(b));
 }
 
-ushort2 best_next_tile(ushort2 sourcePos, ushort2 curPos, uint2 count_offset, global const ushort2 * restrict dest_tile) {
+ushort2 best_next_tile(ushort2 sourcePos, ushort2 curPos, uint2 count_offset, constant ushort2 * restrict dest_tile) {
   uint count = count_offset.x;
   uint offset = count_offset.y;
   ushort2 best_dt = curPos;
@@ -56,8 +56,8 @@ draw_wires(
   global ushort2 * restrict routed,
   global uint4 * restrict drawIndirect,
   global Stub * restrict stubLocations,
-  global const uint2 * restrict tile_tile_count_offset,
-  global const ushort2 * restrict dest_tile
+  constant uint2 * restrict tile_tile_count_offset,
+  constant ushort2 * restrict dest_tile
 ) {
   global Stub * currentStub = stubLocations + get_global_id(0);
 
