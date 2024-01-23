@@ -28,7 +28,7 @@ public:
     ocl::program program;
     std::vector<ocl::kernel> kernels;
     std::vector<ocl::buffer> buffers;
-    std::vector<std::array<uint16_t, 4>> v_stubLocations;
+    std::vector<std::array<uint64_t, 16>> v_stubLocations;
     ocl::buffer stubLocations;
     ocl::buffer tile_tile_offset_count;
     ocl::buffer dest_tile;
@@ -130,7 +130,7 @@ public:
         decltype(auto) kernel{ kernels.at(0) };
 
         puts("making v_stubLocations start");
-        std::vector<std::array<uint16_t, 4>> v_stubLocations(static_cast<size_t>(netCountAligned), std::array<uint16_t, 4>{});
+        std::vector<std::array<uint64_t, 16>> v_stubLocations(static_cast<size_t>(netCountAligned), std::array<uint64_t, 16>{});
 #if 1
         auto nets{ phys.getPhysNets() };
         auto physStrs{ phys.getStrList() };
@@ -144,7 +144,7 @@ public:
             }
         }
 
-        each(v_stubLocations, [&](uint64_t index, std::array<uint16_t, 4> &stubLocation) {
+        each(v_stubLocations, [&](uint64_t index, std::array<uint64_t, 16> &stubLocation) {
             if (index >= nets.size()) return;
             auto net{ nets[index] };
             auto stubs{ net.getStubs() };
@@ -161,11 +161,13 @@ public:
             for (uint32_t site : dst_sites) dst_site_names.emplace_back(physStrs[site].cStr());
             auto posA{ site_locations.at(src_site_names.at(0)) };
             auto posB{ site_locations.at(dst_site_names.at(0)) };
-            v_stubLocations[index] = std::array<uint16_t, 4>{
-                posA.at(0),
-                posA.at(1),
-                posB.at(0),
-                posB.at(1),
+            v_stubLocations[index] = std::array<uint64_t, 16>{
+                std::bit_cast<uint64_t>(std::array<uint16_t, 4>{
+                    posA.at(0),
+                    posA.at(1),
+                    posB.at(0),
+                    posB.at(1),
+                }),
             };
         });
 #else

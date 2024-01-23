@@ -14,10 +14,10 @@
 
 */
 
-typedef struct {
-    ushort2 sourceTile;
-    ushort2 curTile;
-} Stub __attribute__ ((aligned(4)));
+//typedef struct {
+  // ushort2 sourceTile;
+  //ushort2 curTile;
+//} Stub __attribute__ ((aligned(4)));
 
 constant ushort2 tileSize = (ushort2)(670, 311);
 constant uint2 utileSize = (uint2)(670, 311);
@@ -35,7 +35,7 @@ ushort2 best_next_tile(ushort2 sourcePos, ushort2 curPos, uint2 count_offset, co
   uint count = count_offset.x;
   uint offset = count_offset.y;
   ushort2 best_dt = curPos;
-  float best_dist = 100000.0;//tile_distance(sourcePos, best_dt);
+  float best_dist = tile_distance(sourcePos, best_dt);
 
   for(uint i = 0; i < count; i++) {
     ushort2 dt = dest_tile[offset + i];
@@ -56,16 +56,15 @@ draw_wires(
   uint count,
   global ushort2 * restrict routed,
   global uint4 * restrict drawIndirect,
-  global Stub * restrict stubLocations,
+  global ulong16 * restrict stubLocations,
   constant uint2 * restrict tile_tile_count_offset,
   constant ushort2 * restrict dest_tile
 ) {
   if(drawIndirect[get_global_id(0)].w != 0) return; //dead end or success already
 
-  global Stub * currentStub = stubLocations + get_global_id(0);
-
-  ushort2 sourcePos = currentStub->sourceTile;
-  ushort2 curPos = currentStub->curTile;
+  ushort4 s0 = as_ushort4(stubLocations[get_global_id(0)].s0);
+  ushort2 sourcePos = s0.s01;
+  ushort2 curPos = s0.s23;
 
   if(sourcePos.x == curPos.x && sourcePos.y == curPos.y) {
     // finished successfully
@@ -84,7 +83,7 @@ draw_wires(
     return;
   }
 
-  currentStub->curTile = newPos;
+  stubLocations[get_global_id(0)].s0 = as_ulong((ushort4)(sourcePos, newPos));
   drawIndirect[get_global_id(0)] = (uint4)(count + 1, 1, first, 0);
   routed[first + count] = newPos;
 
