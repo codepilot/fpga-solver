@@ -159,18 +159,10 @@ public:
 
     GL_Texture<GL_TEXTURE_RECTANGLE, "texture"> texture;
     GL_FrameBuffer<"fb"> fb;
-    // std::vector<std::array<uint16_t, 2>> v_unrouted_locations;
-    // std::span<std::array<uint16_t, 2>> unrouted_locations;
-
-    // GL_Buffer<"vbo_locations"> vbo_locations;
-
-    // GL_Buffer<"vio_unrouted"> vio_unrouted;
-    // GL_Buffer<"vio_stubs"> vio_stubs;
 
     GL_VertexArray<"vaRouted"> vaRouted;
-    // GL_VertexArray<"vaUnrouted"> vaUnrouted;
-    // GL_VertexArray<"vaStubs"> vaStubs;
 
+    DevFlat dev;
     PhysGZ phys;
     uint32_t netCount, netCountAligned, ocl_counter;
     constexpr inline static uint32_t ocl_counter_max{ 1024 };
@@ -178,7 +170,6 @@ public:
     GL_Buffer<"vbo_routed"> vbo_routed;
     GL_Buffer<"vbo_status"> vbo_status;
 
-//    std::vector<DrawArraysIndirectCommand> indirect_vec;
     GL_Buffer<"indirect_buf"> indirect_buf;
 
     OCL_Tile_Router ocltr;
@@ -203,15 +194,9 @@ public:
         extensions{ getExtensions(hdc) },
         fb{ },
         texture{ 1, GL_RGBA8, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow) },
-        // v_unrouted_locations{ tileInfo.get_tile_locations() },
-        // unrouted_locations{ v_unrouted_locations },
-        // vbo_locations{ static_cast<GLsizeiptr>(unrouted_locations.size_bytes()), unrouted_locations.data() },
-        // vio_unrouted{ index_buf_bytes },
-        // vio_stubs{ index_buf_bytes },
         vaRouted{ },
-        // vaUnrouted{ },
-        // vaStubs{ },
-        phys{ "_deps/benchmark-files-src/boom_med_pb_unrouted.phys" },
+        dev{ "_deps/device-file-src/xcvu3p.device" },
+        phys{ "_deps/benchmark-files-src/corescore_500_pb_unrouted.phys" },
         netCount{ phys.root.getPhysNets().size() },
         netCountAligned{ (((netCount + 255ul) >> 8ul) << 8ul) },
         ocl_counter{},
@@ -221,9 +206,9 @@ public:
             std::array<float, 4>{0.0f, 0.0f, 1.0f, 0.01f}, // success
             std::array<float, 4>{1.0f, 0.0f, 0.0f, 0.01f}, // failure
         } },
-        // indirect_vec{ make_indirect(netCountAligned) },
         indirect_buf{ netCountAligned * sizeof(std::array<uint32_t, 4>) },
         ocltr{ OCL_Tile_Router::make(
+            dev.root,
             phys.root,
             {
                 CL_CONTEXT_PLATFORM, reinterpret_cast<cl_context_properties>(ocl::platform::get_ids().value().at(0)),
@@ -278,58 +263,15 @@ public:
         vab_status.attribBuffer(vbo_status, 0, 16);
         vab_status.attribEnable();
 
-        //vaUnrouted.attribBinding(0, 0);
-        //vaUnrouted.attribFormat(0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
-        //vaUnrouted.attribBuffer(0, vbo_locations, 0, 4);
-        //vaUnrouted.attribEnable(0);
-        //vaUnrouted.elementBuffer(vio_unrouted);
-
-        //vaStubs.attribBinding(0, 0);
-        //vaStubs.attribFormat(0, 2, GL_UNSIGNED_SHORT, GL_FALSE, 0);
-        //vaStubs.attribBuffer(0, vbo_locations, 0, 4);
-        //vaStubs.attribEnable(0);
-        //vaStubs.elementBuffer(vio_stubs);
-
         std::span<uint32_t> mRouted{};
-#if 0
-        rp.start_routing(
-            std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_routed, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines },
-            std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_unrouted, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines },
-            std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_stubs, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines }
-        );
-#endif
+
         wglSwapIntervalEXT(0);
 
-#if 0
-        MemoryMappedFile vertexGlsl{ L"../shaders/vertex.vert" };
-        MemoryMappedFile fragmentGlsl{ L"../shaders/fragment.frag" };
-        vertexShader = createShader(ShaderType::vertex, std::string{ reinterpret_cast<char*>(vertexGlsl.fp), vertexGlsl.fsize });
-        fragmentShader = createShader(ShaderType::fragment, std::string{ reinterpret_cast<char*>(fragmentGlsl.fp), fragmentGlsl.fsize });
-#endif
         program_pipeline.use(GL_VERTEX_SHADER_BIT, vertex_program);
         program_pipeline.use(GL_FRAGMENT_SHADER_BIT, fragment_program);
 
         program_pipeline.validate();
         vertex_program.uniform2f(0, static_cast<GLfloat>(tileInfo.numCol), static_cast<GLfloat>(tileInfo.numRow));
-
-#if 1
-        ;
-#else
-        auto sp_routed{ std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_routed, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines } };
-        auto sp_unrouted{ std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_unrouted, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines } };
-        auto sp_stubs{ std::span<uint32_t>{reinterpret_cast<uint32_t*>(glMapNamedBufferRange(vio_stubs, 0, index_buf_bytes, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT)), index_buf_lines } };
-
-        auto d_routed{ sp_routed.data() };
-        auto d_unrouted{ sp_unrouted.data() };
-        auto d_stubs{ sp_stubs.data() };
-
-        for (uint32_t n{}; n < 300 * 300; n++) {
-            d_routed[draw_commands[0].count] = n;
-            d_routed[draw_commands[0].count + 1] = n + 1;
-            draw_commands[0].count += 2;
-            draw_commands[0].instanceCount = 1;
-        }
-#endif
 
     }
 
@@ -398,29 +340,10 @@ public:
         indirect_buf.bind(GL_DRAW_INDIRECT_BUFFER, [&]() {
             program_pipeline.bind([&]() {
                 vaRouted.bind([&]() {
-                    // fragment_program.uniform4f(0, 0.0f, 1.0f, 0.0f, 0.1f);
                     glMultiDrawArraysIndirect(GL_LINE_STRIP, nullptr, netCount, 0);
-                    //glMultiDrawElementsIndirect(GL_LINE_STRIP, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 0), netCount, DrawElementsIndirectCommand_size);
                 });
-
-                //vaStubs.bind([&]() {
-                //    fragment_program.uniform4f(0, 0.0f, 0.0f, 1.0f, 1.0f);
-                //    glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 1));
-                //});
-
-                //vaUnrouted.bind([&]() {
-                //    fragment_program.uniform4f(0, 1.0f, 0.0f, 0.0f, 1.0f);
-                //    glDrawElementsIndirect(GL_LINES, GL_UNSIGNED_INT, reinterpret_cast<const void*>(DrawElementsIndirectCommand_size * 2));
-                //});
             });
         });
-
-        // glInvalidateBufferData(vio_routed);
-        // glInvalidateBufferData(vio_unrouted);
-        // glInvalidateBufferData(vio_stubs);
-        // glClearNamedBufferData(indirect_buf_id, GL_RGBA32UI, GL_RGBA, GL_UNSIGNED_INT, nullptr);
-        // glInvalidateBufferData(indirect_buf.id);
-        // glClearNamedBufferData(indirect_buf.id, GL_RGBA32UI, GL_RGBA, GL_UNSIGNED_INT, nullptr);
 
         glDisable(GL_BLEND);
 

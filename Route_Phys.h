@@ -457,7 +457,7 @@ public:
 		});
 
 		puts("v_tt");
-		std::vector<std::vector<std::array<uint16_t, 2>>> v_tt(static_cast<size_t>(tiles.size()), std::vector<std::array<uint16_t, 2>>{});
+		std::vector<std::set<uint32_t>> v_tt(static_cast<size_t>(tiles.size()), std::set<uint32_t>{});
 		for (auto&& tile : tiles) {
 			auto tile_strIdx{ tile.getName() };
 			auto tile_type{ tile_types[tile.getType()] };
@@ -493,12 +493,12 @@ public:
 				auto wire1_wires{ nodes[inverse_nodes.at(wire1_idx)].getWires() };
 				for (auto wire_n : wire0_wires) {
 					auto wire_n_tile{ tiles[inverse_tiles.at(wires[wire_n].getTile())] };
-					v_tti.emplace_back(std::array<uint16_t, 2>{ wire_n_tile.getCol(), wire_n_tile.getRow() });
+					v_tti.insert(std::bit_cast<uint32_t>(std::array<uint16_t, 2>{ wire_n_tile.getCol(), wire_n_tile.getRow() }));
 				}
 				if (!pip.getDirectional()) {
 					for (auto wire_n : wire1_wires) {
 						auto wire_n_tile{ tiles[inverse_tiles.at(wires[wire_n].getTile())] };
-						v_tti.emplace_back(std::array<uint16_t, 2>{ wire_n_tile.getCol(), wire_n_tile.getRow() });
+						v_tti.insert(std::bit_cast<uint32_t>(std::array<uint16_t, 2>{ wire_n_tile.getCol(), wire_n_tile.getRow() }));
 					}
 				}
 			}
@@ -518,7 +518,7 @@ public:
 		v_tt_body.reserve(offset);
 		for (auto&& v_tti : v_tt) {
 			for (auto&& v_ttin : v_tti) {
-				v_tt_body.emplace_back(v_ttin);
+				v_tt_body.emplace_back(std::bit_cast<std::array<uint16_t, 2>>(v_ttin));
 			}
 		}
 		{

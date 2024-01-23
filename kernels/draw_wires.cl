@@ -35,10 +35,11 @@ ushort2 best_next_tile(ushort2 sourcePos, ushort2 curPos, uint2 count_offset, co
   uint count = count_offset.x;
   uint offset = count_offset.y;
   ushort2 best_dt = curPos;
-  float best_dist = tile_distance(sourcePos, best_dt);
+  float best_dist = 100000.0;//tile_distance(sourcePos, best_dt);
 
   for(uint i = 0; i < count; i++) {
     ushort2 dt = dest_tile[offset + i];
+    if(curPos.x == dt.x && curPos.y == dt.y) continue;
     float cur_dist = tile_distance(sourcePos, dt);
     if(cur_dist < best_dist) {
       best_dist = cur_dist;
@@ -63,8 +64,8 @@ draw_wires(
 
   global Stub * currentStub = stubLocations + get_global_id(0);
 
-  ushort2 sourcePos = ((currentStub->sourceTile % tileSize) + tileSize) % tileSize;
-  ushort2 curPos = ((currentStub->curTile % tileSize) + tileSize) % tileSize;
+  ushort2 sourcePos = currentStub->sourceTile;
+  ushort2 curPos = currentStub->curTile;
 
   if(sourcePos.x == curPos.x && sourcePos.y == curPos.y) {
     // finished successfully
@@ -72,16 +73,19 @@ draw_wires(
     return;
   }
 
+  const uint first = get_global_id(0) * 1024;
+
   ushort2 newPos = best_next_tile(sourcePos, curPos, tile_tile_count_offset[tile_coords(curPos)], dest_tile);
   if(newPos.x == curPos.x && newPos.y == curPos.y) {
     // dead end
-    drawIndirect[get_global_id(0)].w = 2;
+    // drawIndirect[get_global_id(0)].w = 2;
+    drawIndirect[get_global_id(0)] = (uint4)(count + 1, 1, first, 2);
+    routed[first + count] = sourcePos;
     return;
   }
 
   currentStub->curTile = newPos;
-  const uint first = get_global_id(0) * 1024;
-  drawIndirect[get_global_id(0)] = (uint4)(count, 1, first, 0);
+  drawIndirect[get_global_id(0)] = (uint4)(count + 1, 1, first, 0);
   routed[first + count] = newPos;
 
 }
