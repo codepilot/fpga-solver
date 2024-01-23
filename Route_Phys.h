@@ -50,8 +50,8 @@ public:
 
 	Counter fully_routed, skip_route, failed_route, total_attempts;
 	DevFlat dev{ "_deps/device-file-src/xcvu3p.device" };
-//	PhysGZ phys{ "_deps/benchmark-files-src/boom_med_pb_unrouted.phys" };
-	PhysGZ phys{ "_deps/benchmark-files-src/boom_soc_unrouted.phys" };
+	PhysGZ phys{ "_deps/benchmark-files-src/boom_med_pb_unrouted.phys" };
+//	PhysGZ phys{ "_deps/benchmark-files-src/boom_soc_unrouted.phys" };
 //  PhysGZ phys{ "_deps/benchmark-files-src/corescore_500_pb_unrouted.phys" };
 //  PhysGZ phys{ "_deps/benchmark-files-src/corescore_500_unrouted.phys" };
 //  PhysGZ phys{ "_deps/benchmark-files-src/corundum_25g_unrouted.phys" };
@@ -123,8 +123,8 @@ public:
 		stubs_indices = stubs_indices_mapping;
 
 		jt = std::jthread{ [this](std::stop_token stoken) {
-			// route(stoken);
-			tile_based_routing();
+			route(stoken);
+			// tile_based_routing();
 		} };
 	}
 
@@ -432,75 +432,106 @@ public:
 		puts(std::format("tiles: {}, {} bits", tiles.size(), ceil(log2(tiles.size()))).c_str());
 		puts(std::format("nodes: {}, {} bits", nodes.size(), ceil(log2(nodes.size()))).c_str());
 		puts(std::format("wires: {}, {} bits", wires.size(), ceil(log2(wires.size()))).c_str());
+		uint64_t group_size{ std::thread::hardware_concurrency() };
+		puts(std::format("std::thread::hardware_concurrency: {}", group_size).c_str());
 
-		puts("inverse_tiles");
-		std::unordered_map<uint32_t, uint32_t> inverse_tiles;
-		inverse_tiles.reserve(tiles.size());
-		each(tiles, [&](uint64_t tile_idx, tile_reader tile) {
-			inverse_tiles.insert({ tile.getName(), static_cast<uint32_t>(tile_idx) });
-		});
+		std::vector<uint64_t> inverse_wires(static_cast<size_t>(wires.size()), UINT64_MAX); //wire str, tile str, wire idx log2(467843 * 467843 * 83282368) < 64
+		std::vector<uint32_t> inverse_tiles(static_cast<size_t>(devStrs.size()), UINT32_MAX);
+		std::vector<uint32_t> inverse_nodes(static_cast<size_t>(wires.size()), UINT32_MAX);
 
-		puts("inverse_wires");
-		std::unordered_map<uint64_t, uint32_t> inverse_wires; //wire str, tile str, wire idx log2(467843 * 467843 * 83282368) < 64
-		inverse_wires.reserve(wires.size());
-		each(wires, [&](uint64_t wire_idx, wire_reader wire) {
-			inverse_wires.insert({ std::bit_cast<uint64_t>(std::array<uint32_t, 2>{wire.getTile(), wire.getWire()}), static_cast<uint32_t>(wire_idx) });
-		});
-
-		puts("inverse_nodes");
-		std::unordered_map<uint32_t, uint32_t> inverse_nodes;
-		inverse_nodes.reserve(wires.size());
-		each(nodes, [&](uint64_t node_idx, node_reader node) {
-			for (uint32_t wire_idx : node.getWires()) {
-				inverse_nodes.insert({ wire_idx, static_cast<uint32_t>(node_idx) });
-			}
-		});
-
-		puts("v_tt");
+		std::barrier<> bar{ static_cast<ptrdiff_t>(group_size) };
 		std::vector<std::set<uint32_t>> v_tt(static_cast<size_t>(tiles.size()), std::set<uint32_t>{});
-		for (auto&& tile : tiles) {
-			auto tile_strIdx{ tile.getName() };
-			auto tile_type{ tile_types[tile.getType()] };
-			auto tile_type_wire_strs{ tile_type.getWires() };
-			auto tileIndex{ Tile_Index::make(tile) };
-			auto pips{ tile_type.getPips() };
-			decltype(auto) v_tti{ v_tt.at(tileIndex._value) };
-			for (auto&& pip : pips) {
-				if (!pip.isConventional()) continue;
-				auto wire0_strIdx{ tile_type_wire_strs[pip.getWire0()] };
-				auto wire1_strIdx{ tile_type_wire_strs[pip.getWire1()] };
-				auto wire0_key{ std::bit_cast<uint64_t>(std::array<uint32_t, 2>{tile_strIdx, wire0_strIdx}) };
-				auto wire1_key{ std::bit_cast<uint64_t>(std::array<uint32_t, 2>{tile_strIdx, wire1_strIdx}) };
-				if (!inverse_wires.contains(wire0_key)) {
-					puts(std::format("!inverse_wires {} {}", devStrs[tile_strIdx].cStr(), devStrs[wire0_strIdx].cStr()).c_str());
-					continue;
-				}
-				if (!inverse_wires.contains(wire1_key)) {
-					puts(std::format("!inverse_wires {} {}", devStrs[tile_strIdx].cStr(), devStrs[wire1_strIdx].cStr()).c_str());
-					continue;
-				}
-				auto wire0_idx{ inverse_wires.at(wire0_key) };
-				auto wire1_idx{ inverse_wires.at(wire1_key) };
-				if (!inverse_nodes.contains(wire0_idx)) {
-					puts(std::format("!inverse_nodes {} {}", devStrs[tile_strIdx].cStr(), devStrs[wire0_strIdx].cStr()).c_str());
-					continue;
-				}
-				if (!inverse_nodes.contains(wire1_idx)) {
-					puts(std::format("!inverse_nodes {} {}", devStrs[tile_strIdx].cStr(), devStrs[wire1_strIdx].cStr()).c_str());
-					continue;
-				}
-				auto wire0_wires{ nodes[inverse_nodes.at(wire0_idx)].getWires() };
-				auto wire1_wires{ nodes[inverse_nodes.at(wire1_idx)].getWires() };
-				for (auto wire_n : wire0_wires) {
-					auto wire_n_tile{ tiles[inverse_tiles.at(wires[wire_n].getTile())] };
-					v_tti.insert(std::bit_cast<uint32_t>(std::array<uint16_t, 2>{ wire_n_tile.getCol(), wire_n_tile.getRow() }));
-				}
-				if (!pip.getDirectional()) {
-					for (auto wire_n : wire1_wires) {
-						auto wire_n_tile{ tiles[inverse_tiles.at(wires[wire_n].getTile())] };
-						v_tti.insert(std::bit_cast<uint32_t>(std::array<uint16_t, 2>{ wire_n_tile.getCol(), wire_n_tile.getRow() }));
-					}
-				}
+
+		{
+			std::vector<std::jthread> threads;
+			for (uint64_t offset{ 0 }; offset < group_size; offset++) {
+				threads.emplace_back([offset, group_size, &bar, &tiles, &tile_types, &v_tt, &inverse_wires, &inverse_nodes, &inverse_tiles, &nodes, &wires, &devStrs]() {
+
+					const uint64_t str_count{ devStrs.size() };
+					const uint64_t wire_count{ wires.size() };
+					const uint64_t str_m_wire_count{ str_count * wire_count };
+
+					puts("inverse_wires");
+					each_n(offset, group_size, wires, [&](uint64_t wire_idx, wire_reader wire) {
+						uint64_t tile_strIdx{ wire.getTile() };
+						uint64_t wire_strIdx{ wire.getWire() };
+						inverse_wires[wire_idx] = (tile_strIdx * str_count + wire_strIdx) * wire_count + wire_idx;
+					});
+
+					bar.arrive_and_wait();
+					if (!offset) std::ranges::sort(inverse_wires, [](uint64_t a, uint64_t b) { return a < b; });
+
+					puts("inverse_tiles");
+					each_n(offset, group_size, tiles, [&](uint64_t tile_idx, tile_reader tile) {
+						inverse_tiles[tile.getName()] = static_cast<uint32_t>(tile_idx);
+					});
+
+					puts("inverse_nodes");
+					each_n(offset, group_size, nodes, [&](uint64_t node_idx, node_reader node) {
+						for (uint32_t wire_idx : node.getWires()) {
+							inverse_nodes[wire_idx] = static_cast<uint32_t>(node_idx);
+						}
+					});
+
+					bar.arrive_and_wait();
+
+					puts("v_tt");
+					each_n(offset, group_size, tiles, [&](uint64_t tile_index, tile_reader tile)-> void {
+						uint64_t tile_strIdx{ tile.getName() };
+						auto tile_type{ tile_types[tile.getType()] };
+						auto tile_type_wire_strs{ tile_type.getWires() };
+						if (!tile_type_wire_strs.size()) return;
+						auto tileIndex{ Tile_Index::make(tile) };
+						auto pips{ tile_type.getPips() };
+						decltype(auto) v_tti{ v_tt.at(tileIndex._value) };
+
+						auto tile_range{ std::ranges::equal_range(inverse_wires, tile_strIdx * str_m_wire_count, [&](uint64_t a, uint64_t b) { return (a / str_m_wire_count) < (b / str_m_wire_count); }) };
+						if (!tile_range.size()) {
+							puts(std::format("!tile_range {} pips {}", devStrs[tile_strIdx].cStr(), pips.size()).c_str());
+							return;
+						}
+						// puts(std::format("*tile_range {} {} pips {}", devStrs[tile_strIdx].cStr(), tile_range.size(), pips.size()).c_str());
+						for (auto&& pip : pips) {
+							if (!pip.isConventional()) continue;
+							uint64_t wire0_strIdx{ tile_type_wire_strs[pip.getWire0()] };
+							uint64_t wire1_strIdx{ tile_type_wire_strs[pip.getWire1()] };
+							auto wire0_key{ (tile_strIdx * str_count + wire0_strIdx) * wire_count };
+							auto wire1_key{ (tile_strIdx * str_count + wire1_strIdx) * wire_count };
+							auto wire0_idx_s{ std::ranges::equal_range(tile_range, wire0_key, [&](uint64_t a, uint64_t b) { return (a / wire_count) < (b / wire_count); }) };
+							auto wire1_idx_s{ std::ranges::equal_range(tile_range, wire1_key, [&](uint64_t a, uint64_t b) { return (a / wire_count) < (b / wire_count); }) };
+							if (wire0_idx_s.size() != 1) {
+								puts(std::format("!inverse_wires {} {} count {}", devStrs[tile_strIdx].cStr(), devStrs[wire0_strIdx].cStr(), wire0_idx_s.size()).c_str());
+								continue;
+							}
+							if (wire1_idx_s.size() != 1) {
+								puts(std::format("!inverse_wires {} {} count {}", devStrs[tile_strIdx].cStr(), devStrs[wire1_strIdx].cStr(), wire1_idx_s.size()).c_str());
+								continue;
+							}
+							auto wire0_idx{ wire0_idx_s[0] % wire_count };
+							auto wire1_idx{ wire1_idx_s[0] % wire_count };
+							if (inverse_nodes.at(wire0_idx) == UINT32_MAX) {
+								puts(std::format("!inverse_nodes {} {}", devStrs[tile_strIdx].cStr(), devStrs[wire0_strIdx].cStr()).c_str());
+								continue;
+							}
+							if (inverse_nodes.at(wire1_idx) == UINT32_MAX) {
+								puts(std::format("!inverse_nodes {} {}", devStrs[tile_strIdx].cStr(), devStrs[wire1_strIdx].cStr()).c_str());
+								continue;
+							}
+							auto wire0_wires{ nodes[inverse_nodes.at(wire0_idx)].getWires() };
+							auto wire1_wires{ nodes[inverse_nodes.at(wire1_idx)].getWires() };
+							for (auto wire_n : wire0_wires) {
+								auto wire_n_tile{ tiles[inverse_tiles.at(wires[wire_n].getTile())] };
+								v_tti.insert(std::bit_cast<uint32_t>(std::array<uint16_t, 2>{ wire_n_tile.getCol(), wire_n_tile.getRow() }));
+							}
+							if (!pip.getDirectional()) {
+								for (auto wire_n : wire1_wires) {
+									auto wire_n_tile{ tiles[inverse_tiles.at(wires[wire_n].getTile())] };
+									v_tti.insert(std::bit_cast<uint32_t>(std::array<uint16_t, 2>{ wire_n_tile.getCol(), wire_n_tile.getRow() }));
+								}
+							}
+						}
+					});
+				});
 			}
 		}
 
@@ -531,33 +562,6 @@ public:
 			MemoryMappedFile mmf_v_tt_count_offset{ "tt_body.bin", s_tt_body.size_bytes() };
 			memcpy(mmf_v_tt_count_offset.fp, s_tt_body.data(), s_tt_body.size_bytes());
 		}
-#if 0
-		for (uint16_t row{}; row < 311; row++) {
-			OutputDebugStringA(std::format("row: {}\n", row).c_str());
-			for (uint16_t col{}; col < 670; col++) {
-
-				uint16_t wire_count{};
-				// _rdrand16_step(&wire_count);
-				wire_count = std::rand();
-				wire_count %= 766;
-
-				v_tile_tile_offset_count.emplace_back(std::array<uint32_t, 2>{static_cast<uint32_t>(v_dest_tile.size()), wire_count});
-				for (uint16_t wire{}; wire < wire_count; wire++) {
-					uint16_t dx{};
-					dx = std::rand();
-					//_rdrand16_step(&dx);
-					dx %= 670;
-
-					uint16_t dy{};
-					dy = std::rand();
-					//_rdrand16_step(&dy);
-					dy %= 311;
-
-					v_dest_tile.emplace_back(std::array<uint16_t, 2>{dx, dy});
-				}
-			}
-		}
-#endif
 	}
 
 	static void make_search_files() {

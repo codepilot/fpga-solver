@@ -13,6 +13,15 @@ public:
         return std::expected<ocl::queue, status>(ocl::queue{ .queue{queue} });
     }
 
+    always_inline static std::expected<ocl::queue, status> create(cl_context context, cl_device_id device, std::vector<cl_queue_properties> properties) noexcept {
+        cl_int errcode_ret{};
+        cl_command_queue queue{ clCreateCommandQueueWithProperties(context, device, properties.data(), &errcode_ret)};
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<ocl::queue, status>(ocl::queue{ .queue{queue} });
+    }
+
     always_inline static std::expected<size_t, status> get_info_size(cl_command_queue queue, cl_command_queue_info param_name) noexcept {
         size_t param_value_size_ret{};
         status sts0{ clGetCommandQueueInfo(queue, param_name, 0, nullptr, &param_value_size_ret) };

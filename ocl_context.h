@@ -79,6 +79,14 @@ public:
         return queue::create(context, device);
     }
 
+    always_inline std::expected<std::vector<ocl::queue>, status> create_queues(std::vector<cl_device_id> devices, std::vector<cl_queue_properties> properties) noexcept {
+        std::vector<ocl::queue> queues;
+        for (auto&& device : devices) {
+            queues.emplace_back(queue::create(context, device, properties).value());
+        }
+        return queues;
+    }
+
     always_inline std::expected<std::vector<ocl::queue>, status> create_queues(std::vector<cl_device_id> devices) noexcept {
         std::vector<ocl::queue> queues;
         for (auto&& device : devices) {
@@ -99,6 +107,10 @@ public:
 
     always_inline std::expected<std::vector<ocl::queue>, status> create_queues() noexcept {
         return get_devices().and_then([this](std::vector<cl_device_id> devices) {return create_queues(devices); });
+    }
+
+    always_inline std::expected<std::vector<ocl::queue>, status> create_queues(std::vector<cl_queue_properties> properties) noexcept {
+        return get_devices().and_then([&, this](std::vector<cl_device_id> devices) {return create_queues(devices, properties); });
     }
 
     always_inline std::expected<ocl::buffer, status> create_buffer(cl_mem_flags flags, size_t size, void* host_ptr=nullptr) noexcept {

@@ -23,6 +23,7 @@ public:
     }
 
     ocl::context context;
+    std::vector<cl_device_id> device_ids;
     std::vector<ocl::queue> queues;
     ocl::program program;
     std::vector<ocl::kernel> kernels;
@@ -110,7 +111,7 @@ public:
         MemoryMappedFile source{ "../kernels/draw_wires.cl" };
         auto req_devices{ context_properties.size() ? ocl::device::get_gl_devices(context_properties).value() : std::vector<cl_device_id>{} };
         ocl::context context{ req_devices.size() ? ocl::context::create(context_properties, req_devices).value(): ocl::context::create<CL_DEVICE_TYPE_GPU>().value() };
-        auto devices{ context.get_devices() };
+        auto device_ids{ context.get_devices().value() };
         std::vector<ocl::queue> queues{ context.create_queues().value() };
         ocl::program program{ context.create_program(source.get_span<char>()).value() };
         auto build_result{ program.build() };
@@ -246,6 +247,7 @@ public:
 
         return OCL_Tile_Router{
             .context{context},
+            .device_ids{device_ids},
             .queues{queues},
             .program{program},
             .kernels{kernels},

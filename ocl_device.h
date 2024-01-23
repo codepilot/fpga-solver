@@ -8,7 +8,9 @@ public:
     always_inline static std::expected<size_t, status> get_info_size(cl_device_id device, cl_device_info param_name) noexcept {
         size_t param_value_size_ret{};
         status sts0{ clGetDeviceInfo(device, param_name, 0, nullptr, &param_value_size_ret) };
-        if (sts0 != status::SUCCESS) return std::unexpected(sts0);
+        if (sts0 != status::SUCCESS) {
+            return std::unexpected(sts0);
+        }
         return std::expected<size_t, status>(param_value_size_ret);
     }
     always_inline std::expected<size_t, status> get_info_size(cl_device_info param_name) const noexcept {
@@ -178,6 +180,32 @@ public:
         std::cout << std::format("  CL_DEVICE_SVM_FINE_GRAIN_BUFFER: {}\n", static_cast<bool>(get_info_integral<cl_device_svm_capabilities>(device, CL_DEVICE_SVM_CAPABILITIES).value() & CL_DEVICE_SVM_FINE_GRAIN_BUFFER));
         std::cout << std::format("  CL_DEVICE_SVM_FINE_GRAIN_SYSTEM: {}\n", static_cast<bool>(get_info_integral<cl_device_svm_capabilities>(device, CL_DEVICE_SVM_CAPABILITIES).value() & CL_DEVICE_SVM_FINE_GRAIN_SYSTEM));
         std::cout << std::format("  CL_DEVICE_SVM_ATOMICS: {}\n", static_cast<bool>(get_info_integral<cl_device_svm_capabilities>(device, CL_DEVICE_SVM_CAPABILITIES).value() & CL_DEVICE_SVM_ATOMICS));
+
+        std::cout << std::format("CL_DEVICE_PROFILING_TIMER_OFFSET_AMD           : {:x}\n", get_info_integral<uint64_t>(device, CL_DEVICE_PROFILING_TIMER_OFFSET_AMD).value_or(0));
+        auto topo{ get_info_integral<std::array<uint64_t, 3>>(device, CL_DEVICE_TOPOLOGY_AMD).value_or(std::array<uint64_t, 3>{}) };
+        std::cout << std::format("CL_DEVICE_TOPOLOGY_AMD                         : {:x} {:x} {:x}\n", topo[0], topo[1], topo[2]);
+        std::cout << std::format("CL_DEVICE_BOARD_NAME_AMD                       : {}\n", get_info_string(device, CL_DEVICE_BOARD_NAME_AMD                       ).value_or(""));
+        std::cout << std::format("CL_DEVICE_GLOBAL_FREE_MEMORY_AMD               : {}\n", get_info_integral<uint64_t>(device, CL_DEVICE_GLOBAL_FREE_MEMORY_AMD).value_or(0));
+        std::cout << std::format("CL_DEVICE_SIMD_PER_COMPUTE_UNIT_AMD            : {}\n", get_info_integral<uint64_t>(device, CL_DEVICE_SIMD_PER_COMPUTE_UNIT_AMD).value_or(0));
+        std::cout << std::format("CL_DEVICE_SIMD_WIDTH_AMD                       : {}\n", get_info_integral<uint64_t>(device, CL_DEVICE_SIMD_WIDTH_AMD).value_or(0));
+        std::cout << std::format("CL_DEVICE_SIMD_INSTRUCTION_WIDTH_AMD           : {}\n", get_info_integral<uint64_t>(device, CL_DEVICE_SIMD_INSTRUCTION_WIDTH_AMD).value_or(0));
+        std::cout << std::format("CL_DEVICE_WAVEFRONT_WIDTH_AMD                  : {}\n", get_info_integral<uint64_t>(device, CL_DEVICE_WAVEFRONT_WIDTH_AMD).value_or(0));
+        std::cout << std::format("CL_DEVICE_GLOBAL_MEM_CHANNELS_AMD              : {}\n", get_info_integral<uint64_t>(device, CL_DEVICE_GLOBAL_MEM_CHANNELS_AMD).value_or(0));
+        std::cout << std::format("CL_DEVICE_GLOBAL_MEM_CHANNEL_BANKS_AMD         : {}\n", get_info_integral<uint64_t>(device, CL_DEVICE_GLOBAL_MEM_CHANNEL_BANKS_AMD).value_or(0));
+        std::cout << std::format("CL_DEVICE_GLOBAL_MEM_CHANNEL_BANK_WIDTH_AMD    : {}\n", get_info_integral<uint64_t>(device, CL_DEVICE_GLOBAL_MEM_CHANNEL_BANK_WIDTH_AMD).value_or(0));
+        std::cout << std::format("CL_DEVICE_LOCAL_MEM_SIZE_PER_COMPUTE_UNIT_AMD  : {}\n", get_info_integral<uint64_t>(device, CL_DEVICE_LOCAL_MEM_SIZE_PER_COMPUTE_UNIT_AMD).value_or(0));
+        std::cout << std::format("CL_DEVICE_LOCAL_MEM_BANKS_AMD                  : {}\n", get_info_integral<uint64_t>(device, CL_DEVICE_LOCAL_MEM_BANKS_AMD).value_or(0));
+        std::cout << std::format("CL_DEVICE_THREAD_TRACE_SUPPORTED_AMD           : {}\n", get_info_integral<uint64_t>(device, CL_DEVICE_THREAD_TRACE_SUPPORTED_AMD).value_or(0));
+        std::cout << std::format("CL_DEVICE_GFXIP_MAJOR_AMD                      : {}\n", get_info_integral<uint64_t>(device, CL_DEVICE_GFXIP_MAJOR_AMD).value_or(0));
+        std::cout << std::format("CL_DEVICE_GFXIP_MINOR_AMD                      : {}\n", get_info_integral<uint64_t>(device, CL_DEVICE_GFXIP_MINOR_AMD).value_or(0));
+        std::cout << std::format("CL_DEVICE_AVAILABLE_ASYNC_QUEUES_AMD           : {}\n", get_info_integral<uint64_t>(device, CL_DEVICE_AVAILABLE_ASYNC_QUEUES_AMD).value_or(0));
+        std::cout << std::format("CL_DEVICE_PREFERRED_WORK_GROUP_SIZE_AMD        : {}\n", get_info_integral<uint64_t>(device, CL_DEVICE_PREFERRED_WORK_GROUP_SIZE_AMD).value_or(0));
+        std::cout << std::format("CL_DEVICE_MAX_WORK_GROUP_SIZE_AMD              : {}\n", get_info_integral<uint64_t>(device, CL_DEVICE_MAX_WORK_GROUP_SIZE_AMD).value_or(0));
+        std::cout << std::format("CL_DEVICE_PREFERRED_CONSTANT_BUFFER_SIZE_AMD   : {}\n", get_info_integral<uint64_t>(device, CL_DEVICE_PREFERRED_CONSTANT_BUFFER_SIZE_AMD).value_or(0));
+        std::cout << std::format("CL_DEVICE_PCIE_ID_AMD                          : {:x}\n", get_info_integral<uint64_t>(device, CL_DEVICE_PCIE_ID_AMD).value_or(0));
+#define CL_DEVICE_NUM_P2P_DEVICES_AMD 0x4088
+#define CL_DEVICE_P2P_DEVICES_AMD 0x4089
+        std::cout << std::format("CL_DEVICE_NUM_P2P_DEVICES_AMD                          : {:x}\n", get_info_integral<uint64_t>(device, CL_DEVICE_NUM_P2P_DEVICES_AMD).value_or(0));
     }
 
     always_inline std::expected<bool, status> supports_svm_fine_grain_buffer() {

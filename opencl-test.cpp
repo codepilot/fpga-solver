@@ -5,13 +5,17 @@ void test_opencl() {
     puts("test_opencl()");
     ocl::platform::each([](uint64_t platform_idx, ocl::platform platform) {
         platform.log_info();
-        platform.each_device([](uint64_t device_idx, ocl::device device) {
+        platform.each_device<CL_DEVICE_TYPE_GPU>([](uint64_t device_idx, ocl::device device) {
             device.log_info();
             auto max_workgroup_size{ device.get_info_integral<size_t>(CL_DEVICE_MAX_WORK_GROUP_SIZE).value() };
             auto context{ device.create_context().value() };
             std::cout << std::format("context.refcount: {}\n", context.get_reference_count().value());
 
-            auto queues{ context.create_queues().value() };
+            std::vector<cl_queue_properties> host_queue_properties{
+                CL_QUEUE_PROPERTIES, CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE,
+                0,
+            };
+            auto queues{ context.create_queues(host_queue_properties).value() };
             std::cout << std::format("queue.refcount: {}\n", queues[0].get_reference_count().value());
 
             size_t svmSpanSize{sizeof(uint32_t) * max_workgroup_size};

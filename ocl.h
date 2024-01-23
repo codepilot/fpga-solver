@@ -6,6 +6,7 @@
 
 #include <CL/cl.h>
 #include <CL/cl_gl.h>
+#include <CL/cl_ext.h>
 #include <format>
 #include <vector>
 #include <optional>
