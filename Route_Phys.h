@@ -479,6 +479,7 @@ public:
 					each_n(offset, group_size, tiles, [&](uint64_t tile_index, tile_reader tile)-> void {
 						uint64_t tile_strIdx{ tile.getName() };
 						auto tile_type{ tile_types[tile.getType()] };
+						auto siteTypes{ tile_type.getSiteTypes() };
 						auto tile_type_wire_strs{ tile_type.getWires() };
 						if (!tile_type_wire_strs.size()) return;
 						auto tileIndex{ Tile_Index::make(tile) };
@@ -491,6 +492,26 @@ public:
 							return;
 						}
 						// puts(std::format("*tile_range {} {} pips {}", devStrs[tile_strIdx].cStr(), tile_range.size(), pips.size()).c_str());
+						for (auto&& siteType : siteTypes) {
+							for (auto&& wire0_strIdx : siteType.getPrimaryPinsToTileWires()) {
+								auto wire0_key{ (tile_strIdx * str_count + wire0_strIdx) * wire_count };
+								auto wire0_idx_s{ std::ranges::equal_range(tile_range, wire0_key, [&](uint64_t a, uint64_t b) { return (a / wire_count) < (b / wire_count); }) };
+								if (wire0_idx_s.size() != 1) {
+									puts(std::format("!inverse_wires {} {} count {}", devStrs[tile_strIdx].cStr(), devStrs[wire0_strIdx].cStr(), wire0_idx_s.size()).c_str());
+									continue;
+								}
+								auto wire0_idx{ wire0_idx_s[0] % wire_count };
+								if (inverse_nodes.at(wire0_idx) == UINT32_MAX) {
+									puts(std::format("!inverse_nodes {} {}", devStrs[tile_strIdx].cStr(), devStrs[wire0_strIdx].cStr()).c_str());
+									continue;
+								}
+								auto wire0_wires{ nodes[inverse_nodes.at(wire0_idx)].getWires() };
+								for (auto wire_n : wire0_wires) {
+									auto wire_n_tile{ tiles[inverse_tiles.at(wires[wire_n].getTile())] };
+									v_tti.insert(std::bit_cast<uint32_t>(std::array<uint16_t, 2>{ wire_n_tile.getCol(), wire_n_tile.getRow() }));
+								}
+							}
+						}
 						for (auto&& pip : pips) {
 							if (!pip.isConventional()) continue;
 							uint64_t wire0_strIdx{ tile_type_wire_strs[pip.getWire0()] };
