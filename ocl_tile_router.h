@@ -60,6 +60,7 @@ public:
         for (auto&& queue : queues) {
             auto result{ queue.enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
             if (!result.has_value()) return result;
+            break;
         }
         return std::expected<void, ocl::status>();
     }
