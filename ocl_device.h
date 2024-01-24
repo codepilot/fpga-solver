@@ -100,7 +100,7 @@ public:
 #define show_info_string(e) std::cout << std::format("  " #e ": {}\n", get_info_string(device, e).value_or(na));
 #define show_info_bool(e) std::cout << std::format("  " #e ": {}\n", static_cast<bool>(get_info_integral<cl_bool>(device, e).value_or(0)));
 #define show_info_uint(e) std::cout << std::format("  " #e ": {}\n", get_info_integral<cl_uint>(device, e).value_or(0));
-#define show_info_ulong(e) std::cout << std::format("  " #e ": {}\n", get_info_integral<cl_ulong>(device, e).value_or(0));
+#define show_info_ulong(e) std::cout << std::format("  " #e ": {} Mi\n", std::scalbn(static_cast<double>(get_info_integral<cl_ulong>(device, e).value_or(0)), -20) );
 #define show_info_device_type(e) std::cout << std::format("  " #e ": {}\n", get_info_integral<cl_device_type>(device, e).value_or(0));
 #define show_info_size_t(e) std::cout << std::format("  " #e ": {}\n", get_info_integral<size_t>(device, e).value_or(0));
 #define show_info_3x_size_t(e) {auto val{get_info_integral<std::array<size_t, 3>>(device, e).value_or(std::array<size_t, 3>{})}; std::cout << std::format("  " #e ": {}, {}, {}\n", val[0], val[1], val[2]); }

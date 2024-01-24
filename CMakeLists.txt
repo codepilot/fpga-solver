@@ -70,26 +70,7 @@ include(prepare-device.cmake)
 include(prepare-benchmark.cmake)
 include(interchange-files.cmake)
 
-# # file(GLOB_RECURSE BENCHMARK_FILES "${benchmark-files_SOURCE_DIR}/*.netlist" "${benchmark-files_SOURCE_DIR}/*.phys" "${device-file_SOURCE_DIR}/*.device")
-
-# # foreach(BENCHMARK_FILE ${BENCHMARK_FILES})
-# #   get_filename_component(FILE_NAME ${BENCHMARK_FILE} NAME)
-# #   set(UNZIPPED "${PROJECT_BINARY_DIR}/benchmarks/${FILE_NAME}.UNZIPPED")
-# #   set(CANON "${PROJECT_BINARY_DIR}/benchmarks/${FILE_NAME}")
-# #   add_custom_command(
-# #     OUTPUT  ${CANON}
-# #     COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/benchmarks/"
-# #     COMMAND $<TARGET_FILE:canonize> ${BENCHMARK_FILE} ${UNZIPPED} ${CANON}
-# #     DEPENDS ${BENCHMARK_FILE}
-# #     DEPENDS canonize)
-# #   list(APPEND PREPARED_BENCHMARK_FILES ${CANON})
-# # endforeach(BENCHMARK_FILE)
-
-
-
-
-
-# # add_custom_target(prepared-benchmark-files DEPENDS ${PREPARED_BENCHMARK_FILES})
+include(route_benchmarks.cmake)
 
 # # file(GLOB_RECURSE DEVICE_FILES "${PROJECT_BINARY_DIR}/benchmarks/*.device")
 

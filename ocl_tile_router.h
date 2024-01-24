@@ -8,7 +8,6 @@
 class OCL_Tile_Router {
 public:
 
-    static inline const size_t ocl_counter_max{ 1024 };
     static inline const MemoryMappedFile mmf_tt_count_offset{ "tt_count_offset.bin" };
     static inline const MemoryMappedFile mmf_tt_body{ "tt_body.bin" };
     static inline const std::span<std::array<uint32_t, 2>> span_tt_count_offset{ mmf_tt_count_offset.get_span<std::array<uint32_t, 2>>() };
@@ -46,6 +45,7 @@ public:
     uint32_t netCount;
     uint32_t netCountAligned;
     uint32_t workgroup_count;
+    uint32_t ocl_counter_max;
 
     inline static constexpr cl_uint max_workgroup_size{ 256 };
     // inline static constexpr cl_uint workgroup_count{ 1 };
@@ -71,7 +71,8 @@ public:
     }
 
     std::expected<void, ocl::status> do_all() {
-        for (uint32_t count{}; count < 1024; count++) {
+        std::cout << std::format("ocl_counter_max: {}\n", ocl_counter_max);
+        for (uint32_t count{}; count < ocl_counter_max; count++) {
             step_all(count).value();
         }
         for (auto&& queue : queues) {
@@ -116,17 +117,23 @@ public:
         std::vector<ocl::queue> queues{ context.create_queues().value() };
         MemoryMappedFile source{ "../kernels/draw_wires.cl" };
         ocl::program program{ context.create_program(source.get_span<char>()).value() };
-        auto build_result{ program.build() };
-        auto build_log{ program.get_build_info_string(CL_PROGRAM_BUILD_LOG).value() };
+        size_t possible_ocl_counter_max{ ocl::device::get_info_integral<cl_ulong>(device_ids.at(0), CL_DEVICE_MAX_MEM_ALLOC_SIZE).value() / (static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 2>)) };
+        const uint32_t ocl_counter_max{ (possible_ocl_counter_max > 1024ull) ? 1024ul: static_cast<uint32_t>(possible_ocl_counter_max) };
+        auto build_result{ program.build(std::format("-cl-uniform-work-group-size -cl-no-subgroup-ifp -cl-mad-enable -cl-no-signed-zeros -Werror -cl-std=CL1.2 -cl-kernel-arg-info -g -D ocl_counter_max={}", ocl_counter_max))};
+        auto build_logs{ program.get_build_info_string(CL_PROGRAM_BUILD_LOG).value() };
         if (!build_result.has_value()) {
+            for (auto&& build_log : build_logs) {
+                puts(build_log.c_str());
+            }
             abort();
         }
         build_result.value();
         std::vector<ocl::kernel> kernels{ program.create_kernels().value() };
         std::vector<ocl::buffer> buffers{ context.from_gl(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, gl_buffers).value() };
+
         if (buffers.size() < 2) {
-            buffers.emplace_back(context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, ocl_counter_max * netCountAligned * sizeof(std::array<uint16_t, 2>)).value());
-            buffers.emplace_back(context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, netCountAligned * sizeof(std::array<uint32_t, 4>)).value());
+            buffers.emplace_back(context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS | CL_MEM_ALLOC_HOST_PTR, static_cast<size_t>(ocl_counter_max) * static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 2>)).value());
+            buffers.emplace_back(context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS | CL_MEM_ALLOC_HOST_PTR, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint32_t, 4>)).value());
         }
 
         decltype(auto) kernel{ kernels.at(0) };
@@ -213,6 +220,7 @@ public:
             .netCount{ netCount },
             .netCountAligned{ netCountAligned },
             .workgroup_count{ netCountAligned / max_workgroup_size },
+            .ocl_counter_max{ ocl_counter_max },
         };
     }
 };

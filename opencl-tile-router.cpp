@@ -31,7 +31,7 @@ int main(int argc, char* argv[]) {
 	std::vector<std::string> args;
 	for (auto &&arg: std::span<char*>(argv, static_cast<size_t>(argc))) args.emplace_back(arg);
 
-	auto phys_file{ (args.size() >= 2) ? args.at(1) : "_deps/benchmark-files-src/boom_soc_unrouted.phys" };
+	auto phys_file{ (args.size() >= 2) ? args.at(1) : "_deps/benchmark-files-src/koios_dla_like_large_unrouted.phys" };
 
 	std::cout << std::format("Routing {}\n", phys_file);
 
@@ -39,4 +39,5 @@ int main(int argc, char* argv[]) {
 	auto phys{ TimerVal(PhysGZ(phys_file)) };
 	auto ocltr{ TimerVal(OCL_Tile_Router::make(dev.root, phys.root)) };
 	TimerVal(ocltr.do_all()).value();
+	puts("complete\n");
 }

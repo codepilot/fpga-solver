@@ -1,7 +1,7 @@
 constant uint max_tile_count = 2268;
 constant uint tt_body_count = 970435;
 
-typedef ushort2 routed_lines[1024];
+typedef ushort2 routed_lines[ocl_counter_max];
 
 constant ushort2 tileSize = (ushort2)(670, 311);
 constant uint2 utileSize = (uint2)(670, 311);
@@ -55,7 +55,7 @@ ushort2 best_next_tile(ushort2 sourcePos, constant uint2 * restrict tile_tile_co
     if(curPos.x == dt.x && curPos.y == dt.y) continue;
 
     float cur_dist = tile_distance(sourcePos, dt);
-    ulong item = combine(((ulong)(cur_dist * 8.0)) + previous * 32, previous + 1, 0, dt.x, dt.y);//cost, previous, tt_id, tile
+    ulong item = combine(((ulong)(cur_dist * 8.0f)) + previous * 32, previous + 1, 0, dt.x, dt.y);//cost, previous, tt_id, tile
     for(uint j = 0; j < 16; j++) {
       if((0x7FFFFull & curStubs[j]) == (0x7FFFFull & item)) break;
       ulong2 maybe_swap = (ulong2)(min(curStubs[j], item), max(curStubs[j], item));
@@ -95,12 +95,12 @@ draw_wires(
   ushort2 newPos = best_next_tile(sourcePos, tile_tile_count_offset, dest_tile, stubLocations);
   if(newPos.x == curPos.x && newPos.y == curPos.y) {
     // dead end
-    drawIndirect[get_global_id(0)] = (uint4)(count + 1, 1, get_global_id(0) * 1024, 2);
+    drawIndirect[get_global_id(0)] = (uint4)(count + 1, 1, get_global_id(0) * ocl_counter_max, 2);
     routed[get_global_id(0)][count] = sourcePos;
     return;
   }
 
-  drawIndirect[get_global_id(0)] = (uint4)(count + 1, 1, get_global_id(0) * 1024, 0);
+  drawIndirect[get_global_id(0)] = (uint4)(count + 1, 1, get_global_id(0) * ocl_counter_max, 0);
   routed[get_global_id(0)][count] = newPos;
 
 }
