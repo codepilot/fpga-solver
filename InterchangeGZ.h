@@ -31,7 +31,9 @@ public:
 		auto init_result{ inflateInit2(&strm, 15 + 16) };
 		auto inflate_result{ inflate(&strm, Z_FINISH) };
 		auto end_result{ inflateEnd(&strm) };
+#ifdef _DEBUG
 		puts(std::format("init_result: {}\ninflate_result: {}\nend_result: {}\n", init_result, inflate_result, end_result).c_str());
+#endif
 		auto mmf_unzipped{ mmf_temp.shrink(strm.total_out) };
 
 		if(delete_temp) mmf_unzipped.reopen_delete();

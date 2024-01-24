@@ -232,7 +232,9 @@ public:
     fsize{getFileSize(fh)},
     fm{create_readonly_file_mapping(fh, fsize)},
     fp{mmap_readonly(fh, fsize, fm)} {
+#ifdef _DEBUG
       puts(std::format("fn:{} fh:{} fsize:{} fp:{}", fn, fh, fsize, fp).c_str());
+#endif
   }
 
   inline MemoryMappedFile(decltype(fh) fh, bool is_writable = false) :
@@ -242,7 +244,9 @@ public:
     fsize{getFileSize(fh)},
     fm{ is_writable?create_readwrite_file_mapping(fh, fsize):create_readonly_file_mapping(fh, fsize)},
     fp{ is_writable?mmap_readwrite(fh, fsize, fm) : mmap_readonly(fh, fsize, fm)} {
+#ifdef _DEBUG
       puts(std::format("fh:{} fsize:{} fp:{}", fh, fsize, fp).c_str());
+#endif
   }
 
   inline MemoryMappedFile(std::string fn, uint64_t requestedSize):
@@ -253,7 +257,9 @@ public:
     fsize{setFileSize(fh, requestedSize) },
     fm{create_readwrite_file_mapping(fh, fsize)},
     fp{mmap_readwrite(fh, fsize, fm)} {
+#ifdef _DEBUG
       puts(std::format("fn:{} requestedSize:{} fh:{} fsize:{} fp:{}", fn, requestedSize, fh, fsize, fp).c_str());
+#endif
       zero();
   }
 

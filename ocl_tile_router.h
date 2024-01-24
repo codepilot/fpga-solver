@@ -8,6 +8,7 @@
 class OCL_Tile_Router {
 public:
 
+    static inline const size_t ocl_counter_max{ 1024 };
     static inline const MemoryMappedFile mmf_tt_count_offset{ "tt_count_offset.bin" };
     static inline const MemoryMappedFile mmf_tt_body{ "tt_body.bin" };
     static inline const std::span<std::array<uint32_t, 2>> span_tt_count_offset{ mmf_tt_count_offset.get_span<std::array<uint32_t, 2>>() };
@@ -51,9 +52,13 @@ public:
     // inline static constexpr cl_uint total_group_size{ max_workgroup_size * workgroup_count };
 
     std::expected<void, ocl::status> step(ocl::queue &queue) {
+#ifdef _DEBUG
+        queue.enqueueRead<std::array<uint64_t, 16>>(stubLocations.mem, true, 0, v_stubLocations);
+#endif
         auto result{ queue.enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
         return result;
     }
+
     std::expected<void, ocl::status> step_all(const uint32_t count) {
         kernels.at(0).set_arg_t(0, count);
 
@@ -64,6 +69,17 @@ public:
         }
         return std::expected<void, ocl::status>();
     }
+
+    std::expected<void, ocl::status> do_all() {
+        for (uint32_t count{}; count < 1024; count++) {
+            step_all(count).value();
+        }
+        for (auto&& queue : queues) {
+            queue.finish().value();
+        }
+        return std::expected<void, ocl::status>();
+    }
+
     std::expected<void, ocl::status> gl_step(const uint32_t count) {
         kernels.at(0).set_arg_t(0, count);
 
@@ -95,7 +111,7 @@ public:
         auto v_allSourcePos(std::vector<std::array<uint16_t, 2>>(static_cast<size_t>(netCountAligned), std::array<uint16_t, 2>{}));
 
         auto req_devices{ context_properties.size() ? ocl::device::get_gl_devices(context_properties).value() : std::vector<cl_device_id>{} };
-        ocl::context context{ req_devices.size() ? ocl::context::create(context_properties, req_devices).value(): ocl::context::create<CL_DEVICE_TYPE_GPU>().value() };
+        ocl::context context{ req_devices.size() ? ocl::context::create(context_properties, req_devices).value(): ocl::context::create<CL_DEVICE_TYPE_DEFAULT>().value() };
         auto device_ids{ context.get_devices().value() };
         std::vector<ocl::queue> queues{ context.create_queues().value() };
         MemoryMappedFile source{ "../kernels/draw_wires.cl" };
@@ -108,14 +124,19 @@ public:
         build_result.value();
         std::vector<ocl::kernel> kernels{ program.create_kernels().value() };
         std::vector<ocl::buffer> buffers{ context.from_gl(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, gl_buffers).value() };
-
-        while (buffers.size() < 2) {
-            buffers.emplace_back(context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, 8 * 1024 * 1024).value());
+        if (buffers.size() < 2) {
+            buffers.emplace_back(context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, ocl_counter_max * netCountAligned * sizeof(std::array<uint16_t, 2>)).value());
+            buffers.emplace_back(context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, netCountAligned * sizeof(std::array<uint32_t, 4>)).value());
         }
 
         decltype(auto) kernel{ kernels.at(0) };
 
-        std::vector<std::array<uint64_t, 16>> v_stubLocations(static_cast<size_t>(netCountAligned), std::array<uint64_t, 16>{});
+        std::vector<std::array<uint64_t, 16>> v_stubLocations(static_cast<size_t>(netCountAligned), std::array<uint64_t, 16>{
+            UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
+            UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
+            UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
+            UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
+        });
 
         auto nets{ phys.getPhysNets() };
         auto physStrs{ phys.getStrList() };
