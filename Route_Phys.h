@@ -427,6 +427,7 @@ public:
 		auto tile_types{ devRoot.getTileTypeList() };
 		auto tile_bounds{ Tile_Info::get_tile_info(tiles) };
 		auto devStrs{ devRoot.getStrList() };
+		auto wireTypes{ devRoot.getWireTypes() };
 
 		puts(std::format("devStrs: {}, {} bits", devStrs.size(), ceil(log2(devStrs.size()))).c_str());
 		puts(std::format("tiles: {}, {} bits", tiles.size(), ceil(log2(tiles.size()))).c_str());
@@ -445,7 +446,7 @@ public:
 		{
 			std::vector<std::jthread> threads;
 			for (uint64_t offset{ 0 }; offset < group_size; offset++) {
-				threads.emplace_back([offset, group_size, &bar, &tiles, &tile_types, &v_tt, &inverse_wires, &inverse_nodes, &inverse_tiles, &nodes, &wires, &devStrs]() {
+				threads.emplace_back([offset, group_size, &bar, &tiles, &tile_types, &v_tt, &inverse_wires, &inverse_nodes, &inverse_tiles, &nodes, &wires, &devStrs, &wireTypes]() {
 
 					const uint64_t str_count{ devStrs.size() };
 					const uint64_t wire_count{ wires.size() };
@@ -507,6 +508,7 @@ public:
 								}
 								auto wire0_wires{ nodes[inverse_nodes.at(wire0_idx)].getWires() };
 								for (auto wire_n : wire0_wires) {
+									if (wireTypes[wires[wire_n].getType()].getCategory() == ::DeviceResources::Device::WireCategory::GLOBAL) break;
 									auto wire_n_tile{ tiles[inverse_tiles.at(wires[wire_n].getTile())] };
 									v_tti.insert(std::bit_cast<uint32_t>(std::array<uint16_t, 2>{ wire_n_tile.getCol(), wire_n_tile.getRow() }));
 								}
@@ -541,11 +543,13 @@ public:
 							auto wire0_wires{ nodes[inverse_nodes.at(wire0_idx)].getWires() };
 							auto wire1_wires{ nodes[inverse_nodes.at(wire1_idx)].getWires() };
 							for (auto wire_n : wire0_wires) {
+								if (wireTypes[wires[wire_n].getType()].getCategory() != ::DeviceResources::Device::WireCategory::GENERAL) break;
 								auto wire_n_tile{ tiles[inverse_tiles.at(wires[wire_n].getTile())] };
 								v_tti.insert(std::bit_cast<uint32_t>(std::array<uint16_t, 2>{ wire_n_tile.getCol(), wire_n_tile.getRow() }));
 							}
 							if (!pip.getDirectional()) {
 								for (auto wire_n : wire1_wires) {
+									if (wireTypes[wires[wire_n].getType()].getCategory() != ::DeviceResources::Device::WireCategory::GENERAL) break;
 									auto wire_n_tile{ tiles[inverse_tiles.at(wires[wire_n].getTile())] };
 									v_tti.insert(std::bit_cast<uint32_t>(std::array<uint16_t, 2>{ wire_n_tile.getCol(), wire_n_tile.getRow() }));
 								}
@@ -560,9 +564,11 @@ public:
 		std::vector<std::array<std::uint32_t, 2>> v_tt_count_offset;
 		v_tt_count_offset.reserve(static_cast<size_t>(tiles.size()));
 		size_t offset{};
+		size_t max_count{};
 		for (auto&& v_tti : v_tt) {
 			v_tt_count_offset.emplace_back(std::array<uint32_t, 2>{ static_cast<uint32_t>(v_tti.size()), static_cast<uint32_t>(offset) });
 			offset += v_tti.size();
+			max_count = (v_tti.size() > max_count) ? v_tti.size() : max_count;
 		};
 
 		puts("v_tt_body");
@@ -583,6 +589,8 @@ public:
 			MemoryMappedFile mmf_v_tt_count_offset{ "tt_body.bin", s_tt_body.size_bytes() };
 			memcpy(mmf_v_tt_count_offset.fp, s_tt_body.data(), s_tt_body.size_bytes());
 		}
+		puts(std::format("max_count: {}", max_count).c_str());
+		puts(std::format("v_tt_body: {}", v_tt_body.size()).c_str());
 	}
 
 	static void make_search_files() {

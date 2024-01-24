@@ -13,6 +13,14 @@ public:
     static inline const std::span<std::array<uint32_t, 2>> span_tt_count_offset{ mmf_tt_count_offset.get_span<std::array<uint32_t, 2>>() };
     static inline const std::span<std::array<uint16_t, 2>> span_tt_body{ mmf_tt_body.get_span<std::array<uint16_t, 2>>() };
 
+    static uint64_t combine(uint64_t cost, uint64_t previous, uint64_t tt_id, uint64_t tile) {//cost, previous, tt_id, tile
+        return
+            ((cost & 0x01FFFull) << 51ull) |
+            ((previous & 0x00FFFull) << 39ull) |
+            ((tt_id & 0xFFFFFull) << 19ull) |
+            ((tile & 0x7FFFFull) << 0ull);
+    }
+
     static std::array<uint32_t, 2> get_co(uint32_t x, uint32_t y) {
         return span_tt_count_offset[x + y * 670ul];
     }
@@ -37,37 +45,18 @@ public:
     uint32_t netCountAligned;
     uint32_t workgroup_count;
 
-#if 0
-    OCL_Tile_Router() = default;
-
-    OCL_Tile_Router(OCL_Tile_Router&& other): 
-        context{ std::move(other.context) },
-        queues{ std::move(other.queues) },
-        program{ std::move(other.program) },
-        kernels{ std::move(other.kernels) },
-        buffers{ std::move(other.buffers) },
-        stubLocations{ std::move(other.stubLocations) },
-        tile_tile_offset_count{ std::move(other.tile_tile_offset_count) },
-        dest_tile{ std::move(dest_tile) },
-        phys{ std::move(phys) }
-    {
-
-    }
-#endif
-
     inline static constexpr cl_uint max_workgroup_size{ 256 };
     // inline static constexpr cl_uint workgroup_count{ 1 };
     // inline static constexpr cl_uint total_group_size{ max_workgroup_size * workgroup_count };
 
     std::expected<void, ocl::status> step(ocl::queue &queue) {
-        //queue.enqueueRead(stubLocations.mem, true, 0, std::span(v_stubLocations)).value();
-        //auto item0{ v_stubLocations.at(0) };
+#ifdef _DEBUG
+        queue.enqueueRead(stubLocations.mem, true, 0, std::span(v_stubLocations)).value();
+        auto front0{ v_stubLocations.at(0) };
+        auto item0{ std::bit_cast<std::array<uint16_t, 4>>(front0.at(0)) };
+#endif
 
-        //auto ts{ get_co(item0.at(0), item0.at(1)) };
-        //auto tc{ get_co(item0.at(2), item0.at(3)) };
-        //auto to{ get_s(item0.at(2), item0.at(3)) };
         auto result{ queue.enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
-        //queue.enqueueRead(stubLocations.mem, true, 0, std::span(v_stubLocations)).value();
         return result;
     }
     std::expected<void, ocl::status> step_all(const uint32_t count) {
@@ -107,6 +96,7 @@ public:
 
         const uint32_t netCount{ phys.getPhysNets().size() };
         const uint32_t netCountAligned{ (((netCount + 255ul) >> 8ul) << 8ul) };
+        auto v_allSourcePos(std::vector<std::array<uint16_t, 2>>(static_cast<size_t>(netCountAligned), std::array<uint16_t, 2>{}));
 
         MemoryMappedFile source{ "../kernels/draw_wires.cl" };
         auto req_devices{ context_properties.size() ? ocl::device::get_gl_devices(context_properties).value() : std::vector<cl_device_id>{} };
@@ -131,7 +121,7 @@ public:
 
         puts("making v_stubLocations start");
         std::vector<std::array<uint64_t, 16>> v_stubLocations(static_cast<size_t>(netCountAligned), std::array<uint64_t, 16>{});
-#if 1
+
         auto nets{ phys.getPhysNets() };
         auto physStrs{ phys.getStrList() };
         auto devStrs{ dev.getStrList() };
@@ -161,91 +151,31 @@ public:
             for (uint32_t site : dst_sites) dst_site_names.emplace_back(physStrs[site].cStr());
             auto posA{ site_locations.at(src_site_names.at(0)) };
             auto posB{ site_locations.at(dst_site_names.at(0)) };
-            v_stubLocations[index] = std::array<uint64_t, 16>{
-                std::bit_cast<uint64_t>(std::array<uint16_t, 4>{
-                    posA.at(0),
-                    posA.at(1),
-                    posB.at(0),
-                    posB.at(1),
-                }),
+            uint64_t word_0{ combine(0, 0, 0, static_cast<uint64_t>(posB[0]) + static_cast<uint64_t>(posB[1]) * 670ull) };
+            v_allSourcePos[index] = posA;
+            v_stubLocations[index] = std::array<uint64_t, 16>{ 
+                word_0,     UINT64_MAX, UINT64_MAX, UINT64_MAX,
+                UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
+                UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
+                UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
             };
         });
-#else
-        for (auto&& stubLocation : v_stubLocations) {
-            // _rdrand16_step(&stubLocation);
-            for (;;) {
-                stubLocation = std::array<uint16_t, 4>{
-                    static_cast<uint16_t>(std::rand() % 670ull),
-                        static_cast<uint16_t>(std::rand() % 311ull),
-                        static_cast<uint16_t>(std::rand() % 670ull),
-                        static_cast<uint16_t>(std::rand() % 311ull),
-                };
-                if (get_co(stubLocation.at(0), stubLocation.at(1)).at(0) > 0 && get_co(stubLocation.at(2), stubLocation.at(3)).at(0)) {
-                    break;
-                }
-            }
-        }
-#endif
+
         puts("making v_stubLocations finished");
 
         auto buf_stubLocations{ context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_READ_ONLY, v_stubLocations).value() };
         puts("buf_stubLocations finished");
 
-#if 0
-        std::vector<std::array<uint32_t, 2>> v_tile_tile_offset_count;
-        std::vector<std::array<uint16_t, 2>> v_dest_tile;
-
-        v_tile_tile_offset_count.reserve(670ull * 311ull);
-        v_dest_tile.reserve(670ull * 311ull * 383ull);
-
-        for (uint16_t row{}; row < 311; row++) {
-            OutputDebugStringA(std::format("row: {}\n", row).c_str());
-            for (uint16_t col{}; col < 670; col++) {
-
-                uint16_t wire_count{};
-                // _rdrand16_step(&wire_count);
-                wire_count = std::rand();
-                wire_count %= 766;
-
-                v_tile_tile_offset_count.emplace_back(std::array<uint32_t, 2>{static_cast<uint32_t>(v_dest_tile.size()), wire_count});
-                for (uint16_t wire{}; wire < wire_count; wire++) {
-                    uint16_t dx{};
-                    dx = std::rand();
-                    //_rdrand16_step(&dx);
-                    dx %= 670;
-
-                    uint16_t dy{};
-                    dy = std::rand();
-                    //_rdrand16_step(&dy);
-                    dy %= 311;
-
-                    v_dest_tile.emplace_back(std::array<uint16_t, 2>{dx, dy});
-                }
-            }
-        }
-
-        auto buf_tile_tile_offset_count{ context.create_buffer<std::array<uint32_t, 2>>(CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, v_tile_tile_offset_count).value() };
-        auto buf_dest_tile{ context.create_buffer<std::array<uint16_t, 2>>(CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, v_dest_tile).value() };
-#else
         auto buf_tile_tile_offset_count{ context.create_buffer<std::array<uint32_t, 2>>(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, span_tt_count_offset).value() };
         auto buf_dest_tile{ context.create_buffer<std::array<uint16_t, 2>>(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, span_tt_body).value() };
+        auto buf_allSourcePos{ context.create_buffer<std::array<uint16_t, 2>>(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, v_allSourcePos).value() };
 
-#endif
-#if 0
-        kernel.set_arg(0, buffers.at(0)).value();
-        kernel.set_arg(1, buffers.at(1)).value();
-        kernel.set_arg(2, buffers.at(2)).value();
-        kernel.set_arg(3, buffers.at(3)).value();
-        kernel.set_arg(4, buf_stubLocations).value();
-        kernel.set_arg(5, buf_tile_tile_offset_count).value();
-        kernel.set_arg(6, buf_dest_tile).value();
-#else
         kernel.set_arg(1, buffers.at(0)).value();
         kernel.set_arg(2, buffers.at(1)).value();
         kernel.set_arg(3, buf_stubLocations).value();
         kernel.set_arg(4, buf_tile_tile_offset_count).value();
         kernel.set_arg(5, buf_dest_tile).value();
-#endif
+        kernel.set_arg(6, buf_allSourcePos).value();
 
         return OCL_Tile_Router{
             .context{context},
