@@ -543,13 +543,13 @@ public:
 							auto wire0_wires{ nodes[inverse_nodes.at(wire0_idx)].getWires() };
 							auto wire1_wires{ nodes[inverse_nodes.at(wire1_idx)].getWires() };
 							for (auto wire_n : wire0_wires) {
-								if (wireTypes[wires[wire_n].getType()].getCategory() != ::DeviceResources::Device::WireCategory::GENERAL) break;
+								if (wireTypes[wires[wire_n].getType()].getCategory() == ::DeviceResources::Device::WireCategory::GLOBAL) break;
 								auto wire_n_tile{ tiles[inverse_tiles.at(wires[wire_n].getTile())] };
 								v_tti.insert(std::bit_cast<uint32_t>(std::array<uint16_t, 2>{ wire_n_tile.getCol(), wire_n_tile.getRow() }));
 							}
 							if (!pip.getDirectional()) {
 								for (auto wire_n : wire1_wires) {
-									if (wireTypes[wires[wire_n].getType()].getCategory() != ::DeviceResources::Device::WireCategory::GENERAL) break;
+									if (wireTypes[wires[wire_n].getType()].getCategory() == ::DeviceResources::Device::WireCategory::GLOBAL) break;
 									auto wire_n_tile{ tiles[inverse_tiles.at(wires[wire_n].getTile())] };
 									v_tti.insert(std::bit_cast<uint32_t>(std::array<uint16_t, 2>{ wire_n_tile.getCol(), wire_n_tile.getRow() }));
 								}

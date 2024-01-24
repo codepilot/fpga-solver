@@ -6,21 +6,21 @@ typedef ushort2 routed_lines[1024];
 constant ushort2 tileSize = (ushort2)(670, 311);
 constant uint2 utileSize = (uint2)(670, 311);
 
-uint4 split(ulong n) {
-  return (uint4)(
+uint3 split(ulong n) {
+  return (uint3)(
     (n >> 51ull) & 0x01FFFull, // cost: 13 bit
     (n >> 39ull) & 0x00FFFull, // previous: 12 bit
-    (n >> 19ull) & 0xFFFFFull, // tt_id:20 bit
-               n & 0x7FFFFull  // tile:19 bit
+    (n >> 19ull) & 0xFFFFFull  // tt_id:20 bit
   );
 }
 
-ulong combine(uint4 p) {//cost, previous, tt_id, tile
+ulong combine(ulong cost, ulong previous, ulong tt_id, ulong tile_col, ulong tile_row) {
   return
-    (((ulong)p[0] & 0x01FFFull) << 51ull) |
-    (((ulong)p[1] & 0x00FFFull) << 39ull) |
-    (((ulong)p[2] & 0xFFFFFull) << 19ull) |
-    (((ulong)p[3] & 0x7FFFFull) <<  0ull);
+      ((cost     & 0x01FFFull) << 51ull) |
+      ((previous & 0x00FFFull) << 39ull) |
+      ((tt_id    & 0xFFFFFull) << 19ull) |
+      ((tile_row & 0x001FFull) << 10ull) |
+      ((tile_col & 0x003FFull) << 0ull);
 }
 
 uint tile_coords(ushort2 t) {
@@ -29,8 +29,7 @@ uint tile_coords(ushort2 t) {
 }
 
 ushort2 tile_to_coords(ulong t) {
-  ulong tm = t & 0x7FFFFull;
-  return (ushort2)(tm % tileSize.x, tm / tileSize.x);
+  return (ushort2)(t & 0x3ffull, (t >> 10ull) & 0x1ffull);
 }
 
 float tile_distance(ushort2 a, ushort2 b) {
@@ -40,7 +39,7 @@ float tile_distance(ushort2 a, ushort2 b) {
 ushort2 best_next_tile(ushort2 sourcePos, constant uint2 * restrict tile_tile_count_offset, constant ushort2 * restrict dest_tile, global ulong16 * restrict stubLocations) {
   ulong16 curStubs = stubLocations[get_global_id(0)];
   ushort2 curPos = tile_to_coords(curStubs.s0);
-  uint4 curInfo = split(curStubs.s0);
+  uint3 curInfo = split(curStubs.s0);
   uint previous = curInfo.s1;
   uint2 count_offset = tile_tile_count_offset[tile_coords(curPos)];
   uint count = count_offset.x;
@@ -56,12 +55,11 @@ ushort2 best_next_tile(ushort2 sourcePos, constant uint2 * restrict tile_tile_co
     if(curPos.x == dt.x && curPos.y == dt.y) continue;
 
     float cur_dist = tile_distance(sourcePos, dt);
-    ulong16 current = curStubs;
-    // ulong item = (((ulong)(cur_dist * 8.0)) << 51ull) | ((ulong)tile_coords(dt));
-    ulong item = combine((uint4)(((ulong)(cur_dist * 8.0)) + previous, previous + 1, 0, tile_coords(dt)));//cost, previous, tt_id, tile
+    ulong item = combine(((ulong)(cur_dist * 8.0)) + previous * 32, previous + 1, 0, dt.x, dt.y);//cost, previous, tt_id, tile
     for(uint j = 0; j < 16; j++) {
-      if((0x7FFFFull & current[j]) == (0x7FFFFull & item)) break;
-      curStubs[j] = min(current[j], item); item = max(current[j], item);
+      if((0x7FFFFull & curStubs[j]) == (0x7FFFFull & item)) break;
+      ulong2 maybe_swap = (ulong2)(min(curStubs[j], item), max(curStubs[j], item));
+      curStubs[j] = maybe_swap.s0; item = maybe_swap.s1;
     }
   }
 

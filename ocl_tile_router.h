@@ -13,13 +13,13 @@ public:
     static inline const std::span<std::array<uint32_t, 2>> span_tt_count_offset{ mmf_tt_count_offset.get_span<std::array<uint32_t, 2>>() };
     static inline const std::span<std::array<uint16_t, 2>> span_tt_body{ mmf_tt_body.get_span<std::array<uint16_t, 2>>() };
 
-    static uint64_t combine(uint64_t cost, uint64_t previous, uint64_t tt_id, uint64_t tile) {//cost, previous, tt_id, tile
-        return
-            ((cost & 0x01FFFull) << 51ull) |
-            ((previous & 0x00FFFull) << 39ull) |
-            ((tt_id & 0xFFFFFull) << 19ull) |
-            ((tile & 0x7FFFFull) << 0ull);
-    }
+    typedef struct {
+        uint64_t tile_col : 10;
+        uint64_t tile_row : 9;
+        uint64_t tt_id : 20;
+        uint64_t previous : 12;
+        uint64_t cost : 13;
+    } front_info;
 
     static std::array<uint32_t, 2> get_co(uint32_t x, uint32_t y) {
         return span_tt_count_offset[x + y * 670ul];
@@ -37,6 +37,7 @@ public:
     std::vector<ocl::kernel> kernels;
     std::vector<ocl::buffer> buffers;
     std::vector<std::array<uint64_t, 16>> v_stubLocations;
+    std::vector<std::array<uint16_t, 2>> v_allSourcePos;
     ocl::buffer stubLocations;
     ocl::buffer tile_tile_offset_count;
     ocl::buffer dest_tile;
@@ -50,12 +51,6 @@ public:
     // inline static constexpr cl_uint total_group_size{ max_workgroup_size * workgroup_count };
 
     std::expected<void, ocl::status> step(ocl::queue &queue) {
-#ifdef _DEBUG
-        queue.enqueueRead(stubLocations.mem, true, 0, std::span(v_stubLocations)).value();
-        auto front0{ v_stubLocations.at(0) };
-        auto item0{ std::bit_cast<std::array<uint16_t, 4>>(front0.at(0)) };
-#endif
-
         auto result{ queue.enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
         return result;
     }
@@ -98,11 +93,11 @@ public:
         const uint32_t netCountAligned{ (((netCount + 255ul) >> 8ul) << 8ul) };
         auto v_allSourcePos(std::vector<std::array<uint16_t, 2>>(static_cast<size_t>(netCountAligned), std::array<uint16_t, 2>{}));
 
-        MemoryMappedFile source{ "../kernels/draw_wires.cl" };
         auto req_devices{ context_properties.size() ? ocl::device::get_gl_devices(context_properties).value() : std::vector<cl_device_id>{} };
         ocl::context context{ req_devices.size() ? ocl::context::create(context_properties, req_devices).value(): ocl::context::create<CL_DEVICE_TYPE_GPU>().value() };
         auto device_ids{ context.get_devices().value() };
         std::vector<ocl::queue> queues{ context.create_queues().value() };
+        MemoryMappedFile source{ "../kernels/draw_wires.cl" };
         ocl::program program{ context.create_program(source.get_span<char>()).value() };
         auto build_result{ program.build() };
         auto build_log{ program.get_build_info_string(CL_PROGRAM_BUILD_LOG).value() };
@@ -119,7 +114,6 @@ public:
 
         decltype(auto) kernel{ kernels.at(0) };
 
-        puts("making v_stubLocations start");
         std::vector<std::array<uint64_t, 16>> v_stubLocations(static_cast<size_t>(netCountAligned), std::array<uint64_t, 16>{});
 
         auto nets{ phys.getPhysNets() };
@@ -151,7 +145,13 @@ public:
             for (uint32_t site : dst_sites) dst_site_names.emplace_back(physStrs[site].cStr());
             auto posA{ site_locations.at(src_site_names.at(0)) };
             auto posB{ site_locations.at(dst_site_names.at(0)) };
-            uint64_t word_0{ combine(0, 0, 0, static_cast<uint64_t>(posB[0]) + static_cast<uint64_t>(posB[1]) * 670ull) };
+            uint64_t word_0{ std::bit_cast<uint64_t>(front_info{
+                .tile_col{posB[0]},
+                .tile_row{posB[1]},
+                .tt_id{},
+                .previous{},
+                .cost{},
+            } ) };
             v_allSourcePos[index] = posA;
             v_stubLocations[index] = std::array<uint64_t, 16>{ 
                 word_0,     UINT64_MAX, UINT64_MAX, UINT64_MAX,
@@ -161,10 +161,8 @@ public:
             };
         });
 
-        puts("making v_stubLocations finished");
 
         auto buf_stubLocations{ context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_READ_ONLY, v_stubLocations).value() };
-        puts("buf_stubLocations finished");
 
         auto buf_tile_tile_offset_count{ context.create_buffer<std::array<uint32_t, 2>>(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, span_tt_count_offset).value() };
         auto buf_dest_tile{ context.create_buffer<std::array<uint16_t, 2>>(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, span_tt_body).value() };
@@ -185,6 +183,7 @@ public:
             .kernels{kernels},
             .buffers{buffers},
             .v_stubLocations{v_stubLocations},
+            .v_allSourcePos{v_allSourcePos},
             .stubLocations{buf_stubLocations},
             .tile_tile_offset_count{buf_tile_tile_offset_count},
             .dest_tile{buf_dest_tile},
