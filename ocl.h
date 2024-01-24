@@ -18,6 +18,7 @@
 #include <span>
 #include <set>
 #include <map>
+#include <cmath>
 
 #ifndef always_inline
 #ifdef _WIN32

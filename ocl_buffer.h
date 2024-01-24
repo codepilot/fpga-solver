@@ -9,7 +9,9 @@ public:
 #if 0
         cl_mem mem{ clCreateBufferWithProperties(context, nullptr, flags, size, host_ptr, &errcode_ret) };
 #else
+        puts(std::format("clCreateBuffer size:{} MiB", std::scalbln(static_cast<double>(size), -20)).c_str());
         cl_mem mem{ clCreateBuffer(context, flags, size, host_ptr, &errcode_ret) };
+        puts(std::format("clCreateBuffer status:{}", errcode_ret).c_str());
 #endif
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
