@@ -31,8 +31,12 @@ int main(int argc, char* argv[]) {
 	std::vector<std::string> args;
 	for (auto &&arg: std::span<char*>(argv, static_cast<size_t>(argc))) args.emplace_back(arg);
 
+	auto phys_file{ (args.size() >= 2) ? args.at(1) : "_deps/benchmark-files-src/boom_soc_unrouted.phys" };
+
+	std::cout << std::format("Routing {}\n", phys_file);
+
 	auto dev{ TimerVal(DevFlat("_deps/device-file-src/xcvu3p.device" )) };
-	auto phys{ TimerVal(PhysGZ("_deps/benchmark-files-src/boom_soc_unrouted.phys")) };
+	auto phys{ TimerVal(PhysGZ(phys_file)) };
 	auto ocltr{ TimerVal(OCL_Tile_Router::make(dev.root, phys.root)) };
 	TimerVal(ocltr.do_all()).value();
 }
