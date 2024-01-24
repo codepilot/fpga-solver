@@ -123,7 +123,7 @@ public:
         MemoryMappedFile source{ "../kernels/draw_wires.cl" };
         ocl::program program{ context.create_program(source.get_span<char>()).value() };
         size_t possible_ocl_counter_max{ ocl::device::get_info_integral<cl_ulong>(device_ids.at(0), CL_DEVICE_MAX_MEM_ALLOC_SIZE).value() / (static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 2>)) };
-        const uint32_t ocl_counter_max{ (possible_ocl_counter_max > 1024ull) ? 1024ul: static_cast<uint32_t>(possible_ocl_counter_max) };
+        const uint32_t ocl_counter_max{ (possible_ocl_counter_max > 256ull) ? 256ul: static_cast<uint32_t>(possible_ocl_counter_max) };
         auto build_result{ program.build(std::format("-cl-mad-enable -cl-no-signed-zeros -Werror -cl-std=CL1.2 -cl-kernel-arg-info -g -D ocl_counter_max={}", ocl_counter_max))};
         auto build_logs{ program.get_build_info_string(CL_PROGRAM_BUILD_LOG).value() };
         for (auto&& build_log : build_logs) {
