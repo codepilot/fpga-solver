@@ -26,7 +26,7 @@ public:
 
 	static std::vector<uint64_t> make(wire_list_reader wires) {
 		std::priority_queue<uint64_t, std::vector<uint64_t>> q;
-		each(wires, [&](uint64_t wire_idx, wire_reader wire) {
+		each(wires, [&](uint64_t wire_idx, wire_reader &wire) {
 			q.push(((static_cast<uint64_t>(wire.getTile()) * str_count) + static_cast<uint64_t>(wire.getWire())) * wire_count);
 		});
 	}
@@ -394,7 +394,7 @@ public:
 
 	void block_phys() {
 		puts("block_phys() start");
-		each(physRoot.getPhysNets(), [&](uint64_t net_idx, net_reader net) {
+		each(physRoot.getPhysNets(), [&](uint64_t net_idx, net_reader &net) {
 			block_resources(static_cast<uint32_t>(net_idx), net);
 		});
 		puts("block_phys() finish");
@@ -407,7 +407,7 @@ public:
 		std::span<TileInfo, tile_count> ti{ *upti };
 
 		puts("ti start");
-		each(tiles, [&](auto tile_counter, tile_reader tile) {
+		each(tiles, [&](auto tile_counter, tile_reader &tile) {
 			auto tile_idx{ Tile_Index::make(tile) };
 			ti[tile_idx._value].name = devStrs[tile.getName()].cStr();
 			ti[tile_idx._value].tile_idx = tile_idx;
@@ -726,7 +726,7 @@ public:
 
 #if 0
 		puts("s_nodes_tiles start");
-		each(nodes, [&](auto node_idx, auto node) {
+		each(nodes, [&](auto node_idx, auto &node) {
 			auto node_wires{ node.getWires() };
 			DeviceResources::Device::Wire::Reader node_wire_0{ wires[node_wires[0]] };
 			if (wireTypes[node_wire_0.getType()].getCategory() == DeviceResources::Device::WireCategory::GLOBAL) return; //not global clock
@@ -802,7 +802,7 @@ public:
 		std::atomic<uint32_t> stub_router_count{};
 
 		puts("placing nets in tiles, start");
-		each(physRoot.getPhysNets(), [&](uint64_t net_idx, net_reader net) {
+		each(physRoot.getPhysNets(), [&](uint64_t net_idx, net_reader &net) {
 			auto sources{ net.getSources() };
 			auto stubs{ net.getStubs() };
 			if (sources.size() != 1) return;

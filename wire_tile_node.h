@@ -82,7 +82,7 @@ public:
 			auto wire_tile_node_whole{ mmf_whole.get_span<WireTileNode>() };
 			puts(std::format("wire_tile_node_whole: {}, {} bits", wire_tile_node_whole.size(), ceil(log2(wire_tile_node_whole.size()))).c_str());
 
-			jthread_each(nodes, [&](uint64_t node_idx, node_reader node) {
+			jthread_each(nodes, [&](uint64_t node_idx, node_reader &node) {
 				auto node_wires{ node.getWires() };
 				auto so_n{ storage_offset.fetch_add(node_wires.size()) };
 				for (auto&& wire_idx : node_wires) {
@@ -111,7 +111,7 @@ public:
 		auto wires{ devRoot.getWires() };
 		puts("Search_Wire_Tile_Node::test() start");
 
-		jthread_each(nodes, [&](uint64_t node_idx, node_reader node) {
+		jthread_each(nodes, [&](uint64_t node_idx, node_reader &node) {
 			for (auto&& wire_idx : node.getWires()) {
 				auto wire{ wires[wire_idx] };
 

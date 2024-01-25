@@ -71,7 +71,7 @@ public:
 			auto tile_types{ devRoot.getTileTypeList() };
 
 			auto alt_ret{ mmf_whole.get_span<NodeTilePip>() };
-			jthread_each(tiles, [&](uint64_t tile_idx, tile_reader tile) {
+			jthread_each(tiles, [&](uint64_t tile_idx, tile_reader &tile) {
 				// WireTileNode key{ .tileStrIdx{tile.getName()} };
 				auto tile_range{ search_wire_tile_node.tile_to_node(String_Index{._strIdx{tile.getName()}}) };
 				// auto tile_range{ std::ranges::equal_range(wire_tile_node, key, [](WireTileNode a, WireTileNode b) {return a.tileStrIdx < b.tileStrIdx; }) };
@@ -80,7 +80,7 @@ public:
 				auto tile_type_wire_strs{ tile_type.getWires() };
 				auto tileIndex{ Tile_Index::make(tile) };
 
-				each(tile_type.getPips(), [&](uint64_t pip_idx, pip_reader pip) {
+				each(tile_type.getPips(), [&](uint64_t pip_idx, pip_reader &pip) {
 					auto wire0{ pip.getWire0() };
 					auto wire1{ pip.getWire1() };
 					auto directional{ pip.getDirectional() };
@@ -121,14 +121,14 @@ public:
 			auto tiles{ devRoot.getTileList() };
 			auto tile_types{ devRoot.getTileTypeList() };
 
-			jthread_each(tiles, [&](uint64_t tile_idx, tile_reader tile) {
+			jthread_each(tiles, [&](uint64_t tile_idx, tile_reader &tile) {
 				auto tile_range{ search_wire_tile_node.tile_to_node(String_Index{._strIdx{tile.getName()}}) };
 
 				auto tile_type{ tile_types[tile.getType()] };
 				auto tile_type_wire_strs{ tile_type.getWires() };
 				auto tileIndex{ Tile_Index::make(tile) };
 
-				each(tile_type.getPips(), [&](uint64_t pip_idx, pip_reader pip) {
+				each(tile_type.getPips(), [&](uint64_t pip_idx, pip_reader &pip) {
 					auto wire0{ pip.getWire0() };
 					auto wire1{ pip.getWire1() };
 					auto directional{ pip.getDirectional() };

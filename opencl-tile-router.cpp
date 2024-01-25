@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
 
 	std::vector<cl_context_properties> context_properties;
 
-	ocl::platform::each([&](uint64_t platform_idx, ocl::platform platform) {
+	ocl::platform::each([&](uint64_t platform_idx, ocl::platform &platform) {
 		platform.each_device<CL_DEVICE_TYPE_GPU>([&](uint64_t device_idx, ocl::device device) {
 			if (context_properties.empty()) {
 				context_properties.emplace_back(CL_CONTEXT_PLATFORM);

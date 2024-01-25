@@ -130,7 +130,7 @@ public:
 			auto site_pin_node{ mmf_whole.get_span<SitePinNode>() };
 
 
-			jthread_each(tiles, [&](uint64_t tile_idx, tile_reader tile) {
+			jthread_each(tiles, [&](uint64_t tile_idx, tile_reader &tile) {
 				String_Index tile_strIdx{ tile.getName() };
 				auto tileType{ tile_types[tile.getType()] };
 				for (auto&& site : tile.getSites()) {

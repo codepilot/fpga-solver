@@ -113,7 +113,7 @@ public:
 
 		puts(std::format("wire_tile_wire: {}, {} bits", wire_tile_wire.size(), ceil(log2(wire_tile_wire.size()))).c_str());
 
-		jthread_each(wires, [&](uint64_t wire_idx, wire_reader wire) {
+		jthread_each(wires, [&](uint64_t wire_idx, wire_reader &wire) {
 			wire_tile_wire[wire_idx] = WireTileWire::make(wire.getTile(), wire.getWire(), wire_idx);
 		});
 
@@ -131,7 +131,7 @@ public:
 		auto wires{ devRoot.getWires() };
 		auto wire_count{ wires.size() };
 
-		jthread_each(wires, [&](uint64_t wire_idx, wire_reader wire) {
+		jthread_each(wires, [&](uint64_t wire_idx, wire_reader &wire) {
 			auto found_wire_idx{ wire_tile_to_wire({ wire.getTile() }, { wire.getWire() }) };
 			if (wire_idx != found_wire_idx) {
 				puts(std::format("wire_idx: {}, found_wire_idx: {}", wire_idx, found_wire_idx).c_str());

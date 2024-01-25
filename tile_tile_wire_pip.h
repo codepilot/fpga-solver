@@ -55,7 +55,7 @@ public:
 
         tp.resize(208370ull);
 
-        jthread_each(tiles, [&](uint64_t tile_origin_idx, tile_reader tile_origin) {
+        jthread_each(tiles, [&](uint64_t tile_origin_idx, tile_reader &tile_origin) {
             // if (!(tile_origin_idx % 1000ull)) puts(std::format("{} of {}", tile_origin_idx, tiles.size()).c_str());
             auto tile_origin_strIdx{ tile_origin.getName() };
             auto tile_type_origin{ tile_types[tile_origin.getType()] };
@@ -64,7 +64,7 @@ public:
             auto tile_origin_pips{ tile_type_origin.getPips() };
             decltype(auto) tpi{ tp.at(tile_index_origin._value) };
             tpi.reserve(tile_origin_pips.size());
-            each(tile_origin_pips, [&](uint64_t pip_idx, pip_reader pip) {
+            each(tile_origin_pips, [&](uint64_t pip_idx, pip_reader &pip) {
                 if (pip.isPseudoCells()) return;
                 {
                     auto wire0_strIdx{ tile_type_wire_strIdxs[pip.getWire0()] };
@@ -106,7 +106,7 @@ public:
                     }
                 }
             });
-            std::sort(std::execution::par_unseq, tpi.begin(), tpi.end(), [](TilePip a, TilePip b) { return a.get_uint32_t() < b.get_uint32_t(); });
+            std::ranges::sort(tpi, [](TilePip a, TilePip b) { return a.get_uint32_t() < b.get_uint32_t(); });
         });
 #if 0
         for (auto&& node : nodes) {
