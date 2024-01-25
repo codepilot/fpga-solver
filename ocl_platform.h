@@ -134,9 +134,11 @@ public:
         if (devices.has_value()) {
             ::each(devices.value(), lambda);
         }
+#ifdef _DEBUG
         else {
             puts(std::format("devices error: {}\n", static_cast<cl_int>(devices.error())).c_str());
         }
+#endif
     }
 
     static always_inline ::ocl::platform make_null() noexcept {

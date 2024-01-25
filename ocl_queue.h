@@ -116,7 +116,27 @@ public:
     }
 
     template<typename T>
-    always_inline std::expected<ocl::event, status> enqueueSVMMap(cl_bool blocking_map, cl_map_flags flags, std::span<T> svm) {
+    always_inline std::expected<ocl::event, status> enqueueSVMMemcpy(cl_bool blocking_copy, std::span<T> dst, std::span<T> src) {
+        cl_event event{};
+        cl_int errcode_ret{ clEnqueueSVMMemcpy(
+            queue,
+            blocking_copy,
+            dst.data(),
+            src.data(),
+            dst.size_bytes(),
+            0,
+            nullptr,
+            &event
+        ) };
+
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<ocl::event, status>(ocl::event {.event{ event } });
+    }
+
+    template<typename T>
+    always_inline std::expected<ocl::event, status> enqueueSVMMap(cl_bool blocking_map, cl_map_flags flags, ocl::svm<T> svm) {
         cl_event event{};
         cl_int errcode_ret{ clEnqueueSVMMap(
             queue,
@@ -136,7 +156,7 @@ public:
     }
 
     template<typename T>
-    always_inline std::expected<ocl::event, status> enqueueSVMUnmap(std::span<T> svm) {
+    always_inline std::expected<ocl::event, status> enqueueSVMUnmap(ocl::svm<T> svm) {
         cl_event event{};
         cl_int errcode_ret{ clEnqueueSVMUnmap(
             queue,

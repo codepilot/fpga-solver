@@ -44,11 +44,15 @@ int main(int argc, char* argv[]) {
 
 	ocl::platform::each([&](uint64_t platform_idx, ocl::platform platform) {
 		platform.each_device<CL_DEVICE_TYPE_GPU>([&](uint64_t device_idx, ocl::device device) {
-			context_properties.emplace_back(CL_CONTEXT_PLATFORM);
-			context_properties.emplace_back(std::bit_cast<cl_context_properties>(platform.platform));
+			if (context_properties.empty()) {
+				context_properties.emplace_back(CL_CONTEXT_PLATFORM);
+				context_properties.emplace_back(std::bit_cast<cl_context_properties>(platform.platform));
+			}
 		});
 	});
-	context_properties.emplace_back(0);
+	if (!context_properties.empty()) {
+		context_properties.emplace_back(0);
+	}
 
 	auto ocltr{ TimerVal(OCL_Tile_Router::make(dev.root, phys.root, context_properties)) };
 	TimerVal(ocltr.do_all()).value();

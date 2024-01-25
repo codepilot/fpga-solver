@@ -73,9 +73,13 @@ public:
     }
 
     std::expected<void, ocl::status> do_all() {
+#ifdef _DEBUG
         std::cout << std::format("ocl_counter_max: {}\n", ocl_counter_max);
+#endif
         for (uint32_t count{}; count < ocl_counter_max; count++) {
+#ifdef _DEBUG
             std::cout << std::format("step {} of {}\n", count, ocl_counter_max);
+#endif
             step_all(count).value();
         }
         for (auto&& queue : queues) {
@@ -127,9 +131,11 @@ public:
         const uint32_t ocl_counter_max{ (possible_ocl_counter_max > 256ull) ? 256ul: static_cast<uint32_t>(possible_ocl_counter_max) };
         auto build_result{ program.build(std::format("-cl-mad-enable -cl-no-signed-zeros -Werror -cl-std=CL1.2 -cl-kernel-arg-info -g -D ocl_counter_max={}", ocl_counter_max))};
         auto build_logs{ program.get_build_info_string(CL_PROGRAM_BUILD_LOG).value() };
+#ifdef _DEBUG
         for (auto&& build_log : build_logs) {
             puts(build_log.c_str());
         }
+#endif
         if (!build_result.has_value()) {
             abort();
         }
@@ -137,7 +143,9 @@ public:
         std::vector<ocl::kernel> kernels{ program.create_kernels().value() };
         std::vector<ocl::buffer> buffers{ context.from_gl(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, gl_buffers).value() };
 
+#ifdef _DEBUG
         puts("allocating device buffers");
+#endif
         ocl::svm<std::array<uint16_t, 2>> svm_routed_lines;
         ocl::svm<std::array<uint32_t, 4>> svm_drawIndirect;
         if (buffers.size() < 2) {
@@ -146,15 +154,6 @@ public:
         }
 
         decltype(auto) kernel{ kernels.at(0) };
-
-        puts("making stub locations");
-        auto svm_stubLocations{ context.alloc_svm<std::array<uint64_t, 16>>(maybe_fine_grain & CL_MEM_READ_WRITE, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint64_t, 16>)).value() };
-        std::ranges::fill(svm_stubLocations, std::array<uint64_t, 16>{
-            UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
-            UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
-            UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
-            UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
-        });
 
         auto nets{ phys.getPhysNets() };
         auto physStrs{ phys.getStrList() };
@@ -168,17 +167,41 @@ public:
             }
         }
 
+#ifdef _DEBUG
         puts("create buf_tile_tile_offset_count");
+#endif
         auto svm_tile_tile_offset_count{ context.alloc_svm<std::array<uint32_t, 2>>(maybe_fine_grain & CL_MEM_READ_ONLY, span_tt_count_offset.size_bytes()).value() };
-        memcpy(svm_tile_tile_offset_count.data(), span_tt_count_offset.data(), span_tt_count_offset.size_bytes());
+        queues.at(0).enqueueSVMMemcpy(false, svm_tile_tile_offset_count, span_tt_count_offset);
+        //memcpy(svm_tile_tile_offset_count.data(), span_tt_count_offset.data(), span_tt_count_offset.size_bytes());
 
+#ifdef _DEBUG
         puts("create buf_dest_tile");
+#endif
         auto svm_dest_tile{ context.alloc_svm<std::array<uint16_t, 2>>(maybe_fine_grain & CL_MEM_READ_ONLY, span_tt_body.size_bytes()).value() };
-        memcpy(svm_dest_tile.data(), span_tt_body.data(), span_tt_body.size_bytes());
+        queues.at(0).enqueueSVMMemcpy(false, svm_dest_tile, span_tt_body);
+        //memcpy(svm_dest_tile.data(), span_tt_body.data(), span_tt_body.size_bytes());
 
+#ifdef _DEBUG
         puts("create buf_allSourcePos");
+#endif
         auto svm_allSourcePos{ context.alloc_svm<std::array<uint16_t, 2>>(maybe_fine_grain & CL_MEM_READ_ONLY, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 2>)).value() };
+        queues.at(0).enqueueSVMMap(true, CL_MAP_WRITE_INVALIDATE_REGION, svm_allSourcePos).value();
 
+
+#ifdef _DEBUG
+        puts("making stub locations");
+#endif
+        auto svm_stubLocations{ context.alloc_svm<std::array<uint64_t, 16>>(maybe_fine_grain & CL_MEM_READ_WRITE, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint64_t, 16>)).value() };
+        queues.at(0).enqueueSVMMap(true, CL_MAP_WRITE_INVALIDATE_REGION, svm_stubLocations).value();
+
+        std::ranges::fill(svm_stubLocations, std::array<uint64_t, 16>{
+            UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
+                UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
+                UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
+                UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
+        });
+
+        if (!svm_drawIndirect.empty()) queues.at(0).enqueueSVMMap(true, CL_MAP_WRITE_INVALIDATE_REGION, svm_drawIndirect).value();
         each(svm_stubLocations, [&](uint64_t index, std::array<uint64_t, 16> &stubLocation) {
             if(svm_drawIndirect.size() > index) svm_drawIndirect[index] = {
                 0,//count
@@ -226,7 +249,13 @@ public:
 
         });
 
+        queues.at(0).enqueueSVMUnmap(svm_allSourcePos).value();
+        queues.at(0).enqueueSVMUnmap(svm_stubLocations).value();
+        if (!svm_drawIndirect.empty()) queues.at(0).enqueueSVMUnmap(svm_drawIndirect).value();
+
+#ifdef _DEBUG
         puts("setting kernel args");
+#endif
         
         kernel.set_arg_t(0, 0).value(); // uint count,
         if (buffers.empty()) {
