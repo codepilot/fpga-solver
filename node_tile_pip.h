@@ -121,7 +121,7 @@ public:
 			auto tiles{ devRoot.getTileList() };
 			auto tile_types{ devRoot.getTileTypeList() };
 
-			jthread_each(tiles, [&](uint64_t tile_idx, tile_reader &tile) {
+			each(tiles, [&](uint64_t tile_idx, tile_reader &tile) {
 				auto tile_range{ search_wire_tile_node.tile_to_node(String_Index{._strIdx{tile.getName()}}) };
 
 				auto tile_type{ tile_types[tile.getType()] };

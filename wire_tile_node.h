@@ -111,7 +111,7 @@ public:
 		auto wires{ devRoot.getWires() };
 		puts("Search_Wire_Tile_Node::test() start");
 
-		jthread_each(nodes, [&](uint64_t node_idx, node_reader &node) {
+		each(nodes, [&](uint64_t node_idx, node_reader &node) {
 			for (auto&& wire_idx : node.getWires()) {
 				auto wire{ wires[wire_idx] };
 
