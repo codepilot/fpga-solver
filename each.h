@@ -2,14 +2,14 @@
 
 #include <thread>
 
-void each(auto list, auto lambda) {
+void each(auto &&list, auto lambda) {
 	uint64_t idx{};
 	for (auto&& item : list) {
 		lambda(idx++, item);
 	}
 }
 
-void each_n(uint64_t offset, uint64_t group_size, auto list, auto lambda) {
+void each_n(uint64_t offset, uint64_t group_size, auto &&list, auto lambda) {
 	uint64_t idx{};
 	for (auto&& item : list) {
 		auto idx_n{ idx++ };
@@ -20,7 +20,7 @@ void each_n(uint64_t offset, uint64_t group_size, auto list, auto lambda) {
 }
 
 
-void jthread_each(auto list, auto lambda) {
+void jthread_each(auto &&list, auto lambda) {
 	uint64_t group_size{ std::thread::hardware_concurrency() };
 	std::vector<std::jthread> threads;
 	threads.reserve(group_size);
@@ -31,7 +31,7 @@ void jthread_each(auto list, auto lambda) {
 	}
 }
 
-constexpr void constexpr_each_n(uint64_t offset, uint64_t group_size, auto list, auto lambda) {
+constexpr void constexpr_each_n(uint64_t offset, uint64_t group_size, auto &&list, auto lambda) {
 	uint64_t idx{};
 	for (auto&& item : list) {
 		auto idx_n{ idx++ };

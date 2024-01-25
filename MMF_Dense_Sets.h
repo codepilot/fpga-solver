@@ -39,7 +39,7 @@ public:
             abort();
         }
 
-        jthread_each(src, [&](uint64_t i, std::vector<T>& rn) {
+        jthread_each(src, [&](uint64_t i, std::span<T> rn) {
             auto n{ operator[](i) };
             if (n.size() != rn.size()) {
                 puts(std::format("this[{}].size({}) != src[{}].size({})", i, n.size(), i, rn.size()).c_str());
