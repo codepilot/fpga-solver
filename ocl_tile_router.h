@@ -1,6 +1,11 @@
 #pragma once
 
+#ifdef USE_CPP_INSTEAD_OF_OPENCL
+#include "draw_wires.h"
+#else
 #include "ocl.h"
+#endif
+
 #include "MemoryMappedFile.h"
 #include "InterchangeGZ.h"
 #include "interchange_types.h"
@@ -36,11 +41,12 @@ public:
     ocl::program program;
     std::vector<ocl::kernel> kernels;
     std::vector<ocl::buffer> buffers;
-    std::vector<std::array<uint64_t, 16>> v_stubLocations;
-    std::vector<std::array<uint16_t, 2>> v_allSourcePos;
-    ocl::buffer stubLocations;
-    ocl::buffer tile_tile_offset_count;
-    ocl::buffer dest_tile;
+    ocl::svm<std::array<uint16_t, 2>> svm_routed_lines;
+    ocl::svm<std::array<uint32_t, 4>> svm_drawIndirect;
+    ocl::svm<std::array<uint64_t, 16>> svm_stubLocations;
+    ocl::svm<std::array<uint32_t, 2>> svm_tile_tile_offset_count;
+    ocl::svm<std::array<uint16_t, 2>> svm_dest_tile;
+    ocl::svm<std::array<uint16_t, 2>> svm_allSourcePos;
     PhysicalNetlist::PhysNetlist::Reader phys;
     uint32_t netCount;
     uint32_t netCountAligned;
@@ -52,9 +58,6 @@ public:
     // inline static constexpr cl_uint total_group_size{ max_workgroup_size * workgroup_count };
 
     std::expected<void, ocl::status> step(ocl::queue &queue) {
-#ifdef _DEBUG
-        queue.enqueueRead<std::array<uint64_t, 16>>(stubLocations.mem, true, 0, v_stubLocations);
-#endif
         auto result{ queue.enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
         return result;
     }
@@ -65,7 +68,6 @@ public:
         for (auto&& queue : queues) {
             auto result{ queue.enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
             if (!result.has_value()) return result;
-            break;
         }
         return std::expected<void, ocl::status>();
     }
@@ -73,6 +75,7 @@ public:
     std::expected<void, ocl::status> do_all() {
         std::cout << std::format("ocl_counter_max: {}\n", ocl_counter_max);
         for (uint32_t count{}; count < ocl_counter_max; count++) {
+            std::cout << std::format("step {} of {}\n", count, ocl_counter_max);
             step_all(count).value();
         }
         for (auto&& queue : queues) {
@@ -109,16 +112,14 @@ public:
 
         const uint32_t netCount{ phys.getPhysNets().size() };
         const uint32_t netCountAligned{ (((netCount + 255ul) >> 8ul) << 8ul) };
-        auto v_allSourcePos(std::vector<std::array<uint16_t, 2>>(static_cast<size_t>(netCountAligned), std::array<uint16_t, 2>{}));
 
-        auto req_devices{ context_properties.size() ? ocl::device::get_gl_devices(context_properties).value() : std::vector<cl_device_id>{} };
-        ocl::context context{ req_devices.size() ? ocl::context::create(context_properties, req_devices).value(): ocl::context::create<CL_DEVICE_TYPE_DEFAULT>().value() };
+        auto req_devices{ std::ranges::contains(context_properties, CL_GL_CONTEXT_KHR) ? ocl::device::get_gl_devices(context_properties).value() : std::vector<cl_device_id>{} };
+        ocl::context context{ req_devices.size() ? ocl::context::create(context_properties, req_devices).value(): ocl::context::create<CL_DEVICE_TYPE_DEFAULT>(context_properties).value() };
         auto device_ids{ context.get_devices().value() };
-#ifdef _DEBUG
-        for(auto &&device_id: device_ids) {
-            ocl::device::log_info(device_id);
-        }
-#endif
+        auto device_svm_caps{ ocl::device::get_info_integral<cl_device_svm_capabilities>(device_ids.at(0), CL_DEVICE_SVM_CAPABILITIES).value_or(0) };
+        bool has_svm_fine_grain_buffer{ (device_svm_caps & CL_DEVICE_SVM_FINE_GRAIN_BUFFER) == CL_DEVICE_SVM_FINE_GRAIN_BUFFER };
+        cl_svm_mem_flags maybe_fine_grain{ has_svm_fine_grain_buffer ? CL_MEM_SVM_FINE_GRAIN_BUFFER : 0ul };
+
         std::vector<ocl::queue> queues{ context.create_queues().value() };
         MemoryMappedFile source{ "../kernels/draw_wires.cl" };
         ocl::program program{ context.create_program(source.get_span<char>()).value() };
@@ -137,15 +138,18 @@ public:
         std::vector<ocl::buffer> buffers{ context.from_gl(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, gl_buffers).value() };
 
         puts("allocating device buffers");
+        ocl::svm<std::array<uint16_t, 2>> svm_routed_lines;
+        ocl::svm<std::array<uint32_t, 4>> svm_drawIndirect;
         if (buffers.size() < 2) {
-            buffers.emplace_back(context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, static_cast<size_t>(ocl_counter_max) * static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 2>)).value());
-            buffers.emplace_back(context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint32_t, 4>)).value());
+            svm_routed_lines = context.alloc_svm<std::array<uint16_t, 2>>(maybe_fine_grain & CL_MEM_READ_WRITE, static_cast<size_t>(ocl_counter_max) * static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 2>)).value();
+            svm_drawIndirect = context.alloc_svm<std::array<uint32_t, 4>>(maybe_fine_grain & CL_MEM_READ_WRITE, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint32_t, 4>)).value();
         }
 
         decltype(auto) kernel{ kernels.at(0) };
 
         puts("making stub locations");
-        std::vector<std::array<uint64_t, 16>> v_stubLocations(static_cast<size_t>(netCountAligned), std::array<uint64_t, 16>{
+        auto svm_stubLocations{ context.alloc_svm<std::array<uint64_t, 16>>(maybe_fine_grain & CL_MEM_READ_WRITE, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint64_t, 16>)).value() };
+        std::ranges::fill(svm_stubLocations, std::array<uint64_t, 16>{
             UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
             UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
             UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
@@ -164,7 +168,25 @@ public:
             }
         }
 
-        each(v_stubLocations, [&](uint64_t index, std::array<uint64_t, 16> &stubLocation) {
+        puts("create buf_tile_tile_offset_count");
+        auto svm_tile_tile_offset_count{ context.alloc_svm<std::array<uint32_t, 2>>(maybe_fine_grain & CL_MEM_READ_ONLY, span_tt_count_offset.size_bytes()).value() };
+        memcpy(svm_tile_tile_offset_count.data(), span_tt_count_offset.data(), span_tt_count_offset.size_bytes());
+
+        puts("create buf_dest_tile");
+        auto svm_dest_tile{ context.alloc_svm<std::array<uint16_t, 2>>(maybe_fine_grain & CL_MEM_READ_ONLY, span_tt_body.size_bytes()).value() };
+        memcpy(svm_dest_tile.data(), span_tt_body.data(), span_tt_body.size_bytes());
+
+        puts("create buf_allSourcePos");
+        auto svm_allSourcePos{ context.alloc_svm<std::array<uint16_t, 2>>(maybe_fine_grain & CL_MEM_READ_ONLY, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 2>)).value() };
+
+        each(svm_stubLocations, [&](uint64_t index, std::array<uint64_t, 16> &stubLocation) {
+            if(svm_drawIndirect.size() > index) svm_drawIndirect[index] = {
+                0,//count
+                0,//instanceCount
+                static_cast<uint32_t>(index) * ocl_counter_max, // first
+                1,// baseInstance
+            };
+
             if (index >= nets.size()) return;
             auto net{ nets[index] };
             auto stubs{ net.getStubs() };
@@ -188,53 +210,56 @@ public:
                 .previous{},
                 .cost{},
             } ) };
-            v_allSourcePos[index] = posA;
-            v_stubLocations[index] = std::array<uint64_t, 16>{ 
+            svm_allSourcePos[index] = posA;
+            svm_stubLocations[index] = std::array<uint64_t, 16>{
                 word_0,     UINT64_MAX, UINT64_MAX, UINT64_MAX,
                 UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
                 UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
                 UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
             };
+            if (svm_drawIndirect.size() > index) svm_drawIndirect[index] = {
+                0,//count
+                1,//instanceCount
+                static_cast<uint32_t>(index) * ocl_counter_max, // first
+                0,// baseInstance
+            };
+
         });
 
-        puts("moving stub locations");
-        std::span s_stubLocations{v_stubLocations};
-        auto buf_stubLocations{ context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_READ_ONLY, v_stubLocations).value() };
-
-        puts("create buf_tile_tile_offset_count");
-        auto buf_tile_tile_offset_count{ context.create_buffer<std::array<uint32_t, 2>>(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, span_tt_count_offset).value() };
-
-        puts("create buf_dest_tile");
-        auto buf_dest_tile{ context.create_buffer<std::array<uint16_t, 2>>(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, span_tt_body).value() };
-
-        puts("create buf_allSourcePos");
-        auto buf_allSourcePos{ context.create_buffer<std::array<uint16_t, 2>>(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, v_allSourcePos).value() };
-
         puts("setting kernel args");
-        kernel.set_arg(1, buffers.at(0)).value();
-        kernel.set_arg(2, buffers.at(1)).value();
-        kernel.set_arg(3, buf_stubLocations).value();
-        kernel.set_arg(4, buf_tile_tile_offset_count).value();
-        kernel.set_arg(5, buf_dest_tile).value();
-        kernel.set_arg(6, buf_allSourcePos).value();
+        
+        kernel.set_arg_t(0, 0).value(); // uint count,
+        if (buffers.empty()) {
+            kernel.set_arg(1, svm_routed_lines).value();//global routed_lines* restrict routed,
+            kernel.set_arg(2, svm_drawIndirect).value();//global uint4* restrict drawIndirect,
+        }
+        else {
+            kernel.set_arg(1, buffers.at(0)).value();//global routed_lines* restrict routed,
+            kernel.set_arg(2, buffers.at(1)).value();//global uint4* restrict drawIndirect,
+        }
+        kernel.set_arg(3, svm_stubLocations).value();//global ulong16* restrict stubLocations, // cost: 13 bit, previous: 12, tt_id:20bit, tile:19bit
+        kernel.set_arg(4, svm_tile_tile_offset_count).value();//constant uint2* restrict tile_tile_count_offset,
+        kernel.set_arg(5, svm_dest_tile).value();//constant ushort2* restrict dest_tile,
+        kernel.set_arg(6, svm_allSourcePos).value();//constant ushort2* restrict allSourcePos
 
         return OCL_Tile_Router{
-            .context{context},
-            .device_ids{device_ids},
-            .queues{queues},
-            .program{program},
-            .kernels{kernels},
-            .buffers{buffers},
-            .v_stubLocations{v_stubLocations},
-            .v_allSourcePos{v_allSourcePos},
-            .stubLocations{buf_stubLocations},
-            .tile_tile_offset_count{buf_tile_tile_offset_count},
-            .dest_tile{buf_dest_tile},
-            .phys{ phys },
-            .netCount{ netCount },
-            .netCountAligned{ netCountAligned },
+            .context{std::move(context)},
+            .device_ids{std::move(device_ids)},
+            .queues{std::move(queues)},
+            .program{std::move(program)},
+            .kernels{std::move(kernels)},
+            .buffers{std::move(buffers)},
+            .svm_routed_lines{svm_routed_lines},
+            .svm_drawIndirect{svm_drawIndirect},
+            .svm_stubLocations{svm_stubLocations},
+            .svm_tile_tile_offset_count{std::move(svm_tile_tile_offset_count)},
+            .svm_dest_tile{std::move(svm_dest_tile)},
+            .svm_allSourcePos{std::move(svm_allSourcePos)},
+            .phys{ std::move(phys) },
+            .netCount{ std::move(netCount) },
+            .netCountAligned{ std::move(netCountAligned) },
             .workgroup_count{ netCountAligned / max_workgroup_size },
-            .ocl_counter_max{ ocl_counter_max },
+            .ocl_counter_max{ std::move(ocl_counter_max) },
         };
     }
 };

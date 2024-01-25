@@ -27,6 +27,7 @@ public:
 };
 
 #if defined(_WIN32)
+#include <immintrin.h>
 using Trivial_Span__m256i = Trivial_Span<__m256i>;
 #endif
 using Trivial_Span_u64 = Trivial_Span<uint64_t>;

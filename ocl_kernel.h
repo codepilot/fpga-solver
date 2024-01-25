@@ -156,7 +156,7 @@ public:
     }
 
     template<typename T>
-    always_inline std::expected<void, status> set_arg(cl_uint arg_index, std::span<T> svm) noexcept {
+    always_inline std::expected<void, status> set_arg(cl_uint arg_index, ocl::svm<T> svm) noexcept {
         cl_int errcode_ret{ clSetKernelArgSVMPointer(
             kernel,
             arg_index,
