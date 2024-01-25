@@ -43,7 +43,6 @@ int main(int argc, char* argv[]) {
 	std::vector<cl_context_properties> context_properties;
 
 	ocl::platform::each([&](uint64_t platform_idx, ocl::platform platform) {
-		platform.log_info();
 		platform.each_device<CL_DEVICE_TYPE_GPU>([&](uint64_t device_idx, ocl::device device) {
 			context_properties.emplace_back(CL_CONTEXT_PLATFORM);
 			context_properties.emplace_back(std::bit_cast<cl_context_properties>(platform.platform));
