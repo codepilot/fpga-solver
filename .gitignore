@@ -4,3 +4,4 @@ build
 *.dcp
 *vivado*.jou
 *vivado*.log
+*.log
