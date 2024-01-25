@@ -123,14 +123,14 @@ public:
 		puts("make_site_pin_wires start");
 
 		MemoryMappedFile mmf_whole{ "sorted_site_pin_wires.bin", wires.size() * sizeof(SitePinWire) };
-		size_t storage_offset{};
+		std::atomic<size_t> storage_offset{};
 		uint32_t missing_wires{};
 
 		{
 			auto site_pin_wire{ mmf_whole.get_span<SitePinWire>() };
 
 
-			for (auto&& tile : tiles) {
+			jthread_each(tiles, [&](uint64_t tile_idx, tile_reader tile) {
 				String_Index tile_strIdx{ tile.getName() };
 				auto tileType{ tile_types[tile.getType()] };
 				for (auto&& site : tile.getSites()) {
@@ -159,11 +159,11 @@ public:
 							continue;
 						}
 
-						site_pin_wire[storage_offset++] = SitePinWire::make(site_strIdx._strIdx, site_pin_strIdx._strIdx, wire_idx);
+						site_pin_wire[storage_offset.fetch_add(1)] = SitePinWire::make(site_strIdx._strIdx, site_pin_strIdx._strIdx, wire_idx);
 
 					}
 				}
-			}
+			});
 		}
 
 		auto mmf{ mmf_whole.shrink(storage_offset * sizeof(SitePinWire)) };
@@ -172,7 +172,7 @@ public:
 		// puts(std::format("make_site_pin_wires finish missing_wires:{}", missing_wires).c_str());
 
 		puts("make_site_pin_wires sort");
-		std::ranges::sort(site_pin_wire, [](SitePinWire a, SitePinWire b) { return a.get_uint64_t() < b.get_uint64_t(); });
+		std::sort(std::execution::par_unseq, site_pin_wire.begin(), site_pin_wire.end(), [](SitePinWire a, SitePinWire b) { return a.get_uint64_t() < b.get_uint64_t(); });
 		puts("make_site_pin_wires finish");
 	}
 

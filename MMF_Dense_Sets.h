@@ -1,5 +1,7 @@
 #pragma once
 
+#include "each.h"
+
 template<typename T>
 class MMF_Dense_Sets {
 public:
@@ -37,9 +39,8 @@ public:
             abort();
         }
 
-        for (size_t i{}; i < size(); i++) {
+        jthread_each(src, [&](uint64_t i, std::vector<T>& rn) {
             auto n{ operator[](i) };
-            auto rn{ src[i] };
             if (n.size() != rn.size()) {
                 puts(std::format("this[{}].size({}) != src[{}].size({})", i, n.size(), i, rn.size()).c_str());
                 abort();
@@ -50,7 +51,7 @@ public:
                     abort();
                 }
             }
-        }
+        });
         puts("test finish");
     }
 

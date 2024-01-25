@@ -6,6 +6,7 @@
 #include "interchange_types.h"
 #include <cmath>
 #include "wire_tile_node.h"
+#include <execution>
 
 class SitePinNode {
 public:
@@ -122,14 +123,14 @@ public:
 		puts("make_site_pin_nodes start");
 
 		MemoryMappedFile mmf_whole{ "sorted_site_pin_nodes.bin", nodes.size() * sizeof(SitePinNode) };
-		size_t storage_offset{};
+		std::atomic<size_t> storage_offset{};
 		uint32_t missing_nodes{};
 
 		{
 			auto site_pin_node{ mmf_whole.get_span<SitePinNode>() };
 
 
-			for (auto&& tile : tiles) {
+			jthread_each(tiles, [&](uint64_t tile_idx, tile_reader tile) {
 				String_Index tile_strIdx{ tile.getName() };
 				auto tileType{ tile_types[tile.getType()] };
 				for (auto&& site : tile.getSites()) {
@@ -158,7 +159,7 @@ public:
 							continue;
 						}
 
-						site_pin_node[storage_offset++] = { .node_branch{node_idx}, .sitePinStrIdx{site_pin_strIdx._strIdx}, .siteStrIdx{site_strIdx._strIdx} };
+						site_pin_node[storage_offset.fetch_add(1)] = {.node_branch{node_idx}, .sitePinStrIdx{site_pin_strIdx._strIdx}, .siteStrIdx{site_strIdx._strIdx}};
 
 #if 0
 						if (site_pin_to_node(site_pin_node, site_strIdx, site_pin_strIdx) != node_idx) {
@@ -167,7 +168,7 @@ public:
 #endif
 					}
 				}
-			}
+			});
 		}
 
 		auto mmf{ mmf_whole.shrink(storage_offset * sizeof(SitePinNode)) };
@@ -176,7 +177,7 @@ public:
 		// puts(std::format("make_site_pin_nodes finish missing_nodes:{}", missing_nodes).c_str());
 
 		puts("make_site_pin_nodes sort");
-		std::ranges::sort(site_pin_node, [](SitePinNode a, SitePinNode b) { return a.get_uint64_t() < b.get_uint64_t(); });
+		std::sort(std::execution::par_unseq, site_pin_node.begin(), site_pin_node.end(), [](SitePinNode a, SitePinNode b) { return a.get_uint64_t() < b.get_uint64_t(); });
 		puts("make_site_pin_nodes finish");
 	}
 

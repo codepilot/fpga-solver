@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include "interchange_types.h"
+#include <execution>
 
 class WireTileWire {
 public:
@@ -112,14 +113,14 @@ public:
 
 		puts(std::format("wire_tile_wire: {}, {} bits", wire_tile_wire.size(), ceil(log2(wire_tile_wire.size()))).c_str());
 
-		each(wires, [&](uint64_t wire_idx, wire_reader wire) {
+		jthread_each(wires, [&](uint64_t wire_idx, wire_reader wire) {
 			wire_tile_wire[wire_idx] = WireTileWire::make(wire.getTile(), wire.getWire(), wire_idx);
 		});
 
 		puts(std::format("wire_tile_wire: {}, {} bits", wire_tile_wire.size(), ceil(log2(wire_tile_wire.size()))).c_str());
 
 		puts("make_wire_tile_wire() sort");
-		std::ranges::sort(wire_tile_wire, [](WireTileWire a, WireTileWire b) { return a.get_uint64_t() < b.get_uint64_t(); });
+		std::sort(std::execution::par_unseq, wire_tile_wire.begin(), wire_tile_wire.end(), [](WireTileWire a, WireTileWire b) { return a.get_uint64_t() < b.get_uint64_t(); });
 
 		puts("make_wire_tile_wire() finish");
 	}
@@ -130,8 +131,7 @@ public:
 		auto wires{ devRoot.getWires() };
 		auto wire_count{ wires.size() };
 
-		each(wires, [&](uint64_t wire_idx, wire_reader wire) {
-			if (!(wire_idx % 100000)) puts(std::format("test {}%", static_cast<double_t>(wire_idx * 100ull) / static_cast<double_t>(wire_count)).c_str());
+		jthread_each(wires, [&](uint64_t wire_idx, wire_reader wire) {
 			auto found_wire_idx{ wire_tile_to_wire({ wire.getTile() }, { wire.getWire() }) };
 			if (wire_idx != found_wire_idx) {
 				puts(std::format("wire_idx: {}, found_wire_idx: {}", wire_idx, found_wire_idx).c_str());

@@ -6,6 +6,7 @@
 #include <set>
 #include <span>
 #include <cmath>
+#include <execution>
 
 class NodeTilePip {
 public:
@@ -60,7 +61,7 @@ public:
 		// 80000000 268435456
 		puts("make_node_tile_pip start");
 		MemoryMappedFile mmf_whole{ "sorted_node_tile_pip.bin", 0x100000000ull };
-		size_t storage_offset{};
+		std::atomic<size_t> storage_offset{};
 		// alt_ret.reserve(250745691);
 		                
 		// node_tile_pip: 250745691, 28 bits
@@ -70,7 +71,7 @@ public:
 			auto tile_types{ devRoot.getTileTypeList() };
 
 			auto alt_ret{ mmf_whole.get_span<NodeTilePip>() };
-			each(tiles, [&](uint64_t tile_idx, tile_reader tile) {
+			jthread_each(tiles, [&](uint64_t tile_idx, tile_reader tile) {
 				// WireTileNode key{ .tileStrIdx{tile.getName()} };
 				auto tile_range{ search_wire_tile_node.tile_to_node(String_Index{._strIdx{tile.getName()}}) };
 				// auto tile_range{ std::ranges::equal_range(wire_tile_node, key, [](WireTileNode a, WireTileNode b) {return a.tileStrIdx < b.tileStrIdx; }) };
@@ -94,12 +95,12 @@ public:
 
 					if (node0_idx != UINT32_MAX) {
 						// node_tile_pip.insert({ .pip{pip_idx}, .tile_idx{static_cast<uint32_t>(tileIndex._value)}, .node_idx{node0_idx} });
-						alt_ret[storage_offset++] = { .pip{pip_idx}, .tile_idx{static_cast<uint32_t>(tileIndex._value)}, .node_idx{node0_idx} };
+						alt_ret[storage_offset.fetch_add(1)] = {.pip{pip_idx}, .tile_idx{static_cast<uint32_t>(tileIndex._value)}, .node_idx{node0_idx}};
 					}
 
 					if (node1_idx != UINT32_MAX) {
 						// node_tile_pip.insert({ .pip{pip_idx}, .tile_idx{static_cast<uint32_t>(tileIndex._value)}, .node_idx{node1_idx} });
-						alt_ret[storage_offset++] = { .pip{pip_idx}, .tile_idx{static_cast<uint32_t>(tileIndex._value)}, .node_idx{node1_idx} };
+						alt_ret[storage_offset.fetch_add(1)] = {.pip{pip_idx}, .tile_idx{static_cast<uint32_t>(tileIndex._value)}, .node_idx{node1_idx}};
 					}
 				});
 			});
@@ -109,7 +110,7 @@ public:
 		auto ret{ mmf.get_span<NodeTilePip>() };
 		puts("make_node_tile_pip sort");
 
-		std::ranges::sort(ret, [](NodeTilePip a, NodeTilePip b) { return a.get_uint64_t() < b.get_uint64_t(); });
+		std::sort(std::execution::par_unseq, ret.begin(), ret.end(), [](NodeTilePip a, NodeTilePip b) { return a.get_uint64_t() < b.get_uint64_t(); });
 		puts("make_node_tile_pip finish");
 	}
 
@@ -120,7 +121,7 @@ public:
 			auto tiles{ devRoot.getTileList() };
 			auto tile_types{ devRoot.getTileTypeList() };
 
-			each(tiles, [&](uint64_t tile_idx, tile_reader tile) {
+			jthread_each(tiles, [&](uint64_t tile_idx, tile_reader tile) {
 				auto tile_range{ search_wire_tile_node.tile_to_node(String_Index{._strIdx{tile.getName()}}) };
 
 				auto tile_type{ tile_types[tile.getType()] };

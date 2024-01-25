@@ -194,7 +194,7 @@ public:
 #endif
 
 #ifdef SKIP_SVM_MAP
-        if(dev_max_mem_alloc_size > 512ull * 1024ull * 1024ull) {
+        if(dev_max_mem_alloc_size > UINT32_MAX) {
 #endif
             queues.at(0).enqueueSVMMemcpy(false, svm_tile_tile_offset_count, span_tt_count_offset);
 #ifdef SKIP_SVM_MAP
@@ -215,7 +215,7 @@ public:
 #endif
 
 #ifdef SKIP_SVM_MAP
-        if(dev_max_mem_alloc_size > 512ull * 1024ull * 1024ull) {
+        if(dev_max_mem_alloc_size > UINT32_MAX) {
 #endif
             queues.at(0).enqueueSVMMemcpy(false, svm_dest_tile, span_tt_body);
 #ifdef SKIP_SVM_MAP
@@ -236,7 +236,7 @@ public:
 #endif
 
 #ifdef SKIP_SVM_MAP
-        if(dev_max_mem_alloc_size > 512ull * 1024ull * 1024ull) {
+        if(dev_max_mem_alloc_size > UINT32_MAX) {
 #endif
             queues.at(0).enqueueSVMMap(true, CL_MAP_WRITE_INVALIDATE_REGION, svm_allSourcePos).value();
 #ifdef SKIP_SVM_MAP
@@ -256,7 +256,7 @@ public:
 #endif
 
 #ifdef SKIP_SVM_MAP
-        if(dev_max_mem_alloc_size > 512ull * 1024ull * 1024ull) {
+        if(dev_max_mem_alloc_size > UINT32_MAX) {
 #endif
             queues.at(0).enqueueSVMMap(true, CL_MAP_WRITE_INVALIDATE_REGION, svm_stubLocations).value();
 #ifdef SKIP_SVM_MAP
@@ -271,7 +271,7 @@ public:
         });
 
 #ifdef SKIP_SVM_MAP
-        if(dev_max_mem_alloc_size > 512ull * 1024ull * 1024ull) {
+        if(dev_max_mem_alloc_size > UINT32_MAX) {
 #endif
             if (!svm_drawIndirect.empty()) queues.at(0).enqueueSVMMap(true, CL_MAP_WRITE_INVALIDATE_REGION, svm_drawIndirect).value();
 #ifdef SKIP_SVM_MAP
@@ -326,7 +326,7 @@ public:
         });
 
 #ifdef SKIP_SVM_MAP
-        if(dev_max_mem_alloc_size > 512ull * 1024ull * 1024ull) {
+        if(dev_max_mem_alloc_size > UINT32_MAX) {
 #endif
             queues.at(0).enqueueSVMUnmap(svm_allSourcePos).value();
             queues.at(0).enqueueSVMUnmap(svm_stubLocations).value();

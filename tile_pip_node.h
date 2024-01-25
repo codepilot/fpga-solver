@@ -5,6 +5,7 @@
 #include <vector>
 #include <algorithm>
 #include "each.h"
+#include <execution>
 
 #include "node_tile_pip.h"
 
@@ -50,11 +51,11 @@ public:
 		MemoryMappedFile mmf{ "sorted_tile_pip_node.bin", node_tile_pip.size_bytes() };
 		auto tile_pip_node{ mmf.get_span<TilePipNode>() };
 		puts("save_tile_pip_node start");
-		each(node_tile_pip, [&](uint64_t idx, NodeTilePip ntp) {
+		jthread_each(node_tile_pip, [&](uint64_t idx, NodeTilePip ntp) {
 			tile_pip_node[idx] = { .node_idx{ntp.node_idx}, .pip{ntp.pip}, .tile_idx{ntp.tile_idx} };
 		});
 		puts("save_tile_pip_node sort");
-		std::ranges::sort(tile_pip_node, [](TilePipNode a, TilePipNode b) { return a.get_uint64_t() < b.get_uint64_t();  });
+		std::sort(std::execution::par_unseq, tile_pip_node.begin(), tile_pip_node.end(), [](TilePipNode a, TilePipNode b) { return a.get_uint64_t() < b.get_uint64_t();  });
 		puts("save_tile_pip_node finish");
 	}
 

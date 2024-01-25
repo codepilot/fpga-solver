@@ -11,6 +11,7 @@
 #include "stub_router.h"
 #include <barrier>
 #include "each.h"
+#include "Timer.h"
 
 class Counter {
 public:
@@ -460,7 +461,7 @@ public:
 					});
 
 					bar.arrive_and_wait();
-					if (!offset) std::ranges::sort(inverse_wires, [](uint64_t a, uint64_t b) { return a < b; });
+					if (!offset) std::sort(std::execution::par_unseq, inverse_wires.begin(), inverse_wires.end(), [](uint64_t a, uint64_t b) { return a < b; });
 
 					puts("inverse_tiles");
 					each_n(offset, group_size, tiles, [&](uint64_t tile_idx, tile_reader tile) {
@@ -594,37 +595,79 @@ public:
 	}
 
 	static void make_search_files() {
-		DevGZ dev{ "_deps/device-file-src/xcvu3p.device", false };
+		auto dev{ TimerVal(DevGZ( "_deps/device-file-src/xcvu3p.device", false )) };
 		decltype(dev.root) devRoot{ dev.root };
 
-		Search_Wire_Tile_Wire::make_wire_tile_wire(devRoot);
+		{
+			auto execLambda{ Timer<"{:10} @ make_wire_tile_wire\n">() };
+			Search_Wire_Tile_Wire::make_wire_tile_wire(devRoot);
+		}
 		Search_Wire_Tile_Wire search_wire_tile_wire;
-		search_wire_tile_wire.test(devRoot);
+		{
+			auto execLambda{ Timer<"{:10} @ search_wire_tile_wire.test\n">() };
+			search_wire_tile_wire.test(devRoot);
+		}
 
-		Search_Wire_Tile_Node::make_wire_tile_node(devRoot);
+		{
+			auto execLambda{ Timer<"{:10} @ make_wire_tile_node\n">() };
+			Search_Wire_Tile_Node::make_wire_tile_node(devRoot);
+		}
 		Search_Wire_Tile_Node search_wire_tile_node;
-		search_wire_tile_node.test(devRoot);
+		{
+			auto execLambda{ Timer<"{:10} @ search_wire_tile_node.test\n">() };
+			search_wire_tile_node.test(devRoot);
+		}
 
-		Search_Node_Tile_Pip::make_node_tile_pip(search_wire_tile_node, devRoot);
+		{
+			auto execLambda{ Timer<"{:10} @ make_node_tile_pip\n">() };
+			Search_Node_Tile_Pip::make_node_tile_pip(search_wire_tile_node, devRoot);
+		}
 		Search_Node_Tile_Pip search_node_tile_pip;
-		search_node_tile_pip.test(search_wire_tile_node, devRoot);
+		{
+			auto execLambda{ Timer<"{:10} @ search_node_tile_pip.test\n">() };
+			search_node_tile_pip.test(search_wire_tile_node, devRoot);
+		}
 
-		Search_Tile_Pip_Node::make_tile_pip_node(search_node_tile_pip.node_tile_pip);
+		{
+			auto execLambda{ Timer<"{:10} @ make_tile_pip_node\n">() };
+			Search_Tile_Pip_Node::make_tile_pip_node(search_node_tile_pip.node_tile_pip);
+		}
 		Search_Tile_Pip_Node search_tile_pip_node;
-		// search_tile_pip_node.test(search_node_tile_pip.node_tile_pip);
+		{
+			auto execLambda{ Timer<"{:10} @ search_tile_pip_node.test\n">() };
+			//search_tile_pip_node.test(search_node_tile_pip.node_tile_pip);
+		}
 
-		Search_Site_Pin_Wire::make_site_pin_wires(search_wire_tile_wire.wire_tile_wire, devRoot);
+		{
+			auto execLambda{ Timer<"{:10} @ make_site_pin_wires\n">() };
+			Search_Site_Pin_Wire::make_site_pin_wires(search_wire_tile_wire.wire_tile_wire, devRoot);
+		}
 		Search_Site_Pin_Wire search_site_pin_wire;
-		// search_site_pin_wire.test(search_wire_tile_wire.wire_tile_wire, devRoot);
+		{
+			auto execLambda{ Timer<"{:10} @ search_site_pin_wire.test\n">() };
+			// search_site_pin_wire.test(search_wire_tile_wire.wire_tile_wire, devRoot);
+		}
 
-		Search_Site_Pin_Node::make_site_pin_nodes(search_wire_tile_node.wire_tile_node, devRoot);
+		{
+			auto execLambda{ Timer<"{:10} @ make_site_pin_nodes\n">() };
+			Search_Site_Pin_Node::make_site_pin_nodes(search_wire_tile_node.wire_tile_node, devRoot);
+		}
 		Search_Site_Pin_Node search_site_pin_node;
-		//search_site_pin_node.test(search_wire_tile_node.wire_tile_node, devRoot);
+		{
+			auto execLambda{ Timer<"{:10} @ search_site_pin_node.test\n">() };
+			//search_site_pin_node.test(search_wire_tile_node.wire_tile_node, devRoot);
+		}
 
-		String_Building_Group sbg{ devRoot.getStrList(), devRoot.getStrList(), devRoot.getTileList() };
-		Search_Tile_Tile_Wire_Pip::make(devRoot, sbg.dev_tile_strIndex_to_tile, search_wire_tile_node);
+		auto sbg{ TimerVal(String_Building_Group(devRoot.getStrList(), devRoot.getStrList(), devRoot.getTileList())) };
+		{
+			auto execLambda{ Timer<"{:10} @ Search_Tile_Tile_Wire_Pip::make\n">() };
+			Search_Tile_Tile_Wire_Pip::make(devRoot, sbg.dev_tile_strIndex_to_tile, search_wire_tile_node);
+		}
 		Search_Tile_Tile_Wire_Pip search_tile_tile_wire_pip;
-		search_tile_tile_wire_pip.test(devRoot, sbg.dev_tile_strIndex_to_tile);
+		{
+			auto execLambda{ Timer<"{:10} @ search_tile_tile_wire_pip.test\n">() };
+			search_tile_tile_wire_pip.test(devRoot, sbg.dev_tile_strIndex_to_tile);
+		}
 	}
 
 	void tile_based_routing() {
