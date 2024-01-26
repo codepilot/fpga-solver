@@ -12,8 +12,8 @@
 
 class OCL_Tile_Router {
 public:
-    static inline const size_t largest_ocl_counter_max{ 4096ull };
-    static inline const uint32_t series_id_max{ 4096ul };
+    static inline const size_t largest_ocl_counter_max{ 128ull };
+    static inline const uint32_t series_id_max{ 128ul };
     static inline const MemoryMappedFile mmf_tt_count_offset{ "tt_count_offset.bin" };
     static inline const MemoryMappedFile mmf_tt_body{ "tt_body.bin" };
     static inline const std::span<std::array<uint32_t, 2>> span_tt_count_offset{ mmf_tt_count_offset.get_span<std::array<uint32_t, 2>>() };
@@ -96,7 +96,7 @@ public:
         std::cout << std::format("ocl_counter_max: {}\n", ocl_counter_max);
 #endif
         for (uint32_t series_id{}; series_id < series_id_max; series_id++) {
-            std::cout << std::format("step {} of {} ", series_id, series_id_max);
+            std::cout << std::format("ocl_counter_max: {}, step {} of {}, ", ocl_counter_max, series_id + 1, series_id_max);
             step_all(series_id).value();
             queues.at(0).enqueueSVMMemcpy<uint32_t>(true, host_dirty, svm_dirty).value();
             queues.at(0).enqueueSVMMemFill(svm_dirty, svm_dirty_fill[0]);
@@ -171,7 +171,7 @@ public:
 #endif
         size_t possible_ocl_counter_max{ dev_max_mem_alloc_size / (static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 2>)) };
         const uint32_t ocl_counter_max{ (possible_ocl_counter_max > largest_ocl_counter_max) ? static_cast<uint32_t>(largest_ocl_counter_max) : static_cast<uint32_t>(possible_ocl_counter_max) };
-        auto build_result{ program.build(std::format("-cl-mad-enable -cl-no-signed-zeros -Werror -cl-std=CL1.2 -cl-kernel-arg-info -g -D ocl_counter_max={}", ocl_counter_max))};
+        auto build_result{ program.build(std::format("-cl-mad-enable -cl-no-signed-zeros -Werror -cl-std=CL1.2 -cl-kernel-arg-info -g -D ocl_counter_max={} -D netCountAligned={}", ocl_counter_max, netCountAligned))};
         auto build_logs{ program.get_build_info_string(CL_PROGRAM_BUILD_LOG).value() };
 #ifdef _DEBUG
         for (auto&& build_log : build_logs) {

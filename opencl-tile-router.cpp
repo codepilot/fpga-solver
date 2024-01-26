@@ -10,7 +10,7 @@ int main(int argc, char* argv[]) {
 	std::vector<std::string> args;
 	for (auto &&arg: std::span<char*>(argv, static_cast<size_t>(argc))) args.emplace_back(arg);
 
-	auto phys_file{ (args.size() >= 2) ? args.at(1) : "_deps/benchmark-files-src/corescore_500_pb_unrouted.phys" };
+	auto phys_file{ (args.size() >= 2) ? args.at(1) : "_deps/benchmark-files-src/mlcad_d181_lefttwo3rds_unrouted.phys" };
 
 	std::cout << std::format("Routing {}\n", phys_file);
 

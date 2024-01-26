@@ -5,7 +5,20 @@ constant uint tt_body_count = 970435;
 #define ocl_counter_max 1024
 #endif
 
+#ifndef netCountAligned
+#define netCountAligned 1
+#endif
+
+#ifndef beam_width
+#define beam_width 16
+#endif
+
 typedef ushort2 routed_lines[ocl_counter_max];
+typedef routed_lines all_routed_lines[netCountAligned];
+typedef uint4 drawIndirect_t[netCountAligned];
+
+typedef ulong beam_t[beam_width];
+typedef beam_t all_beam_t[netCountAligned];
 
 #ifndef make_ushort2
 #define make_ushort2(arg0, arg1) (ushort2)(arg0, arg1)
@@ -60,17 +73,19 @@ float tile_distance(ushort2 a, ushort2 b) {
     return distance(convert_float2(a), convert_float2(b));
 }
 
-ushort2 best_next_tile(ushort2 sourcePos, constant uint2* restrict tile_tile_count_offset, constant ushort2* restrict dest_tile, global ulong16* restrict stubLocationN) {
-    ulong16 curStubs = (*stubLocationN);
-    ushort2 curPos = tile_to_coords(curStubs[0]);
-    uint3 curInfo = split(curStubs[0]);
+ushort2 best_next_tile(ushort2 sourcePos, constant uint2* restrict tile_tile_count_offset, constant ushort2* restrict dest_tile, global beam_t* restrict stubLocationN) {
+    ushort2 curPos = tile_to_coords((*stubLocationN)[0]);
+    uint3 curInfo = split((*stubLocationN)[0]);
     uint previous = curInfo[1];
     uint2 count_offset = tile_tile_count_offset[tile_coords(curPos)];
     uint tt_count = count_offset[0];
     uint offset = count_offset[1];
 
-    for (uint j = 0; j < 15; j++) {
-        curStubs[j] = curStubs[j + 1];
+    beam_t curStubs;
+
+    __attribute__((opencl_unroll_hint(beam_width - 1)))
+    for (uint j = 0; j < (beam_width - 1); j++) {
+        curStubs[j] = (*stubLocationN)[j + 1];
     }
     curStubs[15] = 0xffffffffffffffff;
 
@@ -88,7 +103,11 @@ ushort2 best_next_tile(ushort2 sourcePos, constant uint2* restrict tile_tile_cou
     }
 
     ulong ret = curStubs[0];
-    (*stubLocationN) = curStubs;
+
+    __attribute__((opencl_unroll_hint(beam_width)))
+    for (uint j = 0; j < beam_width; j++) {
+        (*stubLocationN)[j] = curStubs[j];
+    }
 
     return tile_to_coords(ret);
 }
@@ -98,9 +117,9 @@ __attribute__((work_group_size_hint(256, 1, 1)))
 __attribute__((reqd_work_group_size(256, 1, 1)))
 draw_wires(
     uint series_id,
-    global routed_lines* restrict routed,
-    global uint4* restrict drawIndirect,
-    global ulong16* restrict stubLocations, // cost: 13 bit, previous: 12, tt_id:20bit, tile:19bit
+    global all_routed_lines routed,
+    global drawIndirect_t drawIndirect,
+    global all_beam_t stubLocations, // cost: 13 bit, previous: 12, tt_id:20bit, tile:19bit
     constant uint2* restrict tile_tile_count_offset,
     constant ushort2* restrict dest_tile,
     constant ushort2* restrict allSourcePos,
@@ -108,9 +127,9 @@ draw_wires(
 ) {
 
     const ushort2 sourcePos = allSourcePos[get_global_id(0)];//s0.s01;
-    global uint4* restrict drawIndirectN = drawIndirect + get_global_id(0);
-    global routed_lines* restrict routedN = routed + get_global_id(0);
-    global ulong16* restrict stubLocationN = stubLocations + get_global_id(0);
+    global uint4* restrict drawIndirectN = &drawIndirect[get_global_id(0)];
+    global routed_lines* restrict routedN = &routed[get_global_id(0)];
+    global beam_t* restrict stubLocationN = &stubLocations[get_global_id(0)];
 
     __attribute__((opencl_unroll_hint(ocl_counter_max)))
     for(uint count_index = 0; count_index < ocl_counter_max; count_index++) {
@@ -120,7 +139,8 @@ draw_wires(
 
         if (sourcePos[0] == curPos[0] && sourcePos[1] == curPos[1]) {
             // finished successfully
-            (*drawIndirectN)[3] = 1;
+            (*drawIndirectN) = make_uint4(0, 0, get_global_id(0) * ocl_counter_max, 1);
+            //(*drawIndirectN)[3] = 1;
             return;
         }
 

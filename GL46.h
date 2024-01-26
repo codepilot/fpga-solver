@@ -196,7 +196,7 @@ public:
         texture{ 1, GL_RGBA8, static_cast<GLsizei>(tileInfo.numCol), static_cast<GLsizei>(tileInfo.numRow) },
         vaRouted{ },
         dev{ "_deps/device-file-src/xcvu3p.device" },
-        phys{ "_deps/benchmark-files-src/corescore_500_pb_unrouted.phys" },
+        phys{ "_deps/benchmark-files-src/mlcad_d181_lefttwo3rds_unrouted.phys" },
         netCount{ phys.root.getPhysNets().size() },
         netCountAligned{ (((netCount + 255ul) >> 8ul) << 8ul) },
         ocl_counter{},
