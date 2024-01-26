@@ -94,7 +94,8 @@ public:
     }
 
     template<typename T>
-    always_inline std::expected<void, status> enqueueSVMMemFill(std::span<T> dst, const T &pattern) {
+    always_inline std::expected<void, status> enqueueSVMMemFill(ocl::svm<T> dst, const T &pattern) {
+        if(dst.empty()) return std::expected<void, status>();
         cl_int errcode_ret{ clEnqueueSVMMemFill(
             queue,
             dst.data(),

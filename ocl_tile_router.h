@@ -12,7 +12,8 @@
 
 class OCL_Tile_Router {
 public:
-
+    static inline const size_t largest_ocl_counter_max{ 4096ull };
+    static inline const uint32_t series_id_max{ 4096ul };
     static inline const MemoryMappedFile mmf_tt_count_offset{ "tt_count_offset.bin" };
     static inline const MemoryMappedFile mmf_tt_body{ "tt_body.bin" };
     static inline const std::span<std::array<uint32_t, 2>> span_tt_count_offset{ mmf_tt_count_offset.get_span<std::array<uint32_t, 2>>() };
@@ -24,6 +25,15 @@ public:
         UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
         UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
     };
+
+    static inline constexpr std::array<uint32_t, 4> fill_draw_commands {
+        0,//count
+        0,//instanceCount
+        0, // first
+        1,// baseInstance
+    };
+
+    static inline constexpr std::array<uint32_t, 1> svm_dirty_fill{ 0 };
 
     typedef struct {
         uint64_t tile_col : 10;
@@ -54,6 +64,8 @@ public:
     ocl::svm<std::array<uint32_t, 2>> svm_tile_tile_offset_count;
     ocl::svm<std::array<uint16_t, 2>> svm_dest_tile;
     ocl::svm<std::array<uint16_t, 2>> svm_allSourcePos;
+    ocl::svm<uint32_t> svm_dirty;
+    std::array<uint32_t, 1> host_dirty{ svm_dirty_fill };
     PhysicalNetlist::PhysNetlist::Reader phys;
     uint32_t netCount;
     uint32_t netCountAligned;
@@ -69,8 +81,8 @@ public:
         return result;
     }
 
-    std::expected<void, ocl::status> step_all(const uint32_t count) {
-        kernels.at(0).set_arg_t(0, count);
+    std::expected<void, ocl::status> step_all(const uint32_t series_id) {
+        kernels.at(0).set_arg_t(0, series_id);
 
         for (auto&& queue : queues) {
             auto result{ queue.enqueue<1>(kernels.at(0).kernel, { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
@@ -83,20 +95,24 @@ public:
 #ifdef _DEBUG
         std::cout << std::format("ocl_counter_max: {}\n", ocl_counter_max);
 #endif
-        for (uint32_t count{}; count < ocl_counter_max; count++) {
-#ifdef _DEBUG
-            std::cout << std::format("step {} of {}\n", count, ocl_counter_max);
-#endif
-            step_all(count).value();
+        for (uint32_t series_id{}; series_id < series_id_max; series_id++) {
+            std::cout << std::format("step {} of {} ", series_id, series_id_max);
+            step_all(series_id).value();
+            queues.at(0).enqueueSVMMemcpy<uint32_t>(true, host_dirty, svm_dirty).value();
+            queues.at(0).enqueueSVMMemFill(svm_dirty, svm_dirty_fill[0]);
+            std::cout << std::format("result {}         \r", host_dirty.at(0));
+            if(!host_dirty.at(0)) break;
         }
         for (auto&& queue : queues) {
             queue.finish().value();
         }
+        puts("");
+
         return std::expected<void, ocl::status>();
     }
 
-    std::expected<void, ocl::status> gl_step(const uint32_t count) {
-        kernels.at(0).set_arg_t(0, count);
+    std::expected<void, ocl::status> gl_step(const uint32_t series_id) {
+        kernels.at(0).set_arg_t(0, series_id);
 
         for (auto&& queue : queues) {
             auto result{ queue.useGL(buffers, [&]()->std::expected<void, ocl::status> {
@@ -114,6 +130,16 @@ public:
         }
     }
 
+    static uint32_t count_stubs(net_list_reader nets) {
+        std::atomic<uint32_t> ret{};
+        jthread_each(nets, [&](uint64_t net_index, net_reader &net) {
+            if (net.getSources().size() == 1) {
+                ret += net.getStubs().size();
+            }
+        });
+        return ret;
+    }
+
     static OCL_Tile_Router make(
         DeviceResources::Device::Reader dev,
         PhysicalNetlist::PhysNetlist::Reader phys,
@@ -122,7 +148,10 @@ public:
     ) {
 
         std::vector<ocl::svm<uint8_t>> all_svm;
-        const uint32_t netCount{ phys.getPhysNets().size() };
+        auto nets{ phys.getPhysNets() };
+        auto physStrs{ phys.getStrList() };
+        auto devStrs{ dev.getStrList() };
+        const uint32_t netCount{ count_stubs(nets) };
         const uint32_t netCountAligned{ (((netCount + 255ul) >> 8ul) << 8ul) };
 
         auto req_devices{ std::ranges::contains(context_properties, CL_GL_CONTEXT_KHR) ? ocl::device::get_gl_devices(context_properties).value() : std::vector<cl_device_id>{} };
@@ -141,7 +170,7 @@ public:
         puts(std::format("dev_max_mem_alloc_size: {} MiB", std::scalbln(static_cast<double>(dev_max_mem_alloc_size), -20)).c_str());
 #endif
         size_t possible_ocl_counter_max{ dev_max_mem_alloc_size / (static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 2>)) };
-        const uint32_t ocl_counter_max{ (possible_ocl_counter_max > 256ull) ? 256ul: static_cast<uint32_t>(possible_ocl_counter_max) };
+        const uint32_t ocl_counter_max{ (possible_ocl_counter_max > largest_ocl_counter_max) ? static_cast<uint32_t>(largest_ocl_counter_max) : static_cast<uint32_t>(possible_ocl_counter_max) };
         auto build_result{ program.build(std::format("-cl-mad-enable -cl-no-signed-zeros -Werror -cl-std=CL1.2 -cl-kernel-arg-info -g -D ocl_counter_max={}", ocl_counter_max))};
         auto build_logs{ program.get_build_info_string(CL_PROGRAM_BUILD_LOG).value() };
 #ifdef _DEBUG
@@ -167,10 +196,6 @@ public:
         }
 
         decltype(auto) kernel{ kernels.at(0) };
-
-        auto nets{ phys.getPhysNets() };
-        auto physStrs{ phys.getStrList() };
-        auto devStrs{ dev.getStrList() };
 
         std::map<std::string_view, std::array<uint16_t, 2>> site_locations;
         for (auto&& tile : dev.getTileList()) {
@@ -199,54 +224,58 @@ public:
 #endif
         auto svm_allSourcePos{ context.alloc_svm<std::array<uint16_t, 2>>(maybe_fine_grain & CL_MEM_READ_ONLY, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 2>)).value() };
 
+        auto svm_dirty{ context.alloc_svm<uint32_t>(maybe_fine_grain & CL_MEM_WRITE_ONLY, sizeof(uint32_t)).value() };
+        primary_queue.enqueueSVMMemFill(svm_dirty, svm_dirty_fill[0]);
 
 #ifdef _DEBUG
         puts("making stub locations");
 #endif
         auto svm_stubLocations{ context.alloc_svm<std::array<uint64_t, 16>>(maybe_fine_grain & CL_MEM_READ_WRITE, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint64_t, 16>)).value() };
         primary_queue.enqueueSVMMemFill(svm_stubLocations, fill_data);
+        primary_queue.enqueueSVMMemFill(svm_drawIndirect, fill_draw_commands);
+
+        std::atomic<uint32_t> global_stub_index{};
 
         primary_queue.enqueueSVMMap(CL_MAP_WRITE_INVALIDATE_REGION, svm_drawIndirect, [&]() {
             primary_queue.enqueueSVMMap(CL_MAP_WRITE_INVALIDATE_REGION, svm_allSourcePos, [&]() {
                 primary_queue.enqueueSVMMap(CL_MAP_WRITE, svm_stubLocations, [&]() {
-                    each(svm_stubLocations, [&](uint64_t index, std::array<uint64_t, 16>& stubLocation) {
-                        if (svm_drawIndirect.size() > index) svm_drawIndirect[index] = {
-                            0,//count
-                            0,//instanceCount
-                            static_cast<uint32_t>(index) * ocl_counter_max, // first
-                            1,// baseInstance
-                        };
-
-                        if (index >= nets.size()) return;
-                        auto net{ nets[index] };
+                    jthread_each(nets, [&](uint64_t net_index, net_reader& net) {
                         auto stubs{ net.getStubs() };
                         if (!stubs.size()) return;
                         auto sources{ net.getSources() };
                         if (sources.size() != 1) return;
-                        std::set<uint32_t> src_sites, dst_sites;
-                        get_site_pins(sources[0], src_sites);
-                        get_site_pins(stubs[0], dst_sites);
-                        if (!src_sites.size()) return;
-                        if (!dst_sites.size()) return;
-                        std::vector<std::string_view> src_site_names, dst_site_names;
-                        for (uint32_t site : src_sites) src_site_names.emplace_back(physStrs[site].cStr());
-                        for (uint32_t site : dst_sites) dst_site_names.emplace_back(physStrs[site].cStr());
-                        auto posA{ site_locations.at(src_site_names.at(0)) };
-                        auto posB{ site_locations.at(dst_site_names.at(0)) };
-                        svm_allSourcePos[index] = posA;
-                        svm_stubLocations[index][0] = std::bit_cast<uint64_t>(front_info{
-                            .tile_col{posB[0]},
-                            .tile_row{posB[1]},
-                            .tt_id{},
-                            .previous{},
-                            .cost{},
+
+                        const uint32_t local_stub_index{ global_stub_index.fetch_add(sources.size()) };
+                        auto source{ sources[0] };
+
+                        each(stubs, [&](uint32_t stub_offset, branch_reader &stub) {
+                            const uint32_t stub_index{ local_stub_index + stub_offset };
+                            std::set<uint32_t> src_sites, dst_sites;
+                            get_site_pins(source, src_sites);
+                            get_site_pins(stub, dst_sites);
+                            if (!src_sites.size()) return;
+                            if (!dst_sites.size()) return;
+                            std::vector<std::string_view> src_site_names, dst_site_names;
+                            for (uint32_t site : src_sites) src_site_names.emplace_back(physStrs[site].cStr());
+                            for (uint32_t site : dst_sites) dst_site_names.emplace_back(physStrs[site].cStr());
+                            auto posA{ site_locations.at(src_site_names.at(0)) };
+                            auto posB{ site_locations.at(dst_site_names.at(0)) };
+                            svm_allSourcePos[stub_index] = posA;
+                            svm_stubLocations[stub_index][0] = std::bit_cast<uint64_t>(front_info{
+                                .tile_col{posB[0]},
+                                .tile_row{posB[1]},
+                                .tt_id{},
+                                .previous{},
+                                .cost{},
+                                });
+                            if (!svm_drawIndirect.empty()) svm_drawIndirect[stub_index] = {
+                                0,//count
+                                1,//instanceCount
+                                static_cast<uint32_t>(stub_index) * ocl_counter_max, // first
+                                0,// baseInstance
+                            };
+
                         });
-                        if (svm_drawIndirect.size() > index) svm_drawIndirect[index] = {
-                            0,//count
-                            1,//instanceCount
-                            static_cast<uint32_t>(index) * ocl_counter_max, // first
-                            0,// baseInstance
-                        };
                     });
                 }).value();
             }).value();
@@ -256,7 +285,7 @@ public:
 #ifdef _DEBUG
         puts("setting kernel args");
 #endif
-        kernel.set_arg_t(0, 0).value(); // uint count,
+        kernel.set_arg_t(0, 0).value(); // uint series_id,
         if (buffers.empty()) {
             kernel.set_arg(1, svm_routed_lines).value();//global routed_lines* restrict routed,
             kernel.set_arg(2, svm_drawIndirect).value();//global uint4* restrict drawIndirect,
@@ -271,10 +300,14 @@ public:
         kernel.set_arg(4, svm_tile_tile_offset_count).value();//constant uint2* restrict tile_tile_count_offset,
         kernel.set_arg(5, svm_dest_tile).value();//constant ushort2* restrict dest_tile,
         kernel.set_arg(6, svm_allSourcePos).value();//constant ushort2* restrict allSourcePos
+        kernel.set_arg(7, svm_dirty).value(); // global uint* restrict dirty
+
         all_svm.emplace_back(svm_stubLocations.cast<uint8_t>());
         all_svm.emplace_back(svm_tile_tile_offset_count.cast<uint8_t>());
         all_svm.emplace_back(svm_dest_tile.cast<uint8_t>());
         all_svm.emplace_back(svm_allSourcePos.cast<uint8_t>());
+        all_svm.emplace_back(svm_dirty.cast<uint8_t>());
+
         primary_queue.enqueueSVMMigrate<uint8_t>(all_svm);
 
         return OCL_Tile_Router{
@@ -290,6 +323,7 @@ public:
             .svm_tile_tile_offset_count{std::move(svm_tile_tile_offset_count)},
             .svm_dest_tile{std::move(svm_dest_tile)},
             .svm_allSourcePos{std::move(svm_allSourcePos)},
+            .svm_dirty{std::move(svm_dirty)},
             .phys{ std::move(phys) },
             .netCount{ std::move(netCount) },
             .netCountAligned{ std::move(netCountAligned) },
