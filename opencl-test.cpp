@@ -41,13 +41,8 @@ void test_opencl() {
             std::cout << std::format("kerenl[0].CL_KERNEL_ARG_TYPE_NAME: {}\n", kernel.get_arg_info_string(0, CL_KERNEL_ARG_TYPE_NAME).value());
 
             kernel.set_arg(0, svm).value();
-            auto kernel_event{ queues[0].enqueue<1>(kernel.kernel, {0}, {svm.size()}, {max_workgroup_size}).value()};
-            std::cout << std::format("kernel_event.refcount: {}\n", kernel_event.get_reference_count().value());
-            std::cout << std::format("kernel_event.CL_EVENT_COMMAND_TYPE : {}\n", kernel_event.get_info_integral<cl_command_type>(CL_EVENT_COMMAND_TYPE).value());
-            std::cout << std::format("kernel_event.CL_EVENT_COMMAND_EXECUTION_STATUS : {}\n", kernel_event.get_info_integral<cl_int>(CL_EVENT_COMMAND_EXECUTION_STATUS).value());
-
-            kernel_event.wait().value();
-            std::cout << std::format("kernel_event.CL_EVENT_COMMAND_EXECUTION_STATUS : {}\n", kernel_event.get_info_integral<cl_int>(CL_EVENT_COMMAND_EXECUTION_STATUS).value());
+            queues[0].enqueue<1>(kernel.kernel, { 0 }, { svm.size() }, { max_workgroup_size }).value();
+            queues[0].finish();
 
             each(svm, [](uint64_t i, uint32_t n) {
                 if (i != n) std::cout << std::format("mismatch[{}] != {}\n", i, n);

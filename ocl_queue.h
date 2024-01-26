@@ -54,8 +54,7 @@ public:
     }
 
     template<cl_uint work_dim>
-    always_inline std::expected<ocl::event, status> enqueue(cl_kernel kernel, std::array<size_t, work_dim> global_work_offset, std::array<size_t, work_dim> global_work_size, std::array<size_t, work_dim> local_work_size) {
-        cl_event event{};
+    always_inline std::expected<void, status> enqueue(cl_kernel kernel, std::array<size_t, work_dim> global_work_offset, std::array<size_t, work_dim> global_work_size, std::array<size_t, work_dim> local_work_size) {
         cl_int errcode_ret{ clEnqueueNDRangeKernel(
             queue,
             kernel,
@@ -65,24 +64,43 @@ public:
             local_work_size.data(),
             0,
             nullptr,
-            &event
+            nullptr
         )};
 
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
         }
-        return std::expected<ocl::event, status>(ocl::event{ .event{event} });
+        return std::expected<void, status>();
     }
 
-    template<cl_uint work_dim>
-    always_inline std::expected<void, status> enqueue_no_event(ocl::kernel kernel, std::array<size_t, work_dim> global_work_offset, std::array<size_t, work_dim> global_work_size, std::array<size_t, work_dim> local_work_size) {
-        cl_int errcode_ret{ clEnqueueNDRangeKernel(
+    template<typename T>
+    always_inline std::expected<void, status> enqueueRead(cl_mem buffer, cl_bool blocking_read, size_t offset, std::span<T> dest) {
+        cl_int errcode_ret{ clEnqueueReadBuffer(
             queue,
-            kernel.kernel,
-            work_dim,
-            global_work_offset.data(),
-            global_work_size.data(),
-            local_work_size.data(),
+            buffer,
+            blocking_read,
+            offset,
+            dest.size_bytes(),
+            dest.data(),
+            0,
+            nullptr,
+            nullptr
+        )};
+
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<void, status>();
+    }
+
+    template<typename T>
+    always_inline std::expected<void, status> enqueueSVMMemFill(std::span<T> dst, const T &pattern) {
+        cl_int errcode_ret{ clEnqueueSVMMemFill(
+            queue,
+            dst.data(),
+            &pattern,
+            sizeof(pattern),
+            dst.size_bytes(),
             0,
             nullptr,
             nullptr
@@ -95,29 +113,7 @@ public:
     }
 
     template<typename T>
-    always_inline std::expected<ocl::event, status> enqueueRead(cl_mem buffer, cl_bool blocking_read, size_t offset, std::span<T> dest, std::vector<cl_event> event_wait_list = {}) {
-        cl_event event{};
-        cl_int errcode_ret{ clEnqueueReadBuffer(
-            queue,
-            buffer,
-            blocking_read,
-            offset,
-            dest.size_bytes(),
-            dest.data(),
-            static_cast<cl_uint>(event_wait_list.size()),
-            event_wait_list.size()?event_wait_list.data():nullptr,
-            &event
-        )};
-
-        if (errcode_ret) {
-            return std::unexpected<status>(status{ errcode_ret });
-        }
-        return std::expected<ocl::event, status>(ocl::event {.event{ event } });
-    }
-
-    template<typename T>
-    always_inline std::expected<ocl::event, status> enqueueSVMMemcpy(cl_bool blocking_copy, std::span<T> dst, std::span<T> src) {
-        cl_event event{};
+    always_inline std::expected<void, status> enqueueSVMMemcpy(cl_bool blocking_copy, std::span<T> dst, std::span<T> src) {
         cl_int errcode_ret{ clEnqueueSVMMemcpy(
             queue,
             blocking_copy,
@@ -126,18 +122,66 @@ public:
             dst.size_bytes(),
             0,
             nullptr,
-            &event
+            nullptr
         ) };
 
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
         }
-        return std::expected<ocl::event, status>(ocl::event {.event{ event } });
+        return std::expected<void, status>();
     }
 
     template<typename T>
-    always_inline std::expected<ocl::event, status> enqueueSVMMap(cl_bool blocking_map, cl_map_flags flags, ocl::svm<T> svm) {
-        cl_event event{};
+    always_inline std::expected<void, status> enqueueSVMMigrate(ocl::svm<T> svm) {
+        if (svm.empty()) {
+            return std::expected<void, status>();
+        }
+        const void* svm_pointer{ svm.data() };
+
+        cl_int errcode_ret{ clEnqueueSVMMigrateMem(
+            queue,
+            1,
+            &svm_pointer,
+            nullptr,
+            0,
+            0,
+            nullptr,
+            nullptr
+        ) };
+
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<void, status>();
+    }
+
+    template<typename T>
+    always_inline std::expected<void, status> enqueueSVMMigrate(std::span<ocl::svm<T>> v_svm) {
+        std::vector<const void *> svm_pointers;
+        svm_pointers.reserve(v_svm.size());
+        for (auto&& svm_n : v_svm) {
+            svm_pointers.emplace_back(svm_n.data());
+        }
+
+        cl_int errcode_ret{ clEnqueueSVMMigrateMem(
+            queue,
+            svm_pointers.size(),
+            svm_pointers.data(),
+            nullptr,
+            0,
+            0,
+            nullptr,
+            nullptr
+        ) };
+
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<void, status>();
+    }
+
+    template<typename T>
+    always_inline std::expected<void, status> enqueueSVMMap(cl_bool blocking_map, cl_map_flags flags, ocl::svm<T> svm) {
         cl_int errcode_ret{ clEnqueueSVMMap(
             queue,
             blocking_map,
@@ -146,30 +190,63 @@ public:
             svm.size_bytes(),
             0,
             nullptr,
-            &event
+            nullptr
         )};
 
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
         }
-        return std::expected<ocl::event, status>(ocl::event {.event{ event } });
+        return std::expected<void, status>();
     }
 
     template<typename T>
-    always_inline std::expected<ocl::event, status> enqueueSVMUnmap(ocl::svm<T> svm) {
-        cl_event event{};
+    always_inline std::expected<void, status> enqueueSVMUnmap(ocl::svm<T> svm) {
         cl_int errcode_ret{ clEnqueueSVMUnmap(
             queue,
             svm.data(),
             0,
             nullptr,
-            &event
+            nullptr
         )};
 
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
         }
-        return std::expected<ocl::event, status>(ocl::event {.event{ event } });
+        return std::expected<void, status>();
+    }
+
+    template<typename T>
+    always_inline std::expected<void, status> enqueueSVMMap(cl_map_flags flags, ocl::svm<T> svm, auto lambda) {
+        if (!svm.empty()) {
+            cl_int map_errcode_ret{ clEnqueueSVMMap(
+                queue,
+                true,
+                flags,
+                svm.data(),
+                svm.size_bytes(),
+                0,
+                nullptr,
+                nullptr
+            ) };
+            if (map_errcode_ret) {
+                return std::unexpected<status>(status{ map_errcode_ret });
+            }
+        }
+        lambda();
+        if (!svm.empty()) {
+            cl_int unmap_errcode_ret{ clEnqueueSVMUnmap(
+                queue,
+                svm.data(),
+                0,
+                nullptr,
+                nullptr
+            ) };
+
+            if (unmap_errcode_ret) {
+                return std::unexpected<status>(status{ unmap_errcode_ret });
+            }
+        }
+        return std::expected<void, status>();
     }
 
     always_inline std::expected<void, status> flush() {
@@ -190,7 +267,7 @@ public:
         return std::expected<void, status>();
     }
 
-    always_inline std::expected<void, status> acquireGL_no_event(std::span<ocl::buffer> buffers) noexcept {
+    always_inline std::expected<void, status> acquireGL(std::span<ocl::buffer> buffers) noexcept {
         ocl::status sts{ clEnqueueAcquireGLObjects(queue, static_cast<cl_uint>(buffers.size()), reinterpret_cast<cl_mem*>(buffers.data()), 0, nullptr, 0) };
         if (sts != ocl::status::SUCCESS) {
             return std::unexpected(sts);
@@ -198,7 +275,7 @@ public:
         return std::expected<void, status>();
     }
 
-    always_inline std::expected<void, status> releaseGL_no_event(std::span<ocl::buffer> buffers) noexcept {
+    always_inline std::expected<void, status> releaseGL(std::span<ocl::buffer> buffers) noexcept {
         ocl::status sts{ clEnqueueReleaseGLObjects(queue, static_cast<cl_uint>(buffers.size()), reinterpret_cast<cl_mem*>(buffers.data()), 0, nullptr, 0) };
         if (sts != ocl::status::SUCCESS) {
             return std::unexpected(sts);
@@ -207,9 +284,9 @@ public:
     }
 
     always_inline std::expected<void, status> useGL(std::span<ocl::buffer> buffers, auto lambda) noexcept {
-        return acquireGL_no_event(buffers).and_then([&]()->std::expected<void, status> {
+        return acquireGL(buffers).and_then([&]()->std::expected<void, status> {
             lambda();
-            return releaseGL_no_event(buffers);
+            return releaseGL(buffers);
         });
     }
 

@@ -246,7 +246,7 @@ namespace ocl {
 	class queue {
 	public:
 		template<cl_uint work_dim>
-		always_inline std::expected<void, status> enqueue_no_event(ocl::kernel kernel, std::array<size_t, work_dim> global_work_offset, std::array<size_t, work_dim> global_work_size, std::array<size_t, work_dim> local_work_size) {
+		always_inline std::expected<void, status> enqueue(ocl::kernel kernel, std::array<size_t, work_dim> global_work_offset, std::array<size_t, work_dim> global_work_size, std::array<size_t, work_dim> local_work_size) {
 			if constexpr (work_dim == 3) {
 				for (size_t z{ global_work_offset.at(2) }; z < global_work_size.at(2); z++) {
 					for (size_t y{ global_work_offset.at(1) }; y < global_work_size.at(1); y++) {

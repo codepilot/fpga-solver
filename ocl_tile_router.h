@@ -1,7 +1,5 @@
 #pragma once
 
-#define SKIP_SVM_MAP
-
 #ifdef USE_CPP_INSTEAD_OF_OPENCL
 #include "draw_wires.h"
 #else
@@ -19,6 +17,13 @@ public:
     static inline const MemoryMappedFile mmf_tt_body{ "tt_body.bin" };
     static inline const std::span<std::array<uint32_t, 2>> span_tt_count_offset{ mmf_tt_count_offset.get_span<std::array<uint32_t, 2>>() };
     static inline const std::span<std::array<uint16_t, 2>> span_tt_body{ mmf_tt_body.get_span<std::array<uint16_t, 2>>() };
+
+    static inline constexpr std::array<uint64_t, 16> fill_data{
+        UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
+        UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
+        UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
+        UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
+    };
 
     typedef struct {
         uint64_t tile_col : 10;
@@ -60,7 +65,7 @@ public:
     // inline static constexpr cl_uint total_group_size{ max_workgroup_size * workgroup_count };
 
     std::expected<void, ocl::status> step(ocl::queue &queue) {
-        auto result{ queue.enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
+        auto result{ queue.enqueue<1>(kernels.at(0).kernel, { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
         return result;
     }
 
@@ -68,7 +73,7 @@ public:
         kernels.at(0).set_arg_t(0, count);
 
         for (auto&& queue : queues) {
-            auto result{ queue.enqueue_no_event<1>(kernels.at(0), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
+            auto result{ queue.enqueue<1>(kernels.at(0).kernel, { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
             if (!result.has_value()) return result;
         }
         return std::expected<void, ocl::status>();
@@ -116,6 +121,7 @@ public:
         std::vector<cl_uint> gl_buffers = {}//,
     ) {
 
+        std::vector<ocl::svm<uint8_t>> all_svm;
         const uint32_t netCount{ phys.getPhysNets().size() };
         const uint32_t netCountAligned{ (((netCount + 255ul) >> 8ul) << 8ul) };
 
@@ -127,6 +133,7 @@ public:
         cl_svm_mem_flags maybe_fine_grain{ has_svm_fine_grain_buffer ? CL_MEM_SVM_FINE_GRAIN_BUFFER : 0ul };
 
         std::vector<ocl::queue> queues{ context.create_queues().value() };
+        decltype(auto) primary_queue{ queues.at(0) };
         MemoryMappedFile source{ "../kernels/draw_wires.cl" };
         ocl::program program{ context.create_program(source.get_span<char>()).value() };
         auto dev_max_mem_alloc_size{ocl::device::get_info_integral<cl_ulong>(device_ids.at(0), CL_DEVICE_MAX_MEM_ALLOC_SIZE).value()};
@@ -155,17 +162,8 @@ public:
         ocl::svm<std::array<uint16_t, 2>> svm_routed_lines;
         ocl::svm<std::array<uint32_t, 4>> svm_drawIndirect;
         if (buffers.size() < 2) {
-#ifdef _DEBUG
-            std::cout << std::format("CL_DEVICE_GLOBAL_FREE_MEMORY_AMD               : {} MiB\n", scalbln(static_cast<double>(ocl::device::get_info_integral<uint64_t>(device_ids.at(0), CL_DEVICE_GLOBAL_FREE_MEMORY_AMD).value_or(0)), -10));
-#endif
             svm_routed_lines = context.alloc_svm<std::array<uint16_t, 2>>(maybe_fine_grain & CL_MEM_READ_WRITE, static_cast<size_t>(ocl_counter_max) * static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 2>)).value();
-#ifdef _DEBUG
-            std::cout << std::format("CL_DEVICE_GLOBAL_FREE_MEMORY_AMD               : {} MiB\n", scalbln(static_cast<double>(ocl::device::get_info_integral<uint64_t>(device_ids.at(0), CL_DEVICE_GLOBAL_FREE_MEMORY_AMD).value_or(0)), -10));
-#endif
             svm_drawIndirect = context.alloc_svm<std::array<uint32_t, 4>>(maybe_fine_grain & CL_MEM_READ_WRITE, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint32_t, 4>)).value();
-#ifdef _DEBUG
-            std::cout << std::format("CL_DEVICE_GLOBAL_FREE_MEMORY_AMD               : {} MiB\n", scalbln(static_cast<double>(ocl::device::get_info_integral<uint64_t>(device_ids.at(0), CL_DEVICE_GLOBAL_FREE_MEMORY_AMD).value_or(0)), -10));
-#endif
         }
 
         decltype(auto) kernel{ kernels.at(0) };
@@ -185,164 +183,85 @@ public:
 #ifdef _DEBUG
         puts("create buf_tile_tile_offset_count");
 #endif
-#ifdef _DEBUG
-        std::cout << std::format("CL_DEVICE_GLOBAL_FREE_MEMORY_AMD               : {} MiB\n", scalbln(static_cast<double>(ocl::device::get_info_integral<uint64_t>(device_ids.at(0), CL_DEVICE_GLOBAL_FREE_MEMORY_AMD).value_or(0)), -10));
-#endif
         auto svm_tile_tile_offset_count{ context.alloc_svm<std::array<uint32_t, 2>>(maybe_fine_grain & CL_MEM_READ_ONLY, span_tt_count_offset.size_bytes()).value() };
-#ifdef _DEBUG
-        std::cout << std::format("CL_DEVICE_GLOBAL_FREE_MEMORY_AMD               : {} MiB\n", scalbln(static_cast<double>(ocl::device::get_info_integral<uint64_t>(device_ids.at(0), CL_DEVICE_GLOBAL_FREE_MEMORY_AMD).value_or(0)), -10));
-#endif
 
-#ifdef SKIP_SVM_MAP
-        if(dev_max_mem_alloc_size > UINT32_MAX) {
-#endif
-            queues.at(0).enqueueSVMMemcpy(false, svm_tile_tile_offset_count, span_tt_count_offset);
-#ifdef SKIP_SVM_MAP
-        } else {
-            memcpy(svm_tile_tile_offset_count.data(), span_tt_count_offset.data(), span_tt_count_offset.size_bytes());
-        }
-#endif
+        primary_queue.enqueueSVMMemcpy(false, svm_tile_tile_offset_count, span_tt_count_offset);
 
 #ifdef _DEBUG
         puts("create buf_dest_tile");
 #endif
-#ifdef _DEBUG
-        std::cout << std::format("CL_DEVICE_GLOBAL_FREE_MEMORY_AMD               : {} MiB\n", scalbln(static_cast<double>(ocl::device::get_info_integral<uint64_t>(device_ids.at(0), CL_DEVICE_GLOBAL_FREE_MEMORY_AMD).value_or(0)), -10));
-#endif
         auto svm_dest_tile{ context.alloc_svm<std::array<uint16_t, 2>>(maybe_fine_grain & CL_MEM_READ_ONLY, span_tt_body.size_bytes()).value() };
-#ifdef _DEBUG
-        std::cout << std::format("CL_DEVICE_GLOBAL_FREE_MEMORY_AMD               : {} MiB\n", scalbln(static_cast<double>(ocl::device::get_info_integral<uint64_t>(device_ids.at(0), CL_DEVICE_GLOBAL_FREE_MEMORY_AMD).value_or(0)), -10));
-#endif
 
-#ifdef SKIP_SVM_MAP
-        if(dev_max_mem_alloc_size > UINT32_MAX) {
-#endif
-            queues.at(0).enqueueSVMMemcpy(false, svm_dest_tile, span_tt_body);
-#ifdef SKIP_SVM_MAP
-        } else {
-            memcpy(svm_dest_tile.data(), span_tt_body.data(), span_tt_body.size_bytes());
-        }
-#endif
+        primary_queue.enqueueSVMMemcpy(false, svm_dest_tile, span_tt_body);
 
 #ifdef _DEBUG
         puts("create buf_allSourcePos");
 #endif
-#ifdef _DEBUG
-        std::cout << std::format("CL_DEVICE_GLOBAL_FREE_MEMORY_AMD               : {} MiB\n", scalbln(static_cast<double>(ocl::device::get_info_integral<uint64_t>(device_ids.at(0), CL_DEVICE_GLOBAL_FREE_MEMORY_AMD).value_or(0)), -10));
-#endif
         auto svm_allSourcePos{ context.alloc_svm<std::array<uint16_t, 2>>(maybe_fine_grain & CL_MEM_READ_ONLY, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 2>)).value() };
-#ifdef _DEBUG
-        std::cout << std::format("CL_DEVICE_GLOBAL_FREE_MEMORY_AMD               : {} MiB\n", scalbln(static_cast<double>(ocl::device::get_info_integral<uint64_t>(device_ids.at(0), CL_DEVICE_GLOBAL_FREE_MEMORY_AMD).value_or(0)), -10));
-#endif
-
-#ifdef SKIP_SVM_MAP
-        if(dev_max_mem_alloc_size > UINT32_MAX) {
-#endif
-            queues.at(0).enqueueSVMMap(true, CL_MAP_WRITE_INVALIDATE_REGION, svm_allSourcePos).value();
-#ifdef SKIP_SVM_MAP
-        }
-#endif
 
 
 #ifdef _DEBUG
         puts("making stub locations");
 #endif
-#ifdef _DEBUG
-        std::cout << std::format("CL_DEVICE_GLOBAL_FREE_MEMORY_AMD               : {} MiB\n", scalbln(static_cast<double>(ocl::device::get_info_integral<uint64_t>(device_ids.at(0), CL_DEVICE_GLOBAL_FREE_MEMORY_AMD).value_or(0)), -10));
-#endif
         auto svm_stubLocations{ context.alloc_svm<std::array<uint64_t, 16>>(maybe_fine_grain & CL_MEM_READ_WRITE, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint64_t, 16>)).value() };
-#ifdef _DEBUG
-        std::cout << std::format("CL_DEVICE_GLOBAL_FREE_MEMORY_AMD               : {} MiB\n", scalbln(static_cast<double>(ocl::device::get_info_integral<uint64_t>(device_ids.at(0), CL_DEVICE_GLOBAL_FREE_MEMORY_AMD).value_or(0)), -10));
-#endif
+        primary_queue.enqueueSVMMemFill(svm_stubLocations, fill_data);
 
-#ifdef SKIP_SVM_MAP
-        if(dev_max_mem_alloc_size > UINT32_MAX) {
-#endif
-            queues.at(0).enqueueSVMMap(true, CL_MAP_WRITE_INVALIDATE_REGION, svm_stubLocations).value();
-#ifdef SKIP_SVM_MAP
-        }
-#endif
+        primary_queue.enqueueSVMMap(CL_MAP_WRITE_INVALIDATE_REGION, svm_drawIndirect, [&]() {
+            primary_queue.enqueueSVMMap(CL_MAP_WRITE_INVALIDATE_REGION, svm_allSourcePos, [&]() {
+                primary_queue.enqueueSVMMap(CL_MAP_WRITE, svm_stubLocations, [&]() {
+                    each(svm_stubLocations, [&](uint64_t index, std::array<uint64_t, 16>& stubLocation) {
+                        if (svm_drawIndirect.size() > index) svm_drawIndirect[index] = {
+                            0,//count
+                            0,//instanceCount
+                            static_cast<uint32_t>(index) * ocl_counter_max, // first
+                            1,// baseInstance
+                        };
 
-        std::ranges::fill(svm_stubLocations, std::array<uint64_t, 16>{
-            UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
-                UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
-                UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
-                UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
-        });
+                        if (index >= nets.size()) return;
+                        auto net{ nets[index] };
+                        auto stubs{ net.getStubs() };
+                        if (!stubs.size()) return;
+                        auto sources{ net.getSources() };
+                        if (sources.size() != 1) return;
+                        std::set<uint32_t> src_sites, dst_sites;
+                        get_site_pins(sources[0], src_sites);
+                        get_site_pins(stubs[0], dst_sites);
+                        if (!src_sites.size()) return;
+                        if (!dst_sites.size()) return;
+                        std::vector<std::string_view> src_site_names, dst_site_names;
+                        for (uint32_t site : src_sites) src_site_names.emplace_back(physStrs[site].cStr());
+                        for (uint32_t site : dst_sites) dst_site_names.emplace_back(physStrs[site].cStr());
+                        auto posA{ site_locations.at(src_site_names.at(0)) };
+                        auto posB{ site_locations.at(dst_site_names.at(0)) };
+                        svm_allSourcePos[index] = posA;
+                        svm_stubLocations[index][0] = std::bit_cast<uint64_t>(front_info{
+                            .tile_col{posB[0]},
+                            .tile_row{posB[1]},
+                            .tt_id{},
+                            .previous{},
+                            .cost{},
+                        });
+                        if (svm_drawIndirect.size() > index) svm_drawIndirect[index] = {
+                            0,//count
+                            1,//instanceCount
+                            static_cast<uint32_t>(index) * ocl_counter_max, // first
+                            0,// baseInstance
+                        };
+                    });
+                }).value();
+            }).value();
+        }).value();
 
-#ifdef SKIP_SVM_MAP
-        if(dev_max_mem_alloc_size > UINT32_MAX) {
-#endif
-            if (!svm_drawIndirect.empty()) queues.at(0).enqueueSVMMap(true, CL_MAP_WRITE_INVALIDATE_REGION, svm_drawIndirect).value();
-#ifdef SKIP_SVM_MAP
-        }
-#endif
-
-        each(svm_stubLocations, [&](uint64_t index, std::array<uint64_t, 16> &stubLocation) {
-            if(svm_drawIndirect.size() > index) svm_drawIndirect[index] = {
-                0,//count
-                0,//instanceCount
-                static_cast<uint32_t>(index) * ocl_counter_max, // first
-                1,// baseInstance
-            };
-
-            if (index >= nets.size()) return;
-            auto net{ nets[index] };
-            auto stubs{ net.getStubs() };
-            if (!stubs.size()) return;
-            auto sources{ net.getSources() };
-            if (sources.size() != 1) return;
-            std::set<uint32_t> src_sites, dst_sites;
-            get_site_pins(sources[0], src_sites);
-            get_site_pins(stubs[0], dst_sites);
-            if (!src_sites.size()) return;
-            if (!dst_sites.size()) return;
-            std::vector<std::string_view> src_site_names, dst_site_names;
-            for (uint32_t site : src_sites) src_site_names.emplace_back(physStrs[site].cStr());
-            for (uint32_t site : dst_sites) dst_site_names.emplace_back(physStrs[site].cStr());
-            auto posA{ site_locations.at(src_site_names.at(0)) };
-            auto posB{ site_locations.at(dst_site_names.at(0)) };
-            uint64_t word_0{ std::bit_cast<uint64_t>(front_info{
-                .tile_col{posB[0]},
-                .tile_row{posB[1]},
-                .tt_id{},
-                .previous{},
-                .cost{},
-            } ) };
-            svm_allSourcePos[index] = posA;
-            svm_stubLocations[index] = std::array<uint64_t, 16>{
-                word_0,     UINT64_MAX, UINT64_MAX, UINT64_MAX,
-                UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
-                UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
-                UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
-            };
-            if (svm_drawIndirect.size() > index) svm_drawIndirect[index] = {
-                0,//count
-                1,//instanceCount
-                static_cast<uint32_t>(index) * ocl_counter_max, // first
-                0,// baseInstance
-            };
-
-        });
-
-#ifdef SKIP_SVM_MAP
-        if(dev_max_mem_alloc_size > UINT32_MAX) {
-#endif
-            queues.at(0).enqueueSVMUnmap(svm_allSourcePos).value();
-            queues.at(0).enqueueSVMUnmap(svm_stubLocations).value();
-            if (!svm_drawIndirect.empty()) queues.at(0).enqueueSVMUnmap(svm_drawIndirect).value();
-#ifdef SKIP_SVM_MAP
-        }
-#endif
 
 #ifdef _DEBUG
         puts("setting kernel args");
 #endif
-        
         kernel.set_arg_t(0, 0).value(); // uint count,
         if (buffers.empty()) {
             kernel.set_arg(1, svm_routed_lines).value();//global routed_lines* restrict routed,
             kernel.set_arg(2, svm_drawIndirect).value();//global uint4* restrict drawIndirect,
+            all_svm.emplace_back(svm_routed_lines.cast<uint8_t>());
+            all_svm.emplace_back(svm_drawIndirect.cast<uint8_t>());
         }
         else {
             kernel.set_arg(1, buffers.at(0)).value();//global routed_lines* restrict routed,
@@ -352,6 +271,11 @@ public:
         kernel.set_arg(4, svm_tile_tile_offset_count).value();//constant uint2* restrict tile_tile_count_offset,
         kernel.set_arg(5, svm_dest_tile).value();//constant ushort2* restrict dest_tile,
         kernel.set_arg(6, svm_allSourcePos).value();//constant ushort2* restrict allSourcePos
+        all_svm.emplace_back(svm_stubLocations.cast<uint8_t>());
+        all_svm.emplace_back(svm_tile_tile_offset_count.cast<uint8_t>());
+        all_svm.emplace_back(svm_dest_tile.cast<uint8_t>());
+        all_svm.emplace_back(svm_allSourcePos.cast<uint8_t>());
+        primary_queue.enqueueSVMMigrate<uint8_t>(all_svm);
 
         return OCL_Tile_Router{
             .context{std::move(context)},
