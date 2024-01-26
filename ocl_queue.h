@@ -114,6 +114,26 @@ public:
     }
 
     template<typename T>
+    always_inline std::expected<void, status> enqueueSVMMemFill(ocl::svm<T> dst, auto pattern) {
+        if (dst.empty()) return std::expected<void, status>();
+        cl_int errcode_ret{ clEnqueueSVMMemFill(
+            queue,
+            dst.data(),
+            &pattern,
+            sizeof(pattern),
+            dst.size_bytes(),
+            0,
+            nullptr,
+            nullptr
+        ) };
+
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<void, status>();
+    }
+
+    template<typename T>
     always_inline std::expected<void, status> enqueueSVMMemcpy(cl_bool blocking_copy, std::span<T> dst, std::span<T> src) {
         cl_int errcode_ret{ clEnqueueSVMMemcpy(
             queue,

@@ -12,19 +12,18 @@
 
 class OCL_Tile_Router {
 public:
-    static inline const size_t largest_ocl_counter_max{ 128ull };
-    static inline const uint32_t series_id_max{ 128ul };
+    static inline constexpr uint32_t beam_width{ 32ul };
+    using beam_t = std::array<uint64_t, beam_width>;
+
+    static inline constexpr uint32_t max_tile_count{ 5884ul };
+    static inline constexpr uint32_t tt_body_count{ 4293068ul };
+
+    static inline constexpr size_t largest_ocl_counter_max{ 256ull };
+    static inline constexpr uint32_t series_id_max{ 64ul };
     static inline const MemoryMappedFile mmf_tt_count_offset{ "tt_count_offset.bin" };
     static inline const MemoryMappedFile mmf_tt_body{ "tt_body.bin" };
     static inline const std::span<std::array<uint32_t, 2>> span_tt_count_offset{ mmf_tt_count_offset.get_span<std::array<uint32_t, 2>>() };
     static inline const std::span<std::array<uint16_t, 2>> span_tt_body{ mmf_tt_body.get_span<std::array<uint16_t, 2>>() };
-
-    static inline constexpr std::array<uint64_t, 16> fill_data{
-        UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
-        UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
-        UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
-        UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX,
-    };
 
     static inline constexpr std::array<uint32_t, 4> fill_draw_commands {
         0,//count
@@ -32,8 +31,6 @@ public:
         0, // first
         1,// baseInstance
     };
-
-    static inline constexpr std::array<uint32_t, 1> svm_dirty_fill{ 0 };
 
     typedef struct {
         uint64_t tile_col : 10;
@@ -60,12 +57,12 @@ public:
     std::vector<ocl::buffer> buffers;
     ocl::svm<std::array<uint16_t, 2>> svm_routed_lines;
     ocl::svm<std::array<uint32_t, 4>> svm_drawIndirect;
-    ocl::svm<std::array<uint64_t, 16>> svm_stubLocations;
+    ocl::svm<beam_t> svm_stubLocations;
     ocl::svm<std::array<uint32_t, 2>> svm_tile_tile_offset_count;
     ocl::svm<std::array<uint16_t, 2>> svm_dest_tile;
     ocl::svm<std::array<uint16_t, 2>> svm_allSourcePos;
     ocl::svm<uint32_t> svm_dirty;
-    std::array<uint32_t, 1> host_dirty{ svm_dirty_fill };
+    std::array<uint32_t, 1> host_dirty{ };
     PhysicalNetlist::PhysNetlist::Reader phys;
     uint32_t netCount;
     uint32_t netCountAligned;
@@ -95,13 +92,17 @@ public:
 #ifdef _DEBUG
         std::cout << std::format("ocl_counter_max: {}\n", ocl_counter_max);
 #endif
+        uint32_t previous_dirty_count{};
         for (uint32_t series_id{}; series_id < series_id_max; series_id++) {
             std::cout << std::format("ocl_counter_max: {}, step {} of {}, ", ocl_counter_max, series_id + 1, series_id_max);
             step_all(series_id).value();
+            queues.at(0).finish().value();
             queues.at(0).enqueueSVMMemcpy<uint32_t>(true, host_dirty, svm_dirty).value();
-            queues.at(0).enqueueSVMMemFill(svm_dirty, svm_dirty_fill[0]);
+            queues.at(0).enqueueSVMMemFill(svm_dirty, 0u);
             std::cout << std::format("result {}         \r", host_dirty.at(0));
             if(!host_dirty.at(0)) break;
+            if (previous_dirty_count != host_dirty.at(0)) std::cout << "\n";
+            previous_dirty_count = host_dirty.at(0);
         }
         for (auto&& queue : queues) {
             queue.finish().value();
@@ -171,7 +172,7 @@ public:
 #endif
         size_t possible_ocl_counter_max{ dev_max_mem_alloc_size / (static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 2>)) };
         const uint32_t ocl_counter_max{ (possible_ocl_counter_max > largest_ocl_counter_max) ? static_cast<uint32_t>(largest_ocl_counter_max) : static_cast<uint32_t>(possible_ocl_counter_max) };
-        auto build_result{ program.build(std::format("-cl-mad-enable -cl-no-signed-zeros -Werror -cl-std=CL1.2 -cl-kernel-arg-info -g -D ocl_counter_max={} -D netCountAligned={}", ocl_counter_max, netCountAligned))};
+        auto build_result{ program.build(std::format("-cl-mad-enable -cl-no-signed-zeros -Werror -cl-std=CL1.2 -cl-kernel-arg-info -g -D ocl_counter_max={}u -D netCountAligned={}u -D beam_width={}u -D max_tile_count={}u -D tt_body_count={}u", ocl_counter_max, netCountAligned, beam_width, max_tile_count, tt_body_count))};
         auto build_logs{ program.get_build_info_string(CL_PROGRAM_BUILD_LOG).value() };
 #ifdef _DEBUG
         for (auto&& build_log : build_logs) {
@@ -179,6 +180,9 @@ public:
         }
 #endif
         if (!build_result.has_value()) {
+            for (auto&& build_log : build_logs) {
+                puts(build_log.c_str());
+            }
             abort();
         }
         build_result.value();
@@ -225,13 +229,13 @@ public:
         auto svm_allSourcePos{ context.alloc_svm<std::array<uint16_t, 2>>(maybe_fine_grain & CL_MEM_READ_ONLY, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 2>)).value() };
 
         auto svm_dirty{ context.alloc_svm<uint32_t>(maybe_fine_grain & CL_MEM_WRITE_ONLY, sizeof(uint32_t)).value() };
-        primary_queue.enqueueSVMMemFill(svm_dirty, svm_dirty_fill[0]);
+        primary_queue.enqueueSVMMemFill(svm_dirty, 0u);
 
 #ifdef _DEBUG
         puts("making stub locations");
 #endif
-        auto svm_stubLocations{ context.alloc_svm<std::array<uint64_t, 16>>(maybe_fine_grain & CL_MEM_READ_WRITE, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint64_t, 16>)).value() };
-        primary_queue.enqueueSVMMemFill(svm_stubLocations, fill_data);
+        auto svm_stubLocations{ context.alloc_svm<beam_t>(maybe_fine_grain & CL_MEM_READ_WRITE, static_cast<size_t>(netCountAligned) * sizeof(beam_t)).value() };
+        primary_queue.enqueueSVMMemFill(svm_stubLocations, UINT64_MAX);
         primary_queue.enqueueSVMMemFill(svm_drawIndirect, fill_draw_commands);
 
         std::atomic<uint32_t> global_stub_index{};
@@ -245,7 +249,7 @@ public:
                         auto sources{ net.getSources() };
                         if (sources.size() != 1) return;
 
-                        const uint32_t local_stub_index{ global_stub_index.fetch_add(sources.size()) };
+                        const uint32_t local_stub_index{ global_stub_index.fetch_add(stubs.size()) };
                         auto source{ sources[0] };
 
                         each(stubs, [&](uint32_t stub_offset, branch_reader &stub) {
@@ -267,20 +271,23 @@ public:
                                 .tt_id{},
                                 .previous{},
                                 .cost{},
-                                });
+                            });
                             if (!svm_drawIndirect.empty()) svm_drawIndirect[stub_index] = {
                                 0,//count
                                 1,//instanceCount
                                 static_cast<uint32_t>(stub_index) * ocl_counter_max, // first
                                 0,// baseInstance
                             };
-
                         });
                     });
                 }).value();
             }).value();
         }).value();
 
+        if (global_stub_index != netCount) {
+            printf("global_stub_index(%u) != netCount(%u)\n", global_stub_index.load(), netCount);
+            abort();
+        }
 
 #ifdef _DEBUG
         puts("setting kernel args");
