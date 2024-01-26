@@ -12,3 +12,4 @@ cd build
 "RelWithDebInfo\opencl-tile-router.exe" "_deps\benchmark-files-src\rosetta_fd_unrouted.phys"
 "RelWithDebInfo\opencl-tile-router.exe" "_deps\benchmark-files-src\vtr_lu64peeng_unrouted.phys"
 "RelWithDebInfo\opencl-tile-router.exe" "_deps\benchmark-files-src\vtr_mcml_unrouted.phys"
+cd ..
