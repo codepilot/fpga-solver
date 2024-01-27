@@ -167,6 +167,17 @@ public:
         }
     }
 
+    static void get_site_pin_nodes(branch_reader src, std::set<uint32_t>& dst, std::unordered_map<uint64_t, uint32_t> &site_pin_to_node) {
+        if (src.getRouteSegment().isSitePin()) {
+            auto sitePin{ src.getRouteSegment().getSitePin() };
+            std::array<uint32_t, 2> site_pin_key{ sitePin.getSite(), sitePin.getPin() };
+            dst.insert(site_pin_to_node.at(std::bit_cast<uint64_t>(site_pin_key)));
+        }
+        for (auto&& subbranch : src.getBranches()) {
+            get_site_pin_nodes(subbranch, dst, site_pin_to_node);
+        }
+    }
+
     static uint32_t count_stubs(net_list_reader nets) {
         std::atomic<uint32_t> ret{};
         jthread_each(nets, [&](uint64_t net_index, net_reader &net) {
@@ -255,6 +266,60 @@ public:
                 site_locations.insert({devStrs[site.getName()].cStr(), pos});
             }
         }
+        auto n{ devStrs[0] };
+        std::unordered_map<std::string_view, uint32_t> devStrs_map;
+        each(devStrs, [&](uint64_t dev_strIdx, capnp::Text::Reader dev_str) {
+            std::string_view str{ dev_str.cStr() };
+            devStrs_map.insert({ str, static_cast<uint32_t>(dev_strIdx) });
+        });
+        std::vector<uint32_t> physStrs_to_devStrs(static_cast<size_t>(physStrs.size()), UINT32_MAX);
+        std::vector<uint32_t> devStrs_to_physStrs(static_cast<size_t>(devStrs.size()), UINT32_MAX);
+        each(physStrs, [&](uint64_t phys_strIdx, capnp::Text::Reader phys_str) {
+            std::string_view str{ phys_str.cStr() };
+            if (!devStrs_map.contains(str)) return;
+            auto dev_strIdx{ devStrs_map.at(str) };
+            physStrs_to_devStrs[phys_strIdx] = dev_strIdx;
+            devStrs_to_physStrs[dev_strIdx] = phys_strIdx;
+        });
+
+        std::unordered_map<uint64_t, uint32_t> tile_wire_to_wire_idx;
+        tile_wire_to_wire_idx.reserve(dev.getWires().size());
+
+        each(dev.getWires(), [&](uint64_t wire_idx, wire_reader wire) {
+            auto tw_key{ std::bit_cast<uint64_t>(std::array<uint32_t, 2>{ wire.getTile(), wire.getWire() })};
+            tile_wire_to_wire_idx.insert({ tw_key, wire_idx});
+        });
+        std::vector<uint32_t> wire_idx_to_node_idx(static_cast<size_t>(dev.getWires().size()), UINT32_MAX);
+        each(dev.getNodes(), [&](uint64_t node_idx, node_reader node) {
+            for (auto wire_idx : node.getWires()) {
+                wire_idx_to_node_idx[wire_idx] = static_cast<uint32_t>(node_idx);
+            }
+        });
+        std::unordered_map<uint64_t, uint32_t> site_pin_to_node;
+        for (auto&& tile : dev.getTileList()) {
+            auto tile_str_idx{ tile.getName() };
+            auto sites{ tile.getSites() };
+            auto tileType{ dev.getTileTypeList()[tile.getType()] };
+            auto tileTypeSiteTypes{ tileType.getSiteTypes() };
+
+            for (auto&& site : tile.getSites()) {
+                auto phys_site_name{ devStrs_to_physStrs.at(site.getName()) };
+                if (phys_site_name == UINT32_MAX) continue;
+                auto siteTypeInTile{ tileTypeSiteTypes[site.getType()] };
+                auto siteType{ dev.getSiteTypeList()[siteTypeInTile.getPrimaryType()] };
+                auto tile_wires{ siteTypeInTile.getPrimaryPinsToTileWires() };
+                each(siteType.getPins(), [&](uint64_t pin_index, auto& pin) {
+                    auto phys_pin_name{ devStrs_to_physStrs.at(pin.getName()) };
+                    if (phys_pin_name == UINT32_MAX) return;
+                    auto wire_str_idx{ tile_wires[pin_index] };
+                    auto tw_key{ std::bit_cast<uint64_t>(std::array<uint32_t, 2>{tile_str_idx, wire_str_idx}) };
+                    auto wire_idx{ tile_wire_to_wire_idx.at(tw_key) };
+                    auto node_idx{ wire_idx_to_node_idx.at(wire_idx) };
+                    auto sp_key{ std::bit_cast<uint64_t>(std::array<uint32_t, 2>{phys_site_name, phys_pin_name}) };
+                    site_pin_to_node.insert({ sp_key, node_idx });
+                });
+            }
+        }
 
         auto nodes{ dev.getNodes() };
         auto wires{ dev.getWires() };
@@ -327,18 +392,39 @@ public:
                             get_site_pins(stub, dst_sites);
                             if (!src_sites.size()) return;
                             if (!dst_sites.size()) return;
+                            std::set<uint32_t> src_nodes, dst_nodes;
+                            get_site_pin_nodes(source, src_nodes, site_pin_to_node);
+                            get_site_pin_nodes(stub, dst_nodes, site_pin_to_node);
+                            if (!src_nodes.size()) return;
+                            if (!dst_nodes.size()) return;
+
                             std::vector<std::string_view> src_site_names, dst_site_names;
                             for (uint32_t site : src_sites) src_site_names.emplace_back(physStrs[site].cStr());
                             for (uint32_t site : dst_sites) dst_site_names.emplace_back(physStrs[site].cStr());
                             auto posA{ site_locations.at(src_site_names.front()) };
                             auto posB{ site_locations.at(dst_site_names.front()) };
-                            svm_stubs[stub_index] = std::array<uint32_t, 4>{posA[0], posA[1], UINT32_MAX, static_cast<uint32_t>(net_index) };
-                            svm_heads[stub_index][0] = std::array<uint32_t, 4>{
-                                0, //cost
-                                0, //height
-                                UINT32_MAX, //parent
-                                0, //pip_idx
+                            svm_stubs[stub_index] = std::array<uint32_t, 4>{
+                                posB[0], //x
+                                posB[1], //y
+                                *dst_nodes.begin(), // node_idx
+                                static_cast<uint32_t>(net_index) //net_idx
                             };
+                            auto count_offset{ s_pip_count_offset[*src_nodes.begin()] };
+                            auto pip_offset{ count_offset[1] };
+                            auto infos{ s_pip_tile_body.subspan(pip_offset, count_offset[0]) };
+                            if (infos.size() > svm_heads[stub_index].size()) {
+                                DebugBreak();
+                            }
+                            each(infos, [&](uint64_t info_idx, std::array<uint32_t, 4>& info) {
+                                if (info_idx >= svm_heads[stub_index].size()) return;
+                                svm_heads[stub_index][info_idx] = std::array<uint32_t, 4>{
+                                    0, //cost
+                                    0, //height
+                                    UINT32_MAX, //parent
+                                    pip_offset + static_cast<uint32_t>(info_idx), //pip_idx
+                                };
+                            });
+
                             if (!svm_drawIndirect.empty()) {
                                 svm_drawIndirect[stub_index] = {
                                     0,//count
