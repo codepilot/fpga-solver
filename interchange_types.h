@@ -30,4 +30,5 @@ using node_reader = ::DeviceResources::Device::Node::Reader;
 using wire_reader = ::DeviceResources::Device::Wire::Reader;
 using pip_reader = ::DeviceResources::Device::PIP::Reader;
 using wire_list_reader = ::capnp::List< ::DeviceResources::Device::Wire, ::capnp::Kind::STRUCT>::Reader;
+using node_list_reader = ::capnp::List< ::DeviceResources::Device::Node, ::capnp::Kind::STRUCT>::Reader;
 using net_list_reader = ::capnp::List< ::PhysicalNetlist::PhysNetlist::PhysNet, ::capnp::Kind::STRUCT>::Reader;

@@ -205,7 +205,7 @@ draw_wires(
                 uint pip_node1_idx = pip_info[3];
                 float node_diff = ldexp((float)abs((int)stub_node_idx - (int)pip_node1_idx), -28);
                 float cur_dist = tile_distance(stub_xy, pip_info_xy);
-                float item_cost = ((cur_dist * 8.0f)) + ((float)parent_height * 32.0f) + node_diff;
+                float item_cost = ((cur_dist * 8.0f)) + ((float)parent_height * 1.0f) + node_diff;
 
                 uint4 item = make_uint4(as_uint(item_cost), parent_height + 1u, parent_id, pip_idx);//cost, height, (parent_id,my_id), pip_idx
 
@@ -213,12 +213,10 @@ draw_wires(
                 printf("pip_node1_idx: %u, node_diff: %f, cur_dist: %f, item_cost: %f\nitem: %v4u\n", pip_node1_idx, node_diff, cur_dist, item_cost, item);
 #endif
                 for (uint j = 0; j < 16; j++) {
-                    uint2 cur_heads_j_xy = make_uint2(cur_heads[j][0], cur_heads[j][1]);
-                    uint2 item_xy = make_uint2(item[0], item[1]);
-                    bool is_less = as_ulong(cur_heads_j_xy) < as_ulong(item_xy);
+                    bool is_less = (cur_heads[j][0] == UINT_MAX) || (as_float(item[0]) < as_float(cur_heads[j][0]));
                     uint4 temp_stub = cur_heads[j];
-                    cur_heads[j] = is_less?temp_stub:item;
-                    item = is_less?item:temp_stub;
+                    cur_heads[j] = is_less?item:temp_stub;
+                    item = is_less?temp_stub:item;
 #ifdef CL_DEBUG
                     printf("cur_heads[%u]: %v4u", j, cur_heads[j]);
 #endif

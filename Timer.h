@@ -4,18 +4,23 @@
 #include <iostream>
 #include "constexpr_string.h"
 
+static std::atomic<uint32_t> timer_depth{};
+
 template<constexpr_string str>
 class Timer {
 public:
 	const decltype(std::chrono::steady_clock::now()) start;
-	Timer() : start{ std::chrono::steady_clock::now() } { }
+	Timer() : start{ std::chrono::steady_clock::now() } {
+		timer_depth++;
+	}
 	std::chrono::duration<double> finish() {
 		const auto end = std::chrono::steady_clock::now();
 		const auto diff = end - start;
 		return diff;
 	}
 	~Timer() {
-		std::cout << std::format(str.chars, finish());
+		timer_depth--;
+		std::cout << std::format("{:{}}", "", timer_depth.load() * 2) << std::format(str.chars, finish());
 	}
 	static decltype(auto) log(auto lamda) {
 		auto execLambda{ Timer() };
