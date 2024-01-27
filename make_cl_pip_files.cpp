@@ -47,14 +47,32 @@
 
 #include "Route_Phys.h"
 
-int main(int argc, char* argv[]) {
-	{
-		MemoryMappedFile mmf_v_pip_count_offset{ "pip_count_offset.bin" };
-		MemoryMappedFile mmf_v_pip_tile_body{ "pip_tile_body.bin" };
-		MemoryMappedFile mmf_v_pip_body{ "pip_body.bin" };
-		if (mmf_v_pip_count_offset.fsize && mmf_v_pip_tile_body.fsize && mmf_v_pip_body.fsize) return 0;
-	}
-	Route_Phys::make_cl_pip_files();
+class inspect_pip_files {
+public:
+	static inline const MemoryMappedFile mmf_v_pip_count_offset{ "pip_count_offset.bin" };
+	static inline const MemoryMappedFile mmf_v_pip_tile_body{ "pip_tile_body.bin" };
+	static inline const MemoryMappedFile mmf_v_pip_body{ "pip_body.bin" };
+	static inline const std::span<std::array<uint32_t, 2>> s_pip_count_offset{ mmf_v_pip_count_offset.get_span<std::array<uint32_t, 2>>() };
+	static inline const std::span<std::array<uint32_t, 4>> s_pip_tile_body{ mmf_v_pip_tile_body.get_span<std::array<uint32_t, 4>>() };
+	static inline const std::span<std::array<uint32_t, 4>> s_pip_body{ mmf_v_pip_body.get_span<std::array<uint32_t, 4>>() };
+	static inline void inspect() {
+		double average_count{ static_cast<double>(s_pip_tile_body.size()) / static_cast<double>(s_pip_count_offset.size()) };
+		std::cout << std::format("average_count: {}\n", average_count);
 
+		uint32_t max_count{};
+		uint32_t min_count{ UINT32_MAX };
+		for (auto&& count_offset : s_pip_count_offset) {
+			max_count = std::max(max_count, count_offset[0]);
+			min_count = std::min(min_count, count_offset[0]);
+		}
+		std::cout << std::format("s_pip_tile_body.size(): {}\n", s_pip_tile_body.size());
+		std::cout << std::format("min_count: {}, max_count: {}\n", min_count, max_count);
+		return;
+	}
+};
+
+int main(int argc, char* argv[]) {
+	Route_Phys::make_cl_pip_files();
+	inspect_pip_files::inspect();
 	return 0;
 }

@@ -10,7 +10,7 @@
 #include "InterchangeGZ.h"
 #include "interchange_types.h"
 
-#define SKIP_SVM_MAPPING
+// #define SVM_FINE
 
 class OCL_Node_Router {
 public:
@@ -18,7 +18,7 @@ public:
     static inline constexpr uint32_t max_tile_count{ 5884ul };
     static inline constexpr uint32_t tt_body_count{ 4293068ul };
     static inline constexpr size_t largest_ocl_counter_max{ 64ull };
-    static inline constexpr uint32_t series_id_max{ 64ul };
+    static inline constexpr uint32_t series_id_max{ 1024ul };
 
     using beam_t = std::array<std::array<uint32_t, 4>, beam_width>;
     using history_t = std::array<std::array<uint32_t, 2>, largest_ocl_counter_max>;
@@ -102,11 +102,14 @@ public:
             std::cout << std::format("ocl_counter_max: {}, step {} of {}, ", ocl_counter_max, series_id + 1, series_id_max);
             queues.front().enqueueSVMMemFill<uint32_t>(svm_dirty, 0u);
             step_all(series_id).value();
+            std::vector<uint32_t> host_dirty(svm_dirty.size(), 0);
+            queues.front().enqueueSVMMemcpy<uint32_t>(false, host_dirty, svm_dirty);
             queues.front().finish().value();
-            std::cout << std::format("result {} {} {} {}\r", svm_dirty[0], svm_dirty[1], svm_dirty[2], svm_dirty[3]);
-            if(!svm_dirty.front()) break;
-            if (previous_dirty_count != svm_dirty.front()) std::cout << "\n";
-            previous_dirty_count = svm_dirty.front();
+
+            std::cout << std::format("result {} {} {} {}\r", host_dirty[0], host_dirty[1], host_dirty[2], host_dirty[3]);
+            if(!host_dirty.front()) break;
+            if (previous_dirty_count != host_dirty.front()) std::cout << "\n";
+            previous_dirty_count = host_dirty.front();
         }
         for (auto&& queue : queues) {
             queue.finish().value();
@@ -117,7 +120,7 @@ public:
     }
 
     void inspect() {
-#ifndef SKIP_SVM_MAPPING
+#ifndef SVM_FINE
         queues.front().enqueueSVMMap<uint8_t>(CL_MAP_READ, all_svm, [&]() {
 #endif
             auto physStrs{ phys.getStrList() };
@@ -143,7 +146,7 @@ public:
                     dst_site_names.front().c_str()
                 );
             });
-#ifndef SKIP_SVM_MAPPING
+#ifndef SVM_FINE
         });
 #endif
     }
@@ -207,8 +210,11 @@ public:
         auto device_ids{ context.get_devices().value() };
         auto device_svm_caps{ ocl::device::get_info_integral<cl_device_svm_capabilities>(device_ids.front(), CL_DEVICE_SVM_CAPABILITIES).value_or(0) };
         bool has_svm_fine_grain_buffer{ (device_svm_caps & CL_DEVICE_SVM_FINE_GRAIN_BUFFER) == CL_DEVICE_SVM_FINE_GRAIN_BUFFER };
+#ifdef SVM_FINE
         cl_svm_mem_flags maybe_fine_grain{ has_svm_fine_grain_buffer ? CL_MEM_SVM_FINE_GRAIN_BUFFER : 0ul };
-
+#else
+        cl_svm_mem_flags maybe_fine_grain{ 0ul };
+#endif
         std::vector<ocl::queue> queues{ context.create_queues().value() };
         decltype(auto) primary_queue{ queues.front() };
         MemoryMappedFile source{ "../kernels/node_router.cl" };
@@ -370,7 +376,7 @@ public:
         net_pairs.resize(netCount);
 
         primary_queue.finish();
-#ifndef SKIP_SVM_MAPPING
+#ifndef SVM_FINE
         primary_queue.enqueueSVMMap(CL_MAP_WRITE_INVALIDATE_REGION, svm_drawIndirect, [&]() {
             primary_queue.enqueueSVMMap(CL_MAP_WRITE_INVALIDATE_REGION, svm_stubs, [&]() {
                 primary_queue.enqueueSVMMap(CL_MAP_WRITE, svm_heads, [&]() {
@@ -435,7 +441,7 @@ public:
                             }
                         });
                     });
-#ifndef SKIP_SVM_MAPPING
+#ifndef SVM_FINE
                 }).value();
             }).value();
         }).value();

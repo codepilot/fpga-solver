@@ -420,6 +420,13 @@ public:
 	}
 
 	static void make_cl_pip_files() {
+		{
+			MemoryMappedFile mmf_v_pip_count_offset{ "pip_count_offset.bin" };
+			MemoryMappedFile mmf_v_pip_tile_body{ "pip_tile_body.bin" };
+			MemoryMappedFile mmf_v_pip_body{ "pip_body.bin" };
+			if (mmf_v_pip_count_offset.fsize && mmf_v_pip_tile_body.fsize && mmf_v_pip_body.fsize) return;
+		}
+
 		DevFlat dev{ "_deps/device-file-src/xcvu3p.device" };
 		auto devRoot{ dev.root };
 		auto tiles{ devRoot.getTileList() };
