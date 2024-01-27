@@ -474,7 +474,7 @@ public:
         all_svm.emplace_back(svm_stubs.cast<uint8_t>());
         all_svm.emplace_back(svm_dirty.cast<uint8_t>());
 
-        // primary_queue.enqueueSVMMigrate<uint8_t>(all_svm);
+        primary_queue.enqueueSVMMigrate<uint8_t>(all_svm);
 
         return OCL_Node_Router{
             .context{std::move(context)},
