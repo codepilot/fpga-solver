@@ -78,7 +78,7 @@ public:
     std::vector<net_pair_t> net_pairs;
     std::map<std::string_view, std::array<uint16_t, 2>> site_locations;
 
-    inline static constexpr cl_uint max_workgroup_size{ 256 };
+    cl_uint max_workgroup_size;
     // inline static constexpr cl_uint workgroup_count{ 1 };
     // inline static constexpr cl_uint total_group_size{ max_workgroup_size * workgroup_count };
 
@@ -204,12 +204,15 @@ public:
         MemoryMappedFile source{ "../kernels/draw_wires.cl" };
         ocl::program program{ context.create_program(source.get_span<char>()).value() };
         auto dev_max_mem_alloc_size{ocl::device::get_info_integral<cl_ulong>(device_ids.front(), CL_DEVICE_MAX_MEM_ALLOC_SIZE).value()};
+        auto generic_workgroup_size{ ocl::device::get_info_integral<uint64_t>(device_ids.front(), CL_DEVICE_MAX_WORK_GROUP_SIZE).value_or(0) };
+        auto amd_preferred_workgroup_size{ ocl::device::get_info_integral<uint64_t>(device_ids.front(), CL_DEVICE_PREFERRED_WORK_GROUP_SIZE_AMD) };
+        cl_uint max_workgroup_size{ static_cast<cl_uint>( amd_preferred_workgroup_size.value_or(generic_workgroup_size) ) };
 #ifdef _DEBUG
         puts(std::format("dev_max_mem_alloc_size: {} MiB", std::scalbln(static_cast<double>(dev_max_mem_alloc_size), -20)).c_str());
 #endif
         size_t possible_ocl_counter_max{ dev_max_mem_alloc_size / (static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 2>)) };
         const uint32_t ocl_counter_max{ (possible_ocl_counter_max > largest_ocl_counter_max) ? static_cast<uint32_t>(largest_ocl_counter_max) : static_cast<uint32_t>(possible_ocl_counter_max) };
-        auto build_result{ program.build(std::format("-cl-mad-enable -cl-no-signed-zeros -Werror -cl-std=CL1.2 -cl-kernel-arg-info -g -D ocl_counter_max={}u -D netCountAligned={}u -D beam_width={}u -D max_tile_count={}u -D tt_body_count={}u", ocl_counter_max, netCountAligned, beam_width, max_tile_count, tt_body_count))};
+        auto build_result{ program.build(std::format("-cl-mad-enable -cl-no-signed-zeros -Werror -cl-std=CL1.2 -cl-kernel-arg-info -g -D ocl_counter_max={}u -D netCountAligned={}u -D beam_width={}u -D max_tile_count={}u -D tt_body_count={}u -D max_workgroup_size={}", ocl_counter_max, netCountAligned, beam_width, max_tile_count, tt_body_count, max_workgroup_size))};
         auto build_logs{ program.get_build_info_string(CL_PROGRAM_BUILD_LOG).value() };
 #ifdef _DEBUG
         for (auto&& build_log : build_logs) {
@@ -380,6 +383,7 @@ public:
             .all_svm{ std::move(all_svm) },
             .net_pairs{ std::move(net_pairs) },
             .site_locations{ std::move(site_locations) },
+            .max_workgroup_size{max_workgroup_size},
         };
     }
 };

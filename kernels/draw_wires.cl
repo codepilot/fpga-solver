@@ -1,3 +1,7 @@
+#ifndef max_workgroup_size
+#define max_workgroup_size 256
+#endif
+
 #define max_tile_count 5884u
 #define tt_body_count 4293068u
 
@@ -24,6 +28,10 @@ typedef ulong beam_t[beam_width];
 #define make_ushort2(arg0, arg1) (ushort2)(arg0, arg1)
 #endif
 
+#ifndef make_ushort4
+#define make_ushort4(arg0, arg1, arg2, arg3) (ushort4)(arg0, arg1, arg2, arg3)
+#endif
+
 #ifndef make_uint2
 #define make_uint2(arg0, arg1) (uint2)(arg0, arg1)
 #endif
@@ -48,7 +56,7 @@ uint3 split(ulong n) {
         (n >> 51ull) & 0x01FFFull, // cost: 13 bit
         (n >> 39ull) & 0x00FFFull, // previous: 12 bit
         (n >> 19ull) & 0xFFFFFull  // tt_id:20 bit
-        );
+    );
 }
 
 ulong combine(ulong cost, ulong previous, ulong tt_id, ulong tile_col, ulong tile_row) {
@@ -74,8 +82,8 @@ float tile_distance(ushort2 a, ushort2 b) {
 }
 
 kernel void
-__attribute__((work_group_size_hint(256, 1, 1)))
-__attribute__((reqd_work_group_size(256, 1, 1)))
+__attribute__((work_group_size_hint(max_workgroup_size, 1, 1)))
+__attribute__((reqd_work_group_size(max_workgroup_size, 1, 1)))
 draw_wires(
     uint series_id,
     global routed_lines_t* restrict routed,
