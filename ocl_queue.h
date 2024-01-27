@@ -54,10 +54,10 @@ public:
     }
 
     template<cl_uint work_dim>
-    always_inline std::expected<void, status> enqueue(cl_kernel kernel, std::array<size_t, work_dim> global_work_offset, std::array<size_t, work_dim> global_work_size, std::array<size_t, work_dim> local_work_size) {
+    always_inline std::expected<void, status> enqueue(ocl::kernel kernel, std::array<size_t, work_dim> global_work_offset, std::array<size_t, work_dim> global_work_size, std::array<size_t, work_dim> local_work_size) {
         cl_int errcode_ret{ clEnqueueNDRangeKernel(
             queue,
-            kernel,
+            kernel.kernel,
             work_dim,
             global_work_offset.data(),
             global_work_size.data(),

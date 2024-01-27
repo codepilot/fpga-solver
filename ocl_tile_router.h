@@ -83,7 +83,7 @@ public:
     // inline static constexpr cl_uint total_group_size{ max_workgroup_size * workgroup_count };
 
     std::expected<void, ocl::status> step(ocl::queue &queue) {
-        auto result{ queue.enqueue<1>(kernels.front().kernel, { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
+        auto result{ queue.enqueue<1>(kernels.front(), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
         return result;
     }
 
@@ -91,7 +91,7 @@ public:
         kernels.front().set_arg_t(0, series_id);
 
         for (auto&& queue : queues) {
-            auto result{ queue.enqueue<1>(kernels.front().kernel, { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
+            auto result{ queue.enqueue<1>(kernels.front(), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
             if (!result.has_value()) return result;
         }
         return std::expected<void, ocl::status>();

@@ -1,4 +1,4 @@
-// #define _DEBUG
+// #define CL_DEBUG
 
 #ifndef max_workgroup_size
 #define max_workgroup_size 256
@@ -110,7 +110,7 @@ draw_wires(
     if ((*drawIndirectN)[3] != 0) return; //dead end or success already
 
     const uint4 stub = stubs[get_global_id(0)]; // x, y, node_idx, net_idx
-    const uint2 stub_xy = stub.xy;
+    const uint2 stub_xy = make_uint2(stub[0], stub[1]);
     const uint stub_node_idx = stub[2];
 //    global routed_lines_t* restrict routedN = &routed[get_global_id(0)];
     global beam_t* restrict head = &heads[get_global_id(0)];
@@ -126,7 +126,7 @@ draw_wires(
 
         {
 
-#ifdef _DEBUG
+#ifdef CL_DEBUG
             printf("cur_heads[0]: %v4u\n", cur_heads[0]);
 #endif
             if(cur_heads[0][0] == UINT_MAX && cur_heads[1][1] == UINT_MAX && cur_heads[1][2] == UINT_MAX && cur_heads[1][3] == UINT_MAX) {
@@ -155,7 +155,7 @@ draw_wires(
                 return;
             }
 
-#ifdef _DEBUG
+#ifdef CL_DEBUG
             printf("\nparent_id: %u, parent_height: %u, parent_pip_idx: %u, parent_pip_info: %v4u, parent_node1_idx: %u\n",
                 parent_id, parent_height, parent_pip_idx, parent_pip_info, parent_node1_idx);
 #endif
@@ -167,24 +167,24 @@ draw_wires(
 
             (*explore)[count_index] = make_uint2(parent_pip_idx, parent_id);
 
-#ifdef _DEBUG
+#ifdef CL_DEBUG
             printf("count_offset: %v2u, pip_count: %u, pip_offset: %u, count_index: %u\n", count_offset, pip_count, pip_offset, count_index);
 #endif
 
             __attribute__((opencl_unroll_hint(beam_width - 1)))
             for (uint j = 0; j < (beam_width - 1); j++) {
                 cur_heads[j] = cur_heads[j + 1];
-#ifdef _DEBUG
+#ifdef CL_DEBUG
                 printf("cur_heads[%u]: %v4u", j, cur_heads[j]);
 #endif
             }
             cur_heads[beam_width - 1] = make_uint4(UINT_MAX, UINT_MAX, UINT_MAX, UINT_MAX);
-#ifdef _DEBUG
+#ifdef CL_DEBUG
             printf("cur_heads[%u]: %v4u", beam_width - 1, cur_heads[beam_width - 1]);
 #endif
             for (uint i = 0; i < pip_count; i++) {
 
-#ifdef _DEBUG
+#ifdef CL_DEBUG
                 printf("pip_offset:%u pip_count:%u, i: %u\n", pip_offset, pip_count, i);
 #endif
                 uint pip_idx = pip_offset + i;
@@ -194,25 +194,28 @@ draw_wires(
                 }
 
                 uint4 pip_info = pip_tile_body[pip_idx]; // x, y, node0_idx, node1_idx
-#ifdef _DEBUG
+                uint2 pip_info_xy = make_uint2(pip_info[0], pip_info[1]);
+#ifdef CL_DEBUG
                 printf("pip_info: %v4u\n", pip_info);
 #endif
                 uint pip_node1_idx = pip_info[3];
                 float node_diff = ldexp((float)abs((int)stub_node_idx - (int)pip_node1_idx), -28);
-                float cur_dist = tile_distance(stub_xy, pip_info.xy);
+                float cur_dist = tile_distance(stub_xy, pip_info_xy);
                 float item_cost = ((cur_dist * 8.0f)) + ((float)parent_height * 32.0f) + node_diff;
 
                 uint4 item = make_uint4(as_uint(item_cost), parent_height + 1u, parent_id, pip_idx);//cost, height, (parent_id,my_id), pip_idx
 
-#ifdef _DEBUG
+#ifdef CL_DEBUG
                 printf("pip_node1_idx: %u, node_diff: %f, cur_dist: %f, item_cost: %f\nitem: %v4u\n", pip_node1_idx, node_diff, cur_dist, item_cost, item);
 #endif
                 for (uint j = 0; j < 16; j++) {
-                    bool is_less = as_ulong(cur_heads[j].xy) < as_ulong(item.xy);
+                    uint2 cur_heads_j_xy = make_uint2(cur_heads[j][0], cur_heads[j][1]);
+                    uint2 item_xy = make_uint2(item[0], item[1]);
+                    bool is_less = as_ulong(cur_heads_j_xy) < as_ulong(item_xy);
                     uint4 temp_stub = cur_heads[j];
                     cur_heads[j] = is_less?temp_stub:item;
                     item = is_less?item:temp_stub;
-#ifdef _DEBUG
+#ifdef CL_DEBUG
                     printf("cur_heads[%u]: %v4u", j, cur_heads[j]);
 #endif
                 }
@@ -230,7 +233,7 @@ draw_wires(
 
         uint4 front_head = cur_heads[0];
         uint front_head_pip_idx = front_head[3];
-#ifdef _DEBUG
+#ifdef CL_DEBUG
         printf("front_head: %v4u, front_head_pip_idx: %u\n", front_head, front_head_pip_idx);
 #endif
         if(front_head_pip_idx >= count_pip_tile_body) {
@@ -238,7 +241,7 @@ draw_wires(
             return;
         }
         uint4 front_pip_info = pip_tile_body[front_head_pip_idx];
-        uint2 front_head_pos = front_pip_info.xy;
+        uint2 front_head_pos = make_uint2(front_pip_info[0], front_pip_info[1]);
         uint front_node1_idx = front_pip_info[3];
 
         if (stub_node_idx == front_node1_idx) {

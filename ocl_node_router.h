@@ -79,7 +79,7 @@ public:
     // inline static constexpr cl_uint total_group_size{ max_workgroup_size * workgroup_count };
 
     std::expected<void, ocl::status> step(ocl::queue &queue) {
-        auto result{ queue.enqueue<1>(kernels.front().kernel, { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
+        auto result{ queue.enqueue<1>(kernels.front(), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
         return result;
     }
 
@@ -87,7 +87,7 @@ public:
         kernels.front().set_arg_t(0, series_id);
 
         for (auto&& queue : queues) {
-            auto result{ queue.enqueue<1>(kernels.front().kernel, { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
+            auto result{ queue.enqueue<1>(kernels.front(), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
             if (!result.has_value()) return result;
         }
         return std::expected<void, ocl::status>();
@@ -100,7 +100,7 @@ public:
         uint32_t previous_dirty_count{};
         for (uint32_t series_id{}; series_id < series_id_max; series_id++) {
             std::cout << std::format("ocl_counter_max: {}, step {} of {}, ", ocl_counter_max, series_id + 1, series_id_max);
-            queues.front().enqueueSVMMemFill(svm_dirty, 0u);
+            queues.front().enqueueSVMMemFill<uint32_t>(svm_dirty, 0u);
             step_all(series_id).value();
             queues.front().finish().value();
             std::cout << std::format("result {}         \r", svm_dirty.front());
@@ -293,11 +293,11 @@ public:
         puts("making stub locations");
 #endif
         auto svm_heads{ context.alloc_svm<beam_t>(maybe_fine_grain | CL_MEM_READ_WRITE, static_cast<size_t>(netCountAligned) * sizeof(beam_t)).value() };
-        auto svm_explored{ context.alloc_svm<history_t>(maybe_fine_grain | CL_MEM_WRITE_ONLY, static_cast<size_t>(netCountAligned) * sizeof(beam_t)).value() };
+        auto svm_explored{ context.alloc_svm<history_t>(maybe_fine_grain | CL_MEM_WRITE_ONLY, static_cast<size_t>(netCountAligned) * sizeof(history_t)).value() };
 
-        primary_queue.enqueueSVMMemFill(svm_heads, UINT64_MAX);
+        primary_queue.enqueueSVMMemFill(svm_heads.cast<uint64_t>(), UINT64_MAX);
         primary_queue.enqueueSVMMemFill(svm_drawIndirect, fill_draw_commands);
-        primary_queue.enqueueSVMMemFill(svm_explored, UINT64_MAX);
+        primary_queue.enqueueSVMMemFill(svm_explored.cast<uint64_t>(), UINT64_MAX);
 
         std::atomic<uint32_t> global_stub_index{};
 
@@ -388,7 +388,7 @@ public:
         all_svm.emplace_back(svm_stubs.cast<uint8_t>());
         all_svm.emplace_back(svm_dirty.cast<uint8_t>());
 
-        primary_queue.enqueueSVMMigrate<uint8_t>(all_svm);
+        // primary_queue.enqueueSVMMigrate<uint8_t>(all_svm);
 
         return OCL_Node_Router{
             .context{std::move(context)},

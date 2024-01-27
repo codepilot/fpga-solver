@@ -1,4 +1,4 @@
-//#define USE_CPP_INSTEAD_OF_OPENCL
+// #define USE_CPP_INSTEAD_OF_OPENCL
 
 #include "ocl_node_router.h"
 #include <chrono>
@@ -19,6 +19,7 @@ int main(int argc, char* argv[]) {
 
 	std::vector<cl_context_properties> context_properties;
 
+#ifndef USE_CPP_INSTEAD_OF_OPENCL
 	ocl::platform::each([&](uint64_t platform_idx, ocl::platform &platform) {
 		platform.each_device<CL_DEVICE_TYPE_GPU>([&](uint64_t device_idx, ocl::device device) {
 			if (context_properties.empty()) {
@@ -30,6 +31,7 @@ int main(int argc, char* argv[]) {
 	if (!context_properties.empty()) {
 		context_properties.emplace_back(0);
 	}
+#endif
 
 	auto ocltr{ TimerVal(OCL_Node_Router::make(dev.root, phys.root, context_properties)) };
 	TimerVal(ocltr.do_all()).value();
