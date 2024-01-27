@@ -108,7 +108,7 @@ draw_wires(
 
         if (sourcePos[0] == curPos[0] && sourcePos[1] == curPos[1]) {
             // finished successfully
-            (*drawIndirectN) = make_uint4(0, 0, get_global_id(0) * ocl_counter_max, 1);
+            (*drawIndirectN) = make_uint4(count_index + 1, 1, get_global_id(0) * ocl_counter_max, 1);
             //(*drawIndirectN)[3] = 1;
             return;
         }

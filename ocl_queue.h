@@ -270,6 +270,40 @@ public:
         return std::expected<void, status>();
     }
 
+    template<typename T>
+    always_inline std::expected<void, status> enqueueSVMMap(cl_map_flags flags, std::span<ocl::svm<T>> s_svm, auto lambda) {
+        for(auto &&svm: s_svm) {
+            cl_int map_errcode_ret{ clEnqueueSVMMap(
+                queue,
+                true,
+                flags,
+                svm.data(),
+                svm.size_bytes(),
+                0,
+                nullptr,
+                nullptr
+            ) };
+            if (map_errcode_ret) {
+                return std::unexpected<status>(status{ map_errcode_ret });
+            }
+        }
+        lambda();
+        for (auto&& svm : s_svm) {
+            cl_int unmap_errcode_ret{ clEnqueueSVMUnmap(
+                queue,
+                svm.data(),
+                0,
+                nullptr,
+                nullptr
+            ) };
+
+            if (unmap_errcode_ret) {
+                return std::unexpected<status>(status{ unmap_errcode_ret });
+            }
+        }
+        return std::expected<void, status>();
+    }
+
     always_inline std::expected<void, status> flush() {
         cl_int errcode_ret{ clFlush(queue) };
 

@@ -46,7 +46,7 @@ public:
 
     static std::span<std::array<uint16_t, 2>> get_s(uint32_t x, uint32_t y) {
         auto co{ get_co(x, y) };
-        return span_tt_body.subspan(co.at(1), co.at(0));
+        return span_tt_body.subspan(co.at(1), co.front());
     }
 
     ocl::context context;
@@ -68,21 +68,30 @@ public:
     uint32_t netCountAligned;
     uint32_t workgroup_count;
     uint32_t ocl_counter_max;
+    std::vector<ocl::svm<uint8_t>> all_svm;
+    struct net_pair_t {
+        net_reader net;
+        branch_reader source;
+        branch_reader stub;
+    };
+
+    std::vector<net_pair_t> net_pairs;
+    std::map<std::string_view, std::array<uint16_t, 2>> site_locations;
 
     inline static constexpr cl_uint max_workgroup_size{ 256 };
     // inline static constexpr cl_uint workgroup_count{ 1 };
     // inline static constexpr cl_uint total_group_size{ max_workgroup_size * workgroup_count };
 
     std::expected<void, ocl::status> step(ocl::queue &queue) {
-        auto result{ queue.enqueue<1>(kernels.at(0).kernel, { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
+        auto result{ queue.enqueue<1>(kernels.front().kernel, { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
         return result;
     }
 
     std::expected<void, ocl::status> step_all(const uint32_t series_id) {
-        kernels.at(0).set_arg_t(0, series_id);
+        kernels.front().set_arg_t(0, series_id);
 
         for (auto&& queue : queues) {
-            auto result{ queue.enqueue<1>(kernels.at(0).kernel, { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
+            auto result{ queue.enqueue<1>(kernels.front().kernel, { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
             if (!result.has_value()) return result;
         }
         return std::expected<void, ocl::status>();
@@ -96,13 +105,13 @@ public:
         for (uint32_t series_id{}; series_id < series_id_max; series_id++) {
             std::cout << std::format("ocl_counter_max: {}, step {} of {}, ", ocl_counter_max, series_id + 1, series_id_max);
             step_all(series_id).value();
-            queues.at(0).finish().value();
-            queues.at(0).enqueueSVMMemcpy<uint32_t>(true, host_dirty, svm_dirty).value();
-            queues.at(0).enqueueSVMMemFill(svm_dirty, 0u);
-            std::cout << std::format("result {}         \r", host_dirty.at(0));
-            if(!host_dirty.at(0)) break;
-            if (previous_dirty_count != host_dirty.at(0)) std::cout << "\n";
-            previous_dirty_count = host_dirty.at(0);
+            queues.front().finish().value();
+            queues.front().enqueueSVMMemcpy<uint32_t>(true, host_dirty, svm_dirty).value();
+            queues.front().enqueueSVMMemFill(svm_dirty, 0u);
+            std::cout << std::format("result {}         \r", host_dirty.front());
+            if(!host_dirty.front()) break;
+            if (previous_dirty_count != host_dirty.front()) std::cout << "\n";
+            previous_dirty_count = host_dirty.front();
         }
         for (auto&& queue : queues) {
             queue.finish().value();
@@ -112,8 +121,36 @@ public:
         return std::expected<void, ocl::status>();
     }
 
+    void inspect() {
+        queues.front().enqueueSVMMap<uint8_t>(CL_MAP_READ, all_svm, [&]() {
+            auto physStrs{ phys.getStrList() };
+            each(svm_drawIndirect.subspan(0, netCount), [&](uint64_t di_index, std::array<uint32_t, 4>& di) {
+                // if (di[3] == 1) return;
+                auto net = net_pairs[di_index].net;
+                auto source = net_pairs[di_index].source;
+                auto stub = net_pairs[di_index].stub;
+                std::set<uint32_t> src_sites, dst_sites;
+                get_site_pins(source, src_sites);
+                get_site_pins(stub, dst_sites);
+                if (!src_sites.size()) return;
+                if (!dst_sites.size()) return;
+                std::vector<std::string> src_site_names, dst_site_names;
+                for (uint32_t site : src_sites) src_site_names.emplace_back(physStrs[site].cStr());
+                for (uint32_t site : dst_sites) dst_site_names.emplace_back(physStrs[site].cStr());
+                auto posA{ site_locations.at(src_site_names.front()) };
+                auto posB{ site_locations.at(dst_site_names.front()) };
+
+                printf("%u\t%u\t%u\t%u\t%s\t%s\t%s\n", di[0], di[1], di[2], di[3],
+                    physStrs[net.getName()].cStr(),
+                    src_site_names.front().c_str(),
+                    dst_site_names.front().c_str()
+                );
+            });
+        });
+    }
+
     std::expected<void, ocl::status> gl_step(const uint32_t series_id) {
-        kernels.at(0).set_arg_t(0, series_id);
+        kernels.front().set_arg_t(0, series_id);
 
         for (auto&& queue : queues) {
             auto result{ queue.useGL(buffers, [&]()->std::expected<void, ocl::status> {
@@ -158,15 +195,15 @@ public:
         auto req_devices{ std::ranges::contains(context_properties, CL_GL_CONTEXT_KHR) ? ocl::device::get_gl_devices(context_properties).value() : std::vector<cl_device_id>{} };
         ocl::context context{ req_devices.size() ? ocl::context::create(context_properties, req_devices).value(): ocl::context::create<CL_DEVICE_TYPE_DEFAULT>(context_properties).value() };
         auto device_ids{ context.get_devices().value() };
-        auto device_svm_caps{ ocl::device::get_info_integral<cl_device_svm_capabilities>(device_ids.at(0), CL_DEVICE_SVM_CAPABILITIES).value_or(0) };
+        auto device_svm_caps{ ocl::device::get_info_integral<cl_device_svm_capabilities>(device_ids.front(), CL_DEVICE_SVM_CAPABILITIES).value_or(0) };
         bool has_svm_fine_grain_buffer{ (device_svm_caps & CL_DEVICE_SVM_FINE_GRAIN_BUFFER) == CL_DEVICE_SVM_FINE_GRAIN_BUFFER };
         cl_svm_mem_flags maybe_fine_grain{ has_svm_fine_grain_buffer ? CL_MEM_SVM_FINE_GRAIN_BUFFER : 0ul };
 
         std::vector<ocl::queue> queues{ context.create_queues().value() };
-        decltype(auto) primary_queue{ queues.at(0) };
+        decltype(auto) primary_queue{ queues.front() };
         MemoryMappedFile source{ "../kernels/draw_wires.cl" };
         ocl::program program{ context.create_program(source.get_span<char>()).value() };
-        auto dev_max_mem_alloc_size{ocl::device::get_info_integral<cl_ulong>(device_ids.at(0), CL_DEVICE_MAX_MEM_ALLOC_SIZE).value()};
+        auto dev_max_mem_alloc_size{ocl::device::get_info_integral<cl_ulong>(device_ids.front(), CL_DEVICE_MAX_MEM_ALLOC_SIZE).value()};
 #ifdef _DEBUG
         puts(std::format("dev_max_mem_alloc_size: {} MiB", std::scalbln(static_cast<double>(dev_max_mem_alloc_size), -20)).c_str());
 #endif
@@ -199,7 +236,7 @@ public:
             svm_drawIndirect = context.alloc_svm<std::array<uint32_t, 4>>(maybe_fine_grain & CL_MEM_READ_WRITE, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint32_t, 4>)).value();
         }
 
-        decltype(auto) kernel{ kernels.at(0) };
+        decltype(auto) kernel{ kernels.front() };
 
         std::map<std::string_view, std::array<uint16_t, 2>> site_locations;
         for (auto&& tile : dev.getTileList()) {
@@ -240,6 +277,9 @@ public:
 
         std::atomic<uint32_t> global_stub_index{};
 
+        std::vector<net_pair_t> net_pairs;
+        net_pairs.resize(netCount);
+
         primary_queue.enqueueSVMMap(CL_MAP_WRITE_INVALIDATE_REGION, svm_drawIndirect, [&]() {
             primary_queue.enqueueSVMMap(CL_MAP_WRITE_INVALIDATE_REGION, svm_allSourcePos, [&]() {
                 primary_queue.enqueueSVMMap(CL_MAP_WRITE, svm_stubLocations, [&]() {
@@ -254,6 +294,7 @@ public:
 
                         each(stubs, [&](uint32_t stub_offset, branch_reader &stub) {
                             const uint32_t stub_index{ local_stub_index + stub_offset };
+                            net_pairs[stub_index] = { net, source , stub };
                             std::set<uint32_t> src_sites, dst_sites;
                             get_site_pins(source, src_sites);
                             get_site_pins(stub, dst_sites);
@@ -262,8 +303,8 @@ public:
                             std::vector<std::string_view> src_site_names, dst_site_names;
                             for (uint32_t site : src_sites) src_site_names.emplace_back(physStrs[site].cStr());
                             for (uint32_t site : dst_sites) dst_site_names.emplace_back(physStrs[site].cStr());
-                            auto posA{ site_locations.at(src_site_names.at(0)) };
-                            auto posB{ site_locations.at(dst_site_names.at(0)) };
+                            auto posA{ site_locations.at(src_site_names.front()) };
+                            auto posB{ site_locations.at(dst_site_names.front()) };
                             svm_allSourcePos[stub_index] = posA;
                             svm_stubLocations[stub_index][0] = std::bit_cast<uint64_t>(front_info{
                                 .tile_col{posB[0]},
@@ -336,6 +377,9 @@ public:
             .netCountAligned{ std::move(netCountAligned) },
             .workgroup_count{ netCountAligned / max_workgroup_size },
             .ocl_counter_max{ std::move(ocl_counter_max) },
+            .all_svm{ std::move(all_svm) },
+            .net_pairs{ std::move(net_pairs) },
+            .site_locations{ std::move(site_locations) },
         };
     }
 };
