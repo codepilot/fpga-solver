@@ -419,6 +419,163 @@ public:
 		return upti;
 	}
 
+	static void make_cl_pip_files() {
+		DevFlat dev{ "_deps/device-file-src/xcvu3p.device" };
+		auto devRoot{ dev.root };
+		auto tiles{ devRoot.getTileList() };
+		auto nodes{ devRoot.getNodes() };
+		auto wires{ devRoot.getWires() };
+		auto tile_types{ devRoot.getTileTypeList() };
+		auto tile_bounds{ Tile_Info::get_tile_info(tiles) };
+		auto devStrs{ devRoot.getStrList() };
+		auto wireTypes{ devRoot.getWireTypes() };
+
+		puts(std::format("devStrs: {}, {} bits", devStrs.size(), ceil(log2(devStrs.size()))).c_str());
+		puts(std::format("tiles: {}, {} bits", tiles.size(), ceil(log2(tiles.size()))).c_str());
+		puts(std::format("nodes: {}, {} bits", nodes.size(), ceil(log2(nodes.size()))).c_str());
+		puts(std::format("wires: {}, {} bits", wires.size(), ceil(log2(wires.size()))).c_str());
+		uint64_t group_size{ std::thread::hardware_concurrency() };
+		puts(std::format("std::thread::hardware_concurrency: {}", group_size).c_str());
+
+		std::vector<uint64_t> inverse_wires(static_cast<size_t>(wires.size()), UINT64_MAX); //wire str, tile str, wire idx log2(467843 * 467843 * 83282368) < 64
+		std::vector<uint32_t> inverse_tiles(static_cast<size_t>(devStrs.size()), UINT32_MAX);
+		std::vector<uint32_t> inverse_nodes(static_cast<size_t>(wires.size()), UINT32_MAX);
+
+		const uint64_t str_count{ devStrs.size() };
+
+		puts("inverse_wires gather");
+		jthread_each(wires, [&](uint64_t wire_idx, wire_reader &wire) {
+			uint64_t tile_strIdx{ wire.getTile() };
+			uint64_t wire_strIdx{ wire.getWire() };
+			inverse_wires[wire_idx] = (tile_strIdx * str_count + wire_strIdx) * wire_count + wire_idx;
+		});
+		puts("inverse_wires sort");
+		std::sort(std::execution::par_unseq, inverse_wires.begin(), inverse_wires.end(), [](uint64_t a, uint64_t b) { return a < b; });
+
+		puts("inverse_tiles");
+		jthread_each(tiles, [&](uint64_t tile_idx, tile_reader &tile) {
+			inverse_tiles[tile.getName()] = static_cast<uint32_t>(tile_idx);
+		});
+
+//		uint32_t max_node_size{};
+		puts("inverse_nodes");
+		jthread_each(nodes, [&](uint64_t node_idx, node_reader &node) {
+			auto node_wires = node.getWires();
+//			max_node_size = node_wires.size() > max_node_size ? node_wires.size() : max_node_size;
+			for (uint32_t wire_idx : node_wires) {
+				inverse_nodes[wire_idx] = static_cast<uint32_t>(node_idx);
+			}
+		});
+//		printf("max_node_size: %u\n", max_node_size);
+
+		std::barrier<> bar{ static_cast<ptrdiff_t>(group_size) };
+
+		const uint64_t wire_count{ wires.size() };
+		const uint64_t str_m_wire_count{ str_count * wire_count };
+
+//		std::vector<std::array<uint32_t, 4>> verts(static_cast<size_t>(128ull * 1024ull * 1024ull), std::array<uint32_t, 4>{UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX}); // node0_idx node1_idx wire0_idx, wire1_idx
+		MemoryMappedFile mmf_pip_body{ "pip_body.bin", sizeof(std::array<uint32_t, 4>) * static_cast<size_t>(128ull * 1024ull * 1024ull) };
+		auto s_verts{ mmf_pip_body.get_span<std::array<uint32_t, 4>>() };
+		std::atomic<uint32_t> vert_idx{};
+
+		jthread_each(tiles, [&](uint64_t tile_index, tile_reader tile)-> void {
+			uint64_t tile_strIdx{ tile.getName() };
+			auto tile_type{ tile_types[tile.getType()] };
+			auto tile_type_wire_strs{ tile_type.getWires() };
+			if (!tile_type_wire_strs.size()) return;
+			auto tileIndex{ Tile_Index::make(tile) };
+			auto pips{ tile_type.getPips() };
+			// decltype(auto) v_tti{ v_tt.at(tileIndex._value) };
+
+			auto tile_range{ std::ranges::equal_range(inverse_wires, tile_strIdx * str_m_wire_count, [&](uint64_t a, uint64_t b) { return (a / str_m_wire_count) < (b / str_m_wire_count); }) };
+			if (!tile_range.size()) {
+				puts(std::format("!tile_range {} pips {}", devStrs[tile_strIdx].cStr(), pips.size()).c_str());
+				return;
+			}
+			// puts(std::format("*tile_range {} {} pips {}", devStrs[tile_strIdx].cStr(), tile_range.size(), pips.size()).c_str());
+			for (auto&& pip : pips) {
+				if (!pip.isConventional()) continue;
+				uint64_t wire0_strIdx{ tile_type_wire_strs[pip.getWire0()] };
+				uint64_t wire1_strIdx{ tile_type_wire_strs[pip.getWire1()] };
+				auto wire0_key{ (tile_strIdx * str_count + wire0_strIdx) * wire_count };
+				auto wire1_key{ (tile_strIdx * str_count + wire1_strIdx) * wire_count };
+				auto wire0_idx_s{ std::ranges::equal_range(tile_range, wire0_key, [&](uint64_t a, uint64_t b) { return (a / wire_count) < (b / wire_count); }) };
+				auto wire1_idx_s{ std::ranges::equal_range(tile_range, wire1_key, [&](uint64_t a, uint64_t b) { return (a / wire_count) < (b / wire_count); }) };
+				if (wire0_idx_s.size() != 1) {
+					puts(std::format("!inverse_wires {} {} count {}", devStrs[tile_strIdx].cStr(), devStrs[wire0_strIdx].cStr(), wire0_idx_s.size()).c_str());
+					continue;
+				}
+				if (wire1_idx_s.size() != 1) {
+					puts(std::format("!inverse_wires {} {} count {}", devStrs[tile_strIdx].cStr(), devStrs[wire1_strIdx].cStr(), wire1_idx_s.size()).c_str());
+					continue;
+				}
+				auto wire0_idx{ static_cast<uint32_t>(wire0_idx_s[0] % wire_count) };
+				auto wire1_idx{ static_cast<uint32_t>(wire1_idx_s[0] % wire_count) };
+				if (wireTypes[wires[wire0_idx].getType()].getCategory() == ::DeviceResources::Device::WireCategory::GLOBAL) break;
+				if (wireTypes[wires[wire1_idx].getType()].getCategory() == ::DeviceResources::Device::WireCategory::GLOBAL) break;
+
+				auto node0_idx = inverse_nodes.at(wire0_idx);
+				auto node1_idx = inverse_nodes.at(wire1_idx);
+
+				if (node0_idx == UINT32_MAX) {
+					puts(std::format("!inverse_nodes {} {}", devStrs[tile_strIdx].cStr(), devStrs[wire0_strIdx].cStr()).c_str());
+					continue;
+				}
+				if (node1_idx == UINT32_MAX) {
+					puts(std::format("!inverse_nodes {} {}", devStrs[tile_strIdx].cStr(), devStrs[wire1_strIdx].cStr()).c_str());
+					continue;
+				}
+				s_verts[vert_idx++] = std::array<uint32_t, 4>{ node0_idx, node1_idx, wire0_idx, wire1_idx };
+
+				if (!pip.getDirectional()) {
+					s_verts[vert_idx++] = std::array<uint32_t, 4>{ node1_idx, node0_idx, wire1_idx, wire0_idx };
+				}
+			}
+		});
+
+		auto mmf_pip_body_shrunk = mmf_pip_body.shrink(sizeof(std::array<uint32_t, 4>) * static_cast<size_t>(vert_idx.load()));
+		auto s_verts_shrunk{ mmf_pip_body_shrunk.get_span<std::array<uint32_t, 4>>() };
+
+		MemoryMappedFile mmf_pip_tile_body{ "pip_tile_body.bin", sizeof(std::array<uint32_t, 4>) * static_cast<size_t>(vert_idx.load()) };
+		auto s_pip_tile_body{ mmf_pip_tile_body.get_span<std::array<uint32_t, 4>>() };
+
+		std::sort(std::execution::par_unseq, s_verts_shrunk.begin(), s_verts_shrunk.end(), [](std::array<uint32_t, 4> &a, std::array<uint32_t, 4> &b) {
+			if (a[0] < b[0]) return true;
+			if (a[0] > b[0]) return false;
+
+			if (a[1] < b[1]) return true;
+			if (a[1] > b[1]) return false;
+
+			if (a[2] < b[2]) return true;
+			if (a[2] > b[2]) return false;
+
+			return (a[3] < b[0]);
+		});
+
+		jthread_each(s_verts_shrunk, [&](uint64_t vert_idx, std::array<uint32_t, 4>& vert) {
+			auto node0_idx = vert[0];
+			auto node1_idx = vert[1];
+			auto wire0 = wires[vert[2]];
+			auto wire1 = wires[vert[3]];
+			auto tile0_idx = inverse_tiles[wire0.getTile()];
+			auto tile1_idx = inverse_tiles[wire1.getTile()];
+			if (tile0_idx != tile1_idx) abort();
+			auto tile0 = tiles[tile0_idx];
+			s_pip_tile_body[vert_idx] = std::array<uint32_t, 4>{tile0.getCol(), tile0.getRow(), node0_idx, node1_idx};
+		});
+
+		MemoryMappedFile mmf_pip_count_offset{ "pip_count_offset.bin", sizeof(std::array<uint32_t, 2>) * static_cast<size_t>(nodes.size()) };
+		auto s_pip_count_offset{ mmf_pip_count_offset.get_span<std::array<uint32_t, 2>>()};
+
+		jthread_each(nodes, [&](uint64_t node_idx, node_reader& node) {
+			std::array<uint32_t, 4> node_key{ static_cast<uint32_t>(node_idx) };
+			auto node_range{ std::span(std::ranges::equal_range(s_verts_shrunk, node_key, [](const std::array<uint32_t, 4> &a, const std::array<uint32_t, 4> &b)-> bool { return a[0] < b[0]; })) };
+			uint32_t offset{ static_cast<uint32_t>(node_range.data() - s_verts_shrunk.data()) };
+			uint32_t count{ static_cast<uint32_t>(node_range.size()) };
+			s_pip_count_offset[node_idx] = std::array<uint32_t, 2>{count, offset};
+		});
+	}
+
 	static void make_cl_files() {
 		DevFlat dev{ "_deps/device-file-src/xcvu3p.device" };
 		auto devRoot{ dev.root };

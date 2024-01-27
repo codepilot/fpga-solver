@@ -1,6 +1,6 @@
-// #define USE_CPP_INSTEAD_OF_OPENCL
+//#define USE_CPP_INSTEAD_OF_OPENCL
 
-#include "ocl_tile_router.h"
+#include "ocl_node_router.h"
 #include <chrono>
 
 #include "constexpr_string.h"
@@ -31,7 +31,7 @@ int main(int argc, char* argv[]) {
 		context_properties.emplace_back(0);
 	}
 
-	auto ocltr{ TimerVal(OCL_Tile_Router::make(dev.root, phys.root, context_properties)) };
+	auto ocltr{ TimerVal(OCL_Node_Router::make(dev.root, phys.root, context_properties)) };
 	TimerVal(ocltr.do_all()).value();
 	puts("complete\n");
 	// ocltr.inspect();

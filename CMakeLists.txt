@@ -51,7 +51,9 @@ include(make_search_files.cmake)
 include(search_files.cmake)
 
 include(make_cl_files.cmake)
+include(make_cl_pip_files.cmake)
 include(cl_files.cmake)
+include(cl_pip_files.cmake)
 include(route_phys.cmake)
 
 
@@ -63,6 +65,7 @@ include(opencl-test.cmake)
 include(opencl-interface.cmake)
 
 include(opencl-tile-router.cmake)
+include(opencl-node-router.cmake)
 
 
 
