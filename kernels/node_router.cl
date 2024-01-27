@@ -134,6 +134,7 @@ draw_wires(
                 (*drawIndirectN) = make_uint4(count_index, 1, get_global_id(0) * ocl_counter_max, 2);
                 // (*routedN)[count_index] = sourcePos;
                 // printf("ULONG_MAX (%lu)\n", get_global_id(0));
+                atomic_inc(dirty + 2);
                 return;
             }
 
@@ -145,6 +146,7 @@ draw_wires(
 
             if(parent_pip_idx >= count_pip_tile_body) {
                 printf("parent_pip_idx:%u >= count_pip_tile_body:%u\n", parent_pip_idx, count_pip_tile_body);
+                atomic_inc(dirty + 3);
                 return;
             }
             uint4 parent_pip_info = pip_tile_body[parent_pip_idx];
@@ -152,6 +154,7 @@ draw_wires(
             uint parent_node1_idx = parent_pip_info[3];
             if(parent_node1_idx >= count_of_pip_count_offset) {
                 printf("parent_node1_idx:%u >= count_of_pip_count_offset:%u\n", parent_node1_idx, count_of_pip_count_offset);
+                atomic_inc(dirty + 3);
                 return;
             }
 
@@ -190,6 +193,7 @@ draw_wires(
                 uint pip_idx = pip_offset + i;
                 if(pip_idx >= count_pip_tile_body) {
                     printf("pip_idx:%u >= count_pip_tile_body:%u\n", pip_idx, count_pip_tile_body);
+                    atomic_inc(dirty + 3);
                     return;
                 }
 
@@ -228,6 +232,7 @@ draw_wires(
             (*drawIndirectN) = make_uint4(count_index, 1, get_global_id(0) * ocl_counter_max, 2);
             // (*routedN)[count_index] = sourcePos;
             // printf("ULONG_MAX (%lu)\n", get_global_id(0));
+            atomic_inc(dirty + 2);
             return;
         }
 
@@ -246,6 +251,7 @@ draw_wires(
 
         if (stub_node_idx == front_node1_idx) {
             (*drawIndirectN) = make_uint4(count_index + 1, 1, get_global_id(0) * ocl_counter_max, 1);
+            atomic_inc(dirty + 1);
             return;
         }
 

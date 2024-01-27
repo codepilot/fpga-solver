@@ -14,10 +14,10 @@
 
 class OCL_Node_Router {
 public:
-    static inline constexpr uint32_t beam_width{ 32ul };
+    static inline constexpr uint32_t beam_width{ 64ul };
     static inline constexpr uint32_t max_tile_count{ 5884ul };
     static inline constexpr uint32_t tt_body_count{ 4293068ul };
-    static inline constexpr size_t largest_ocl_counter_max{ 256ull };
+    static inline constexpr size_t largest_ocl_counter_max{ 64ull };
     static inline constexpr uint32_t series_id_max{ 64ul };
 
     using beam_t = std::array<std::array<uint32_t, 4>, beam_width>;
@@ -103,7 +103,7 @@ public:
             queues.front().enqueueSVMMemFill<uint32_t>(svm_dirty, 0u);
             step_all(series_id).value();
             queues.front().finish().value();
-            std::cout << std::format("result {}         \r", svm_dirty.front());
+            std::cout << std::format("result {} {} {} {}\r", svm_dirty[0], svm_dirty[1], svm_dirty[2], svm_dirty[3]);
             if(!svm_dirty.front()) break;
             if (previous_dirty_count != svm_dirty.front()) std::cout << "\n";
             previous_dirty_count = svm_dirty.front();
@@ -351,7 +351,7 @@ public:
 #endif
         auto svm_stubs{ context.alloc_svm<std::array<uint32_t, 4>>(maybe_fine_grain | CL_MEM_READ_ONLY, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint32_t, 4>)).value() };
 
-        auto svm_dirty{ context.alloc_svm<uint32_t>(maybe_fine_grain | CL_MEM_WRITE_ONLY, sizeof(uint32_t)).value() };
+        auto svm_dirty{ context.alloc_svm<uint32_t>(maybe_fine_grain | CL_MEM_WRITE_ONLY, sizeof(uint32_t) * 4).value() };
         primary_queue.enqueueSVMMemFill(svm_dirty, 0u);
 
 #ifdef _DEBUG
