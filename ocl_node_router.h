@@ -61,7 +61,9 @@ public:
     ocl::buffer buf_pip_offset_count;
     ocl::buffer buf_pip_tile_body;
     ocl::buffer buf_stubs;
-    ocl::buffer buf_dirty;
+    std::vector<ocl::buffer> v_buf_dirty;
+    std::vector<std::array<uint32_t, 4>> v_host_dirty{};
+
     PhysicalNetlist::PhysNetlist::Reader phys;
     uint32_t netCount;
     uint32_t netCountAligned;
@@ -79,15 +81,23 @@ public:
     cl_uint max_workgroup_size;
 
     std::expected<void, ocl::status> step_all(const uint32_t series_id) {
+
+        std::cout << std::format("ocl_counter_max: {}, step {} of {}, ", ocl_counter_max, series_id + 1, series_id_max);
         each(queues, [&](uint64_t queue_index, ocl::queue& queue) {
             decltype(auto) cloned_kernel{ cloned_kernels[queue_index] };
             cloned_kernel.set_arg_t(0, series_id);
             if (queues.size() > 1 && queue_index == 0) return;
-            auto result{ queue.enqueue<1>(cloned_kernel, {0}, {max_workgroup_size * workgroup_count}, {max_workgroup_size})};
-            if (!result.has_value()) {
-                result.value();
-            }
+            queue.enqueue<1>(cloned_kernel, { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }).value();
         });
+        each(queues, [&](uint64_t queue_index, ocl::queue& queue) {
+            if (queues.size() > 1 && queue_index == 0) return;
+
+            queue.enqueueRead<uint32_t>(v_buf_dirty[queue_index], true, 0, v_host_dirty[queue_index]);
+            queue.enqueueFillBuffer<uint32_t>(v_buf_dirty[queue_index], 0u);
+            std::cout << std::format(" {},{},{},{} ", v_host_dirty[queue_index][0], v_host_dirty[queue_index][1], v_host_dirty[queue_index][2], v_host_dirty[queue_index][3]);
+        });
+        std::cout << "\n";
+
         return std::expected<void, ocl::status>();
     }
 
@@ -95,18 +105,13 @@ public:
 #ifdef _DEBUG
         std::cout << std::format("ocl_counter_max: {}\n", ocl_counter_max);
 #endif
-        uint32_t previous_dirty_count{};
+        //uint32_t previous_dirty_count{};
         for (uint32_t series_id{}; series_id < series_id_max; series_id++) {
-            std::cout << std::format("ocl_counter_max: {}, step {} of {}, ", ocl_counter_max, series_id + 1, series_id_max);
-            queues.front().enqueueFillBuffer<uint32_t>(buf_dirty, 0u);
             step_all(series_id).value();
-            std::array<uint32_t, 4> host_dirty{};
-            queues.front().enqueueRead<uint32_t>(buf_dirty, true, 0, host_dirty);
 
-            std::cout << std::format("result {} {} {} {}\r", host_dirty[0], host_dirty[1], host_dirty[2], host_dirty[3]);
             // if(!host_dirty.front()) break;
-            if (previous_dirty_count != host_dirty.front()) std::cout << "\n";
-            previous_dirty_count = host_dirty.front();
+            //if (previous_dirty_count != host_dirty.front()) std::cout << "\n";
+            //previous_dirty_count = host_dirty.front();
         }
         for (auto&& queue : queues) {
             queue.finish().value();
@@ -458,12 +463,17 @@ public:
         auto buf_stubs{ context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, std::get<0>(vecs)).value() };
 
         std::array<uint32_t, 4> a_dirty{};
-        auto buf_dirty{ context.create_buffer<uint32_t>(CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR,  a_dirty).value() };
+        std::vector<ocl::buffer> v_buf_dirty;
+        std::vector<std::array<uint32_t, 4>> v_host_dirty{};
 
         std::vector<ocl::queue> queues{ context.create_queues().value() };
         auto cloned_kernels{ std::move(kernels.front().clone(queues.size()).value()) };
 
         each(cloned_kernels, [&](uint64_t cloned_kernel_index, ocl::kernel &cloned_kernel) {
+
+            v_buf_dirty.emplace_back(context.create_buffer<uint32_t>(CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, a_dirty).value());
+            v_host_dirty.emplace_back(a_dirty);
+
             cloned_kernel.set_arg_t(0, 0).value();                 // 0 ro <duplicate>  const    uint                   series_id,
             cloned_kernel.set_arg(1, buf_routed_lines).value();    // 1 wo <sub-divide> global   routed_lines* restrict routed,
             cloned_kernel.set_arg(2, buf_drawIndirect).value();    // 2 rw <sub-divide> global   uint4*        restrict drawIndirect,
@@ -472,7 +482,7 @@ public:
             cloned_kernel.set_arg(5, buf_pip_offset_count).value();// 5 ro <share>      constant uint2*        restrict pip_count_offset, // count offset
             cloned_kernel.set_arg(6, buf_pip_tile_body).value();   // 6 ro <share>      constant uint4*        restrict pip_tile_body, // x, y, node0_idx, node1_idx
             cloned_kernel.set_arg(7, buf_stubs).value();           // 7 ro <sub-divide> constant uint4*        restrict stubs, // x, y, node_idx, net_idx
-            cloned_kernel.set_arg(8, buf_dirty).value();           // 8 rw <duplicate>  global   uint*         restrict dirty
+            cloned_kernel.set_arg(8, v_buf_dirty[cloned_kernel_index]).value();           // 8 rw <duplicate>  global   uint*         restrict dirty
         });
 
         return OCL_Node_Router{
@@ -490,7 +500,8 @@ public:
             .buf_pip_offset_count{std::move(buf_pip_offset_count)},
             .buf_pip_tile_body{std::move(buf_pip_tile_body)},
             .buf_stubs{std::move(buf_stubs)},
-            .buf_dirty{std::move(buf_dirty)},
+            .v_buf_dirty{std::move(v_buf_dirty)},
+            .v_host_dirty{std::move(v_host_dirty)},
             .phys{ std::move(phys) },
             .netCount{ netCount },
             .netCountAligned{ netCountAligned },
