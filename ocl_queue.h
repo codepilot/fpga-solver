@@ -74,10 +74,10 @@ public:
     }
 
     template<typename T>
-    always_inline std::expected<void, status> enqueueRead(cl_mem buffer, cl_bool blocking_read, size_t offset, std::span<T> dest) {
+    always_inline std::expected<void, status> enqueueRead(ocl::buffer buffer, cl_bool blocking_read, size_t offset, std::span<T> dest) {
         cl_int errcode_ret{ clEnqueueReadBuffer(
             queue,
-            buffer,
+            buffer.mem,
             blocking_read,
             offset,
             dest.size_bytes(),
@@ -102,6 +102,27 @@ public:
             &pattern,
             sizeof(pattern),
             dst.size_bytes(),
+            0,
+            nullptr,
+            nullptr
+        ) };
+
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<void, status>();
+    }
+
+    template<typename T>
+    always_inline std::expected<void, status> enqueueFillBuffer(ocl::buffer dst, auto pattern) {
+        size_t byte_count{ dst.get_info_integral<size_t>(CL_MEM_SIZE).value() };
+        cl_int errcode_ret{ clEnqueueFillBuffer(
+            queue,
+            dst.mem,
+            &pattern,
+            sizeof(pattern),
+            0,
+            byte_count,
             0,
             nullptr,
             nullptr

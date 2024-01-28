@@ -13,6 +13,9 @@
 #include "Timer.h"
 
 // #define SVM_FINE
+#define USE_READ_ONLY_BUFFERS
+#define USE_WRITE_ONLY_BUFFERS
+#define USE_READ_WRITE_BUFFERS
 
 class OCL_Node_Router {
 public:
@@ -55,14 +58,37 @@ public:
     ocl::program program;
     std::vector<ocl::kernel> kernels;
     std::vector<ocl::buffer> buffers;
+#ifdef USE_WRITE_ONLY_BUFFERS
+    ocl::buffer buf_routed_lines;
+#else
     ocl::svm<std::array<uint16_t, 4>> svm_routed_lines;
+#endif
+#ifdef USE_READ_WRITE_BUFFERS
+    ocl::buffer buf_drawIndirect;
+    ocl::buffer buf_heads;
+#else
     ocl::svm<std::array<uint32_t, 4>> svm_drawIndirect;
     ocl::svm<beam_t> svm_heads;
+#endif
+#ifdef USE_WRITE_ONLY_BUFFERS
+    ocl::buffer buf_explored;
+#else
     ocl::svm<history_t> svm_explored;
+#endif
+#ifdef USE_READ_ONLY_BUFFERS
+    ocl::buffer buf_pip_offset_count;
+    ocl::buffer buf_pip_tile_body;
+    ocl::buffer buf_stubs;
+#else
     ocl::svm<std::array<uint32_t, 2>> svm_pip_offset_count;
     ocl::svm<std::array<uint32_t, 4>> svm_pip_tile_body;
     ocl::svm<std::array<uint32_t, 4>> svm_stubs;
+#endif
+#ifdef USE_READ_WRITE_BUFFERS
+    ocl::buffer buf_dirty;
+#else
     ocl::svm<uint32_t> svm_dirty;
+#endif
     PhysicalNetlist::PhysNetlist::Reader phys;
     uint32_t netCount;
     uint32_t netCountAligned;
@@ -104,10 +130,22 @@ public:
         uint32_t previous_dirty_count{};
         for (uint32_t series_id{}; series_id < series_id_max; series_id++) {
             std::cout << std::format("ocl_counter_max: {}, step {} of {}, ", ocl_counter_max, series_id + 1, series_id_max);
+#ifdef USE_READ_WRITE_BUFFERS
+            queues.front().enqueueFillBuffer<uint32_t>(buf_dirty, 0u);
+#else
             queues.front().enqueueSVMMemFill<uint32_t>(svm_dirty, 0u);
+#endif
             step_all(series_id).value();
+#ifdef USE_READ_WRITE_BUFFERS
+            std::array<uint32_t, 4> host_dirty{};
+#else
             std::vector<uint32_t> host_dirty(svm_dirty.size(), 0);
+#endif
+#ifdef USE_READ_WRITE_BUFFERS
+            queues.front().enqueueRead<uint32_t>(buf_dirty, false, 0, host_dirty);
+#else
             queues.front().enqueueSVMMemcpy<uint32_t>(false, host_dirty, svm_dirty);
+#endif
             queues.front().finish().value();
 
             std::cout << std::format("result {} {} {} {}\r", host_dirty[0], host_dirty[1], host_dirty[2], host_dirty[3]);
@@ -128,7 +166,13 @@ public:
         queues.front().enqueueSVMMap<uint8_t>(CL_MAP_READ, all_svm, [&]() {
 #endif
             auto physStrs{ phys.getStrList() };
+            std::vector<std::array<uint32_t, 4>> v_drawIndirect;
+            auto s_drawIndirect{std::span(v_drawIndirect)};
+#ifdef USE_READ_WRITE_BUFFERS
+            each(s_drawIndirect.subspan(0, netCount), [&](uint64_t di_index, std::array<uint32_t, 4>& di) {
+#else
             each(svm_drawIndirect.subspan(0, netCount), [&](uint64_t di_index, std::array<uint32_t, 4>& di) {
+#endif
                 // if (di[3] == 1) return;
                 auto net = net_pairs[di_index].net;
                 auto source = net_pairs[di_index].source;
@@ -149,7 +193,11 @@ public:
                     src_site_names.front().c_str(),
                     dst_site_names.front().c_str()
                 );
+#ifdef USE_READ_WRITE_BUFFERS
             });
+#else
+            });
+#endif
 #ifndef SVM_FINE
         });
 #endif
@@ -312,7 +360,7 @@ public:
         const uint32_t netCountAligned{ (((netCount + 255ul) >> 8ul) << 8ul) };
 
         auto req_devices{ std::ranges::contains(context_properties, CL_GL_CONTEXT_KHR) ? ocl::device::get_gl_devices(context_properties).value() : std::vector<cl_device_id>{} };
-        ocl::context context{ req_devices.size() ? ocl::context::create(context_properties, req_devices).value(): ocl::context::create<CL_DEVICE_TYPE_DEFAULT>(context_properties).value() };
+        ocl::context context{ req_devices.size() ? ocl::context::create(context_properties, req_devices).value(): ocl::context::create<CL_DEVICE_TYPE_GPU>(context_properties).value() };
         auto device_ids{ context.get_devices().value() };
         auto device_svm_caps{ ocl::device::get_info_integral<cl_device_svm_capabilities>(device_ids.front(), CL_DEVICE_SVM_CAPABILITIES).value_or(0) };
         bool has_svm_fine_grain_buffer{ (device_svm_caps & CL_DEVICE_SVM_FINE_GRAIN_BUFFER) == CL_DEVICE_SVM_FINE_GRAIN_BUFFER };
@@ -364,11 +412,29 @@ public:
 #ifdef _DEBUG
         puts("allocating device buffers");
 #endif
+
+#ifdef USE_WRITE_ONLY_BUFFERS
+        ocl::buffer buf_routed_lines;
+#else
         ocl::svm<std::array<uint16_t, 4>> svm_routed_lines;
+#endif
+#ifdef USE_READ_WRITE_BUFFERS
+        ocl::buffer buf_drawIndirect;
+#else
         ocl::svm<std::array<uint32_t, 4>> svm_drawIndirect;
+#endif
         if (buffers.size() < 2) {
+#ifdef USE_WRITE_ONLY_BUFFERS
+            buf_routed_lines = context.create_buffer(CL_MEM_WRITE_ONLY | CL_MEM_HOST_NO_ACCESS, static_cast<size_t>(ocl_counter_max) * static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 4>)).value();
+#else
             svm_routed_lines = context.alloc_svm<std::array<uint16_t, 4>>(maybe_fine_grain | CL_MEM_READ_WRITE, static_cast<size_t>(ocl_counter_max) * static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 4>)).value();
+#endif
+#ifdef USE_READ_WRITE_BUFFERS
+            auto v_drawIndirect{ std::vector<std::array<uint32_t, 4>>(static_cast<size_t>(netCountAligned), fill_draw_commands) };
+            buf_drawIndirect = context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, v_drawIndirect).value();
+#else
             svm_drawIndirect = context.alloc_svm<std::array<uint32_t, 4>>(maybe_fine_grain | CL_MEM_READ_WRITE, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint32_t, 4>)).value();
+#endif
         }
 
         decltype(auto) kernel{ kernels.front() };
@@ -391,34 +457,77 @@ public:
 #ifdef _DEBUG
         puts("create buf_tile_tile_offset_count");
 #endif
+
+#ifdef USE_READ_ONLY_BUFFERS
+        auto buf_pip_offset_count{ context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, s_pip_count_offset).value() };
+#else
         auto svm_pip_offset_count{ context.alloc_svm<std::array<uint32_t, 2>>(maybe_fine_grain | CL_MEM_READ_ONLY, s_pip_count_offset.size_bytes()).value() };
 
         primary_queue.enqueueSVMMemcpy(false, svm_pip_offset_count, s_pip_count_offset);
+#endif
 
 #ifdef _DEBUG
         puts("create buf_dest_tile");
 #endif
+
+#ifdef USE_READ_ONLY_BUFFERS
+        auto buf_pip_tile_body{ context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, s_pip_tile_body).value() };
+#else
         auto svm_pip_tile_body{ context.alloc_svm<std::array<uint32_t, 4>>(maybe_fine_grain | CL_MEM_READ_ONLY, s_pip_tile_body.size_bytes()).value() };
 
         primary_queue.enqueueSVMMemcpy(false, svm_pip_tile_body, s_pip_tile_body);
+#endif
 
 #ifdef _DEBUG
         puts("create buf_allSourcePos");
 #endif
-        auto svm_stubs{ context.alloc_svm<std::array<uint32_t, 4>>(maybe_fine_grain | CL_MEM_READ_ONLY, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint32_t, 4>)).value() };
 
+#ifdef USE_READ_ONLY_BUFFERS
+        auto v_stubs{std::vector<std::array<uint32_t, 4>>(static_cast<size_t>(netCountAligned)) };
+#else
+        auto svm_stubs{ context.alloc_svm<std::array<uint32_t, 4>>(maybe_fine_grain | CL_MEM_READ_ONLY, static_cast<size_t>(netCountAligned) * sizeof(std::array<uint32_t, 4>)).value() };
+#endif
+#ifdef USE_READ_WRITE_BUFFERS
+        std::array<uint32_t, 4> a_dirty{};
+        auto buf_dirty{ context.create_buffer<uint32_t>(CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR,  a_dirty).value() };
+#else
         auto svm_dirty{ context.alloc_svm<uint32_t>(maybe_fine_grain | CL_MEM_WRITE_ONLY, sizeof(uint32_t) * 4).value() };
         primary_queue.enqueueSVMMemFill(svm_dirty, 0u);
-
+#endif
 #ifdef _DEBUG
         puts("making stub locations");
 #endif
+#ifdef USE_READ_WRITE_BUFFERS
+        beam_t a_head{};
+        std::array<uint32_t, 4> a_head_item{ UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX };
+        a_head.fill(a_head_item);
+        auto v_heads{ std::vector<beam_t>(static_cast<size_t>(netCountAligned), a_head) };
+        auto buf_heads{ context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, v_heads).value() };
+#else
         auto svm_heads{ context.alloc_svm<beam_t>(maybe_fine_grain | CL_MEM_READ_WRITE, static_cast<size_t>(netCountAligned) * sizeof(beam_t)).value() };
+#endif
+#ifdef USE_WRITE_ONLY_BUFFERS
+        auto history_item{ std::array<uint32_t, 2>{ UINT32_MAX, UINT32_MAX } };
+        history_t a_history;
+        a_history.fill(history_item);
+        auto v_explored{ std::vector<history_t>(netCountAligned, a_history) };
+        auto buf_explored{ context.create_buffer(CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, v_explored).value() };
+#else
         auto svm_explored{ context.alloc_svm<history_t>(maybe_fine_grain | CL_MEM_WRITE_ONLY, static_cast<size_t>(netCountAligned) * sizeof(history_t)).value() };
+#endif
 
+#ifdef USE_READ_WRITE_BUFFERS
+#else
         primary_queue.enqueueSVMMemFill(svm_heads.cast<uint64_t>(), UINT64_MAX);
+#endif
+#ifdef USE_READ_WRITE_BUFFERS
+#else
         primary_queue.enqueueSVMMemFill(svm_drawIndirect, fill_draw_commands);
+#endif
+#ifdef USE_WRITE_ONLY_BUFFERS
+#else
         primary_queue.enqueueSVMMemFill(svm_explored.cast<uint64_t>(), UINT64_MAX);
+#endif
 
         std::atomic<uint32_t> global_stub_index{};
 
@@ -427,11 +536,21 @@ public:
 
         {
             Timer<"upload to gpu {}\n"> t;
-            primary_queue.finish();
+            for (auto&& queue : queues) { queue.flush().value(); }
+            // primary_queue.finish();
 #ifndef SVM_FINE
+#ifdef USE_READ_WRITE_BUFFERS
+#else
             primary_queue.enqueueSVMMap(CL_MAP_WRITE_INVALIDATE_REGION, svm_drawIndirect, [&]() {
+#endif
+#ifdef USE_READ_ONLY_BUFFERS
+#else
                 primary_queue.enqueueSVMMap(CL_MAP_WRITE_INVALIDATE_REGION, svm_stubs, [&]() {
+#endif
+#ifdef USE_READ_WRITE_BUFFERS
+#else
                     primary_queue.enqueueSVMMap(CL_MAP_WRITE, svm_heads, [&]() {
+#endif
 #endif
                         jthread_each(nets, [&](uint64_t net_index, net_reader& net) {
                             auto stubs{ net.getStubs() };
@@ -461,19 +580,29 @@ public:
                                 for (uint32_t site : dst_sites) dst_site_names.emplace_back(physStrs[site].cStr());
                                 auto posA{ site_locations.at(src_site_names.front()) };
                                 auto posB{ site_locations.at(dst_site_names.front()) };
-                                svm_stubs[stub_index] = std::array<uint32_t, 4>{
+                                std::array<uint32_t, 4> stub_n{
                                     posB[0], //x
-                                        posB[1], //y
-                                        * dst_nodes.begin(), // node_idx
-                                        static_cast<uint32_t>(net_index) //net_idx
+                                    posB[1], //y
+                                    * dst_nodes.begin(), // node_idx
+                                    static_cast<uint32_t>(net_index), //net_idx
                                 };
+#ifdef USE_READ_ONLY_BUFFERS
+                                v_stubs[stub_index] = stub_n;
+#else
+                                svm_stubs[stub_index] = stub_n;
+#endif
                                 auto count_offset{ s_pip_count_offset[*src_nodes.begin()] };
                                 auto pip_offset{ count_offset[1] };
                                 auto infos{ s_pip_tile_body.subspan(pip_offset, count_offset[0]) };
+#ifdef USE_READ_WRITE_BUFFERS
+#else
                                 if (infos.size() > svm_heads[stub_index].size()) {
                                     DebugBreak();
                                 }
+#endif
                                 each(infos, [&](uint64_t info_idx, std::array<uint32_t, 4>& info) {
+#ifdef USE_READ_WRITE_BUFFERS
+#else
                                     if (info_idx >= svm_heads[stub_index].size()) return;
                                     svm_heads[stub_index][info_idx] = std::array<uint32_t, 4>{
                                         0, //cost
@@ -481,8 +610,11 @@ public:
                                             UINT32_MAX, //parent
                                             pip_offset + static_cast<uint32_t>(info_idx), //pip_idx
                                     };
-                                    });
+#endif
+                                });
 
+#ifdef USE_READ_WRITE_BUFFERS
+#else
                                 if (!svm_drawIndirect.empty()) {
                                     svm_drawIndirect[stub_index] = {
                                         0,//count
@@ -491,12 +623,22 @@ public:
                                         0,// baseInstance
                                     };
                                 }
+#endif
                                 });
                             });
 #ifndef SVM_FINE
+#ifdef USE_READ_WRITE_BUFFERS
+#else
                         }).value();
+#endif
+#ifdef USE_READ_ONLY_BUFFERS
+#else
                     }).value();
-                }).value();
+#endif
+#ifdef USE_READ_WRITE_BUFFERS
+#else
+            }).value();
+#endif
 #endif
         }
         if (global_stub_index != netCount) {
@@ -509,28 +651,73 @@ public:
 #endif
         kernel.set_arg_t(0, 0).value(); // uint series_id,
         if (buffers.empty()) {
+#ifdef USE_WRITE_ONLY_BUFFERS
+            kernel.set_arg(1, buf_routed_lines).value();
+#else
             kernel.set_arg(1, svm_routed_lines).value();//global routed_lines* restrict routed,
+#endif
+#ifdef USE_READ_WRITE_BUFFERS
+            kernel.set_arg(2, buf_drawIndirect).value();
+#else
             kernel.set_arg(2, svm_drawIndirect).value();//global uint4* restrict drawIndirect,
+#endif
+#ifdef USE_WRITE_ONLY_BUFFERS
+#else
             all_svm.emplace_back(svm_routed_lines.cast<uint8_t>());
+#endif
+#ifdef USE_READ_WRITE_BUFFERS
+#else
             all_svm.emplace_back(svm_drawIndirect.cast<uint8_t>());
+#endif
         }
         else {
             kernel.set_arg(1, buffers.at(0)).value();//global routed_lines* restrict routed,
             kernel.set_arg(2, buffers.at(1)).value();//global uint4* restrict drawIndirect,
         }
+#ifdef USE_READ_WRITE_BUFFERS
+        kernel.set_arg(3, buf_heads).value();
+#else
         kernel.set_arg(3, svm_heads).value();
+#endif
+#ifdef USE_WRITE_ONLY_BUFFERS
+        kernel.set_arg(4, buf_explored).value();
+#else
         kernel.set_arg(4, svm_explored).value();
+#endif
+#ifdef USE_READ_ONLY_BUFFERS
+        auto buf_stubs{ context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, v_stubs).value() };
+        kernel.set_arg(5, buf_pip_offset_count).value();
+        kernel.set_arg(6, buf_pip_tile_body).value();
+        kernel.set_arg(7, buf_stubs).value();//constant ushort2* restrict allSourcePos
+#else
         kernel.set_arg(5, svm_pip_offset_count).value();
         kernel.set_arg(6, svm_pip_tile_body).value();
         kernel.set_arg(7, svm_stubs).value();//constant ushort2* restrict allSourcePos
+#endif
+#ifdef USE_READ_WRITE_BUFFERS
+        kernel.set_arg(8, buf_dirty).value(); // global uint* restrict dirty
+#else
         kernel.set_arg(8, svm_dirty).value(); // global uint* restrict dirty
+#endif
 
+#ifdef USE_READ_WRITE_BUFFERS
+#else
         all_svm.emplace_back(svm_heads.cast<uint8_t>());
+#endif
+#ifdef USE_WRITE_ONLY_BUFFERS
+#else
         all_svm.emplace_back(svm_explored.cast<uint8_t>());
+#endif
+#ifdef USE_READ_ONLY_BUFFERS
+#else
         all_svm.emplace_back(svm_pip_offset_count.cast<uint8_t>());
         all_svm.emplace_back(svm_pip_tile_body.cast<uint8_t>());
         all_svm.emplace_back(svm_stubs.cast<uint8_t>());
+#endif
+#ifdef USE_READ_WRITE_BUFFERS
+#else
         all_svm.emplace_back(svm_dirty.cast<uint8_t>());
+#endif
 
         primary_queue.enqueueSVMMigrate<uint8_t>(all_svm);
 
@@ -541,14 +728,40 @@ public:
             .program{std::move(program)},
             .kernels{std::move(kernels)},
             .buffers{std::move(buffers)},
+#ifdef USE_WRITE_ONLY_BUFFERS
+            .buf_routed_lines{std::move(buf_routed_lines)},
+#else
             .svm_routed_lines{svm_routed_lines},
+#endif
+#ifdef USE_READ_WRITE_BUFFERS
+            .buf_drawIndirect{buf_drawIndirect},
+#else
             .svm_drawIndirect{svm_drawIndirect},
+#endif
+#ifdef USE_READ_WRITE_BUFFERS
+            .buf_heads{buf_heads},
+#else
             .svm_heads{svm_heads},
+#endif
+#ifdef USE_WRITE_ONLY_BUFFERS
+            .buf_explored{buf_explored},
+#else
             .svm_explored{svm_explored},
+#endif
+#ifdef USE_READ_ONLY_BUFFERS
+            .buf_pip_offset_count{std::move(buf_pip_offset_count)},
+            .buf_pip_tile_body{std::move(buf_pip_tile_body)},
+            .buf_stubs{std::move(buf_stubs)},
+#else
             .svm_pip_offset_count{std::move(svm_pip_offset_count)},
             .svm_pip_tile_body{std::move(svm_pip_tile_body)},
             .svm_stubs{std::move(svm_stubs)},
+#endif
+#ifdef USE_READ_WRITE_BUFFERS
+            .buf_dirty{std::move(buf_dirty)},
+#else
             .svm_dirty{std::move(svm_dirty)},
+#endif
             .phys{ std::move(phys) },
             .netCount{ std::move(netCount) },
             .netCountAligned{ std::move(netCountAligned) },

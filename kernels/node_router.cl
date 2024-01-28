@@ -96,15 +96,15 @@ kernel void
 __attribute__((work_group_size_hint(max_workgroup_size, 1, 1)))
 __attribute__((reqd_work_group_size(max_workgroup_size, 1, 1)))
 draw_wires(
-/*0*/uint series_id,
-/*1*/global routed_lines_t* restrict routed,
-/*2*/global uint4* restrict drawIndirect, //count, instanceCount, first, baseInstance
-/*3*/global beam_t* restrict heads, //cost height parent pip_idx
-/*4*/global history_t* restrict explored, //pip_idx parent
-/*5*/constant uint2* restrict pip_count_offset, // count offset
-/*6*/constant uint4* restrict pip_tile_body, // x, y, node0_idx, node1_idx
-/*7*/constant uint4* restrict stubs, // x, y, node_idx, net_idx
-/*8*/global uint* restrict dirty
+/*0 ro */const uint series_id,
+/*1 wo */global routed_lines_t* restrict routed,
+/*2 rw */global uint4* restrict drawIndirect, //count, instanceCount, first, baseInstance
+/*3 rw */global beam_t* restrict heads, //cost height parent pip_idx
+/*4 wo */global history_t* restrict explored, //pip_idx parent
+/*5 ro */constant uint2* restrict pip_count_offset, // count offset
+/*6 ro */constant uint4* restrict pip_tile_body, // x, y, node0_idx, node1_idx
+/*7 ro */constant uint4* restrict stubs, // x, y, node_idx, net_idx
+/*8 rw */global uint* restrict dirty
 ) {
     global uint4* restrict drawIndirectN = &drawIndirect[get_global_id(0)];
     if ((*drawIndirectN)[3] != 0) return; //dead end or success already
