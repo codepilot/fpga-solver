@@ -96,25 +96,26 @@ kernel void
 __attribute__((work_group_size_hint(max_workgroup_size, 1, 1)))
 __attribute__((reqd_work_group_size(max_workgroup_size, 1, 1)))
 draw_wires(
-/*0 ro */const uint series_id,
-/*1 wo */global routed_lines_t* restrict routed,
-/*2 rw */global uint4* restrict drawIndirect, //count, instanceCount, first, baseInstance
-/*3 rw */global beam_t* restrict heads, //cost height parent pip_idx
-/*4 wo */global history_t* restrict explored, //pip_idx parent
-/*5 ro */constant uint2* restrict pip_count_offset, // count offset
-/*6 ro */constant uint4* restrict pip_tile_body, // x, y, node0_idx, node1_idx
-/*7 ro */constant uint4* restrict stubs, // x, y, node_idx, net_idx
-/*8 rw */global uint* restrict dirty
+/*0 ro <duplicate>  */const uint series_id,
+/*1 rw <duplicate>  */global uint* restrict dirty,
+/*2 wo <sub-divide> */global routed_lines_t* restrict routed,
+/*3 rw <sub-divide> */global uint4* restrict drawIndirect, //count, instanceCount, first, baseInstance
+/*4 rw <sub-divide> */global beam_t* restrict heads, //cost height parent pip_idx
+/*5 wo <sub-divide> */global history_t* restrict explored, //pip_idx parent
+/*6 ro <sub-divide> */constant uint4* restrict stubs, // x, y, node_idx, net_idx
+/*7 ro <share>      */constant uint2* restrict pip_count_offset, // count offset
+/*8 ro <share>      */constant uint4* restrict pip_tile_body // x, y, node0_idx, node1_idx
 ) {
-    global uint4* restrict drawIndirectN = &drawIndirect[get_global_id(0)];
+    const size_t linear_id = get_global_id(0) - get_global_offset(0);
+    global uint4* restrict drawIndirectN = &drawIndirect[linear_id];
     if ((*drawIndirectN)[3] != 0) return; //dead end or success already
 
-    const uint4 stub = stubs[get_global_id(0)]; // x, y, node_idx, net_idx
+    const uint4 stub = stubs[linear_id]; // x, y, node_idx, net_idx
     const uint2 stub_xy = make_uint2(stub[0], stub[1]);
     const uint stub_node_idx = stub[2];
-//    global routed_lines_t* restrict routedN = &routed[get_global_id(0)];
-    global beam_t* restrict head = &heads[get_global_id(0)];
-    global history_t* restrict explore = &explored[get_global_id(0)];
+//    global routed_lines_t* restrict routedN = &routed[linear_id];
+    global beam_t* restrict head = &heads[linear_id];
+    global history_t* restrict explore = &explored[linear_id];
 
     beam_t cur_heads;// cost height parent pip_idx
 

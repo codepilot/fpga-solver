@@ -5,6 +5,10 @@ class device {
 public:
 	cl_device_id device;
 
+    always_inline static std::span<cl_device_id> get_device_ids(std::span<ocl::device> devices) {
+        return std::span<cl_device_id>(&devices[0].device, devices.size());
+    }
+
     always_inline static std::expected<size_t, status> get_info_size(cl_device_id device, cl_device_info param_name) noexcept {
         size_t param_value_size_ret{};
         status sts0{ clGetDeviceInfo(device, param_name, 0, nullptr, &param_value_size_ret) };
@@ -247,3 +251,4 @@ public:
     }
 };
 };
+static_assert(sizeof(ocl::device) == sizeof(cl_device_id));

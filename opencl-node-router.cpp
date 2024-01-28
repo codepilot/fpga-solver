@@ -6,6 +6,35 @@
 #include "constexpr_string.h"
 #include "Timer.h"
 
+std::expected<ocl::context, ocl::status> create_nondefault_gpus_context() {
+	auto platforms{ ocl::platform::get().value() };
+	for(auto &platform: platforms) {
+		auto default_device{ platform.get_devices<CL_DEVICE_TYPE_DEFAULT>().value().front() };
+		auto default_device_type{ default_device.get_info_integral<cl_device_type>(CL_DEVICE_TYPE).value() };
+
+		std::cout << std::format("d: {:x} t: {:x} default_device\n", reinterpret_cast<uintptr_t>(default_device.device), default_device_type);
+
+		std::vector<ocl::device> non_default_gpus;
+		auto maybe_all_gpus{ platform.get_devices<CL_DEVICE_TYPE_GPU>() };
+		if (!maybe_all_gpus.has_value()) continue;
+		std::vector<ocl::device> all_gpus{ maybe_all_gpus.value() };
+		std::ranges::copy_if(all_gpus, std::back_inserter(non_default_gpus), [&](ocl::device dev)->bool { return dev.device != default_device.device; });
+
+		for (auto&& dev : all_gpus) {
+			std::cout << std::format("d: {:x} all_gpus\n", reinterpret_cast<uintptr_t>(dev.device));
+		}
+
+		for (auto&& dev : non_default_gpus) {
+			std::cout << std::format("d: {:x} non_default_gpus\n", reinterpret_cast<uintptr_t>(dev.device));
+		}
+
+		std::array<cl_context_properties, 3> context_properties{ CL_CONTEXT_PLATFORM , std::bit_cast<cl_context_properties>(platform.platform) , 0 };
+		auto device_ids{ ocl::device::get_device_ids(non_default_gpus.empty() ? all_gpus : non_default_gpus) };
+		return ocl::context::create(context_properties, device_ids);
+	};
+	return ocl::context::create<CL_DEVICE_TYPE_GPU>();
+}
+
 int main(int argc, char* argv[]) {
 	std::vector<std::string> args;
 	for (auto &&arg: std::span<char*>(argv, static_cast<size_t>(argc))) args.emplace_back(arg);
@@ -17,23 +46,12 @@ int main(int argc, char* argv[]) {
 	auto dev{ TimerVal(DevFlat("_deps/device-file-src/xcvu3p.device" )) };
 	auto phys{ TimerVal(PhysGZ(phys_file)) };
 
-	std::vector<cl_context_properties> context_properties;
 
 #ifndef USE_CPP_INSTEAD_OF_OPENCL
-	ocl::platform::each([&](uint64_t platform_idx, ocl::platform &platform) {
-		platform.each_device<CL_DEVICE_TYPE_GPU>([&](uint64_t device_idx, ocl::device device) {
-			if (context_properties.empty()) {
-				context_properties.emplace_back(CL_CONTEXT_PLATFORM);
-				context_properties.emplace_back(std::bit_cast<cl_context_properties>(platform.platform));
-			}
-		});
-	});
-	if (!context_properties.empty()) {
-		context_properties.emplace_back(0);
-	}
+
+	auto ocltr{ TimerVal(OCL_Node_Router::make(dev.root, phys.root, create_nondefault_gpus_context().value())) };
 #endif
 
-	auto ocltr{ TimerVal(OCL_Node_Router::make(dev.root, phys.root, context_properties)) };
 	TimerVal(ocltr.do_all()).value();
 	puts("complete\n");
 	// ocltr.inspect();
