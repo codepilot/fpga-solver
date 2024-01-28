@@ -104,7 +104,8 @@ draw_wires(
 /*5 wo <sub-divide> */global history_t* restrict explored, //pip_idx parent
 /*6 ro <sub-divide> */constant uint4* restrict stubs, // x, y, node_idx, net_idx
 /*7 ro <share>      */constant uint2* restrict pip_count_offset, // count offset
-/*8 ro <share>      */constant uint4* restrict pip_tile_body // x, y, node0_idx, node1_idx
+/*8 ro <share>      */constant uint4* restrict pip_tile_body, // x, y, node0_idx, node1_idx
+/*9 ro <share>      */constant uint* restrict node_nets
 ) {
     const size_t linear_id = get_global_id(0) - get_global_offset(0);
     global uint4* restrict drawIndirectN = &drawIndirect[linear_id];
@@ -113,6 +114,7 @@ draw_wires(
     const uint4 stub = stubs[linear_id]; // x, y, node_idx, net_idx
     const uint2 stub_xy = make_uint2(stub[0], stub[1]);
     const uint stub_node_idx = stub[2];
+    const uint stub_net_idx = stub[3];
 //    global routed_lines_t* restrict routedN = &routed[linear_id];
     global beam_t* restrict head = &heads[linear_id];
     global history_t* restrict explore = &explored[linear_id];
@@ -204,6 +206,8 @@ draw_wires(
                 printf("pip_info: %v4u\n", pip_info);
 #endif
                 uint pip_node1_idx = pip_info[3];
+                if((node_nets[pip_node1_idx] != UINT_MAX) && (node_nets[pip_node1_idx] != stub_net_idx)) continue;
+
                 float node_diff = ldexp((float)abs((int)stub_node_idx - (int)pip_node1_idx), -28);
                 float cur_dist = tile_distance(stub_xy, pip_info_xy);
                 float item_cost = ((cur_dist * 8.0f)) + ((float)parent_height * 1.0f) + node_diff;
