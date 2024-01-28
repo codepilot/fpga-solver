@@ -334,7 +334,7 @@ public:
 #endif
         size_t possible_ocl_counter_max{ dev_max_mem_alloc_size / (static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 2>)) };
         const uint32_t ocl_counter_max{ (possible_ocl_counter_max > largest_ocl_counter_max) ? static_cast<uint32_t>(largest_ocl_counter_max) : static_cast<uint32_t>(possible_ocl_counter_max) };
-        auto build_result{ program.build(std::format("-cl-mad-enable -cl-no-signed-zeros -Werror -cl-std=CL1.2 -cl-kernel-arg-info -g -D ocl_counter_max={}u -D netCountAligned={}u -D beam_width={}u -D max_tile_count={}u -D tt_body_count={}u -D max_workgroup_size={} -D count_of_pip_count_offset={} -D count_pip_tile_body={}",
+        auto options{ std::format("-cl-mad-enable -cl-no-signed-zeros -Werror -cl-std=CL1.2 -cl-kernel-arg-info -g -D ocl_counter_max={}u -D netCountAligned={}u -D beam_width={}u -D max_tile_count={}u -D tt_body_count={}u -D max_workgroup_size={} -D count_of_pip_count_offset={} -D count_pip_tile_body={}",
             ocl_counter_max,
             netCountAligned,
             beam_width,
@@ -342,7 +342,9 @@ public:
             tt_body_count,
             max_workgroup_size,
             s_pip_count_offset.size(),
-            s_pip_body.size()))};
+            s_pip_body.size())
+        };
+        auto build_result{ TimerVal(program.build(options)) };
         auto build_logs{ program.get_build_info_string(CL_PROGRAM_BUILD_LOG).value() };
 #ifdef _DEBUG
         for (auto&& build_log : build_logs) {

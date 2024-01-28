@@ -8,6 +8,7 @@ public:
         auto ptr{ clSVMAlloc(context, flags, size, alignment) };
         if (!ptr) {
             printf("clSVMAlloc %f MiB failure\n", scalbln(static_cast<double>(size), -20));
+            abort();
             return std::unexpected<status>(status{ ocl::status::INVALID_VALUE });
         }
 #ifdef _DEBUG
