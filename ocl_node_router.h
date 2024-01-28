@@ -52,6 +52,7 @@ public:
     std::vector<ocl::queue> queues;
     ocl::program program;
     std::vector<ocl::kernel> kernels;
+    std::vector<ocl::kernel> cloned_kernels;
     std::vector<ocl::buffer> buffers;
     ocl::buffer buf_routed_lines;
     ocl::buffer buf_drawIndirect;
@@ -77,17 +78,12 @@ public:
 
     cl_uint max_workgroup_size;
 
-    std::expected<void, ocl::status> step(ocl::queue &queue) {
-        auto result{ queue.enqueue<1>(kernels.front(), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
-        return result;
-    }
-
     std::expected<void, ocl::status> step_all(const uint32_t series_id) {
-        kernels.front().set_arg_t(0, series_id);
-
         each(queues, [&](uint64_t queue_index, ocl::queue& queue) {
+            decltype(auto) cloned_kernel{ cloned_kernels[queue_index] };
+            cloned_kernel.set_arg_t(0, series_id);
             if (queues.size() > 1 && queue_index == 0) return;
-            auto result{ queue.enqueue<1>(kernels.front(), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
+            auto result{ queue.enqueue<1>(cloned_kernel, {0}, {max_workgroup_size * workgroup_count}, {max_workgroup_size})};
             if (!result.has_value()) {
                 result.value();
             }
@@ -149,14 +145,15 @@ public:
     }
 
     std::expected<void, ocl::status> gl_step(const uint32_t series_id) {
-        kernels.front().set_arg_t(0, series_id);
-
-        for (auto&& queue : queues) {
+        each(queues, [&](uint64_t queue_index, ocl::queue& queue) {
+            decltype(auto) cloned_kernel{ cloned_kernels[queue_index] };
+            cloned_kernel.set_arg_t(0, series_id);
             auto result{ queue.useGL(buffers, [&]()->std::expected<void, ocl::status> {
-                return step(queue);
+                auto result{ queue.enqueue<1>(cloned_kernel, { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
+                return result;
             }) };
             if (!result.has_value()) return result;
-        }
+        });
         return std::expected<void, ocl::status>();
     }
 
@@ -420,8 +417,6 @@ public:
         puts("allocating device buffers");
 #endif
 
-        decltype(auto) kernel{ kernels.front() };
-
         auto site_locations{ TimerVal(make_site_locations(dev)) };
         const auto devStrs_map{ TimerVal(make_devStrs_map(dev)) };
 
@@ -465,17 +460,20 @@ public:
         std::array<uint32_t, 4> a_dirty{};
         auto buf_dirty{ context.create_buffer<uint32_t>(CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR,  a_dirty).value() };
 
-        kernel.set_arg_t(0, 0).value();                 // 0 ro const    uint                   series_id,
-        kernel.set_arg(1, buf_routed_lines).value();    // 1 wo global   routed_lines* restrict routed,
-        kernel.set_arg(2, buf_drawIndirect).value();    // 2 rw global   uint4*        restrict drawIndirect,
-        kernel.set_arg(3, buf_heads).value();           // 3 rw global   beam_t*       restrict heads, //cost height parent pip_idx
-        kernel.set_arg(4, buf_explored).value();        // 4 wo global   history_t*    restrict explored, //pip_idx parent
-        kernel.set_arg(5, buf_pip_offset_count).value();// 5 ro constant uint2*        restrict pip_count_offset, // count offset
-        kernel.set_arg(6, buf_pip_tile_body).value();   // 6 ro constant uint4*        restrict pip_tile_body, // x, y, node0_idx, node1_idx
-        kernel.set_arg(7, buf_stubs).value();           // 7 ro constant uint4*        restrict stubs, // x, y, node_idx, net_idx
-        kernel.set_arg(8, buf_dirty).value();           // 8 rw global   uint*         restrict dirty
-
         std::vector<ocl::queue> queues{ context.create_queues().value() };
+        auto cloned_kernels{ std::move(kernels.front().clone(queues.size()).value()) };
+
+        each(cloned_kernels, [&](uint64_t cloned_kernel_index, ocl::kernel &cloned_kernel) {
+            cloned_kernel.set_arg_t(0, 0).value();                 // 0 ro <duplicate>  const    uint                   series_id,
+            cloned_kernel.set_arg(1, buf_routed_lines).value();    // 1 wo <sub-divide> global   routed_lines* restrict routed,
+            cloned_kernel.set_arg(2, buf_drawIndirect).value();    // 2 rw <sub-divide> global   uint4*        restrict drawIndirect,
+            cloned_kernel.set_arg(3, buf_heads).value();           // 3 rw <sub-divide> global   beam_t*       restrict heads, //cost height parent pip_idx
+            cloned_kernel.set_arg(4, buf_explored).value();        // 4 wo <sub-divide> global   history_t*    restrict explored, //pip_idx parent
+            cloned_kernel.set_arg(5, buf_pip_offset_count).value();// 5 ro <share>      constant uint2*        restrict pip_count_offset, // count offset
+            cloned_kernel.set_arg(6, buf_pip_tile_body).value();   // 6 ro <share>      constant uint4*        restrict pip_tile_body, // x, y, node0_idx, node1_idx
+            cloned_kernel.set_arg(7, buf_stubs).value();           // 7 ro <sub-divide> constant uint4*        restrict stubs, // x, y, node_idx, net_idx
+            cloned_kernel.set_arg(8, buf_dirty).value();           // 8 rw <duplicate>  global   uint*         restrict dirty
+        });
 
         return OCL_Node_Router{
             .context{std::move(context)},
@@ -483,6 +481,7 @@ public:
             .queues{std::move(queues)},
             .program{std::move(program)},
             .kernels{std::move(kernels)},
+            .cloned_kernels{std::move(cloned_kernels)},
             .buffers{std::move(buffers)},
             .buf_routed_lines{std::move(buf_routed_lines)},
             .buf_drawIndirect{std::move(buf_drawIndirect)},
