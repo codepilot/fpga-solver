@@ -14,7 +14,7 @@
 
 class OCL_Node_Router {
 public:
-    static inline constexpr uint32_t beam_width{ 128ul };
+    static inline constexpr uint32_t beam_width{ 64ul };
     static inline constexpr uint32_t max_tile_count{ 5884ul };
     static inline constexpr uint32_t tt_body_count{ 4293068ul };
     static inline constexpr size_t largest_ocl_counter_max{ 64ull };
@@ -53,15 +53,18 @@ public:
     ocl::program program;
     std::vector<ocl::kernel> kernels;
     std::vector<ocl::kernel> cloned_kernels;
-    std::vector<ocl::buffer> buffers;
-    ocl::buffer buf_routed_lines;
-    ocl::buffer buf_drawIndirect;
-    ocl::buffer buf_heads;
-    ocl::buffer buf_explored;
-    ocl::buffer buf_pip_offset_count;
-    ocl::buffer buf_pip_tile_body;
-    ocl::buffer buf_stubs;
+    std::vector<ocl::buffer> from_gl_buffers;
+
     std::vector<ocl::buffer> v_buf_dirty;
+    std::vector<ocl::buffer> v_buf_routed_lines;
+    std::vector<ocl::buffer> v_buf_drawIndirect;
+    std::vector<ocl::buffer> v_buf_heads;
+    std::vector<ocl::buffer> v_buf_explored;
+    std::vector<ocl::buffer> v_buf_stubs;
+
+    std::vector<ocl::buffer> v_buf_pip_offset_count;
+    std::vector<ocl::buffer> v_buf_pip_tile_body;
+
     std::vector<std::array<uint32_t, 4>> v_host_dirty{};
 
     PhysicalNetlist::PhysNetlist::Reader phys;
@@ -153,7 +156,7 @@ public:
         each(queues, [&](uint64_t queue_index, ocl::queue& queue) {
             decltype(auto) cloned_kernel{ cloned_kernels[queue_index] };
             cloned_kernel.set_arg_t(0, series_id);
-            auto result{ queue.useGL(buffers, [&]()->std::expected<void, ocl::status> {
+            auto result{ queue.useGL(from_gl_buffers, [&]()->std::expected<void, ocl::status> {
                 auto result{ queue.enqueue<1>(cloned_kernel, { workgroup_offsets[queue_index]}, {max_workgroup_size * workgroup_counts[queue_index]}, {max_workgroup_size}) };
                 return result;
             }) };
@@ -437,7 +440,7 @@ public:
         }
         build_result.value();
         std::vector<ocl::kernel> kernels{ program.create_kernels().value() };
-        std::vector<ocl::buffer> buffers{ context.from_gl(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, gl_buffers).value() };
+        std::vector<ocl::buffer> from_gl_buffers{ context.from_gl(CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS, gl_buffers).value() };
 
 #ifdef _DEBUG
         puts("allocating device buffers");
@@ -461,6 +464,9 @@ public:
 #endif
 
         auto vecs{ TimerVal(make_vecs(netCount, netCountAligned, ocl_counter_max, nets, site_pin_to_node, physStrs, site_locations)) };
+        auto s_drawIndirect{ std::span(std::get<2>(vecs)) };
+        auto s_heads{ std::span(std::get<1>(vecs)) };
+        auto s_stubs{ std::span(std::get<0>(vecs)) };
 
 #ifdef _DEBUG
         puts("setting kernel args");
@@ -468,20 +474,11 @@ public:
 
 
 
-        ocl::buffer buf_routed_lines{ (buffers.size() >= 2) ? buffers.at(0) : context.create_buffer(CL_MEM_WRITE_ONLY | CL_MEM_HOST_NO_ACCESS, static_cast<size_t>(ocl_counter_max) * static_cast<size_t>(netCountAligned) * sizeof(std::array<uint16_t, 4>)).value() };
-        ocl::buffer buf_drawIndirect{ (buffers.size() >= 2) ? buffers.at(1) : context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, std::get<2>(vecs) ).value() };
-
-        auto buf_heads{ context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, std::get<1>(vecs)).value() };
-
         auto history_item{ std::array<uint32_t, 2>{ UINT32_MAX, UINT32_MAX } };
         history_t a_history;
         a_history.fill(history_item);
         auto v_explored{ std::vector<history_t>(netCountAligned, a_history) };
-
-        auto buf_explored{ context.create_buffer(CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, v_explored).value() };
-        auto buf_pip_offset_count{ context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, s_pip_count_offset).value() };
-        auto buf_pip_tile_body{ context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, s_pip_tile_body).value() };
-        auto buf_stubs{ context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, std::get<0>(vecs)).value() };
+        auto s_explored{ std::span(v_explored) };
 
         std::array<uint32_t, 4> a_dirty{};
         std::vector<ocl::buffer> v_buf_dirty;
@@ -489,11 +486,13 @@ public:
         
         auto cloned_kernels{ std::move(kernels.front().clone(queues.size()).value()) };
 
-        std::vector<ocl::buffer> v_sub_buf_routed_lines;
-        std::vector<ocl::buffer> v_sub_buf_drawIndirect;
-        std::vector<ocl::buffer> v_sub_buf_heads;
-        std::vector<ocl::buffer> v_sub_buf_explored;
-        std::vector<ocl::buffer> v_sub_buf_stubs;
+        std::vector<ocl::buffer> v_buf_routed_lines;
+        std::vector<ocl::buffer> v_buf_drawIndirect;
+        std::vector<ocl::buffer> v_buf_heads;
+        std::vector<ocl::buffer> v_buf_explored;
+        std::vector<ocl::buffer> v_buf_stubs;
+        std::vector<ocl::buffer> v_buf_pip_offset_count;
+        std::vector<ocl::buffer> v_buf_pip_tile_body;
 
         const size_t wg_routed_lines{ static_cast<size_t>(ocl_counter_max) * sizeof(std::array<uint16_t, 4>) * max_workgroup_size };
         const size_t wg_drawIndirect{ sizeof(std::array<uint32_t, 4>) * max_workgroup_size };
@@ -502,7 +501,6 @@ public:
         const size_t wg_stubs{ sizeof(std::array<uint32_t, 4>) * max_workgroup_size };
 
         each(cloned_kernels, [&](uint64_t cloned_kernel_index, ocl::kernel &cloned_kernel) {
-            decltype(auto) buf_dirty{ v_buf_dirty.emplace_back(context.create_buffer<uint32_t>(CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, a_dirty).value()) };
             v_host_dirty.emplace_back(a_dirty);
 
             auto wo{ workgroup_offsets[cloned_kernel_index] };
@@ -514,21 +512,43 @@ public:
             auto region_explored{ cl_buffer_region {.origin{wo * wg_explored}, .size{wc * wg_explored}} };
             auto region_stubs{ cl_buffer_region {.origin{wo * wg_stubs}, .size{wc * wg_stubs}} };
 
-            decltype(auto) sub_buf_routed_lines{ v_sub_buf_routed_lines.emplace_back(buf_routed_lines.sub_region(region_routed_lines).value()) };
-            decltype(auto) sub_buf_drawIndirect{ v_sub_buf_drawIndirect.emplace_back(buf_drawIndirect.sub_region(region_drawIndirect).value()) };
-            decltype(auto) sub_buf_heads{ v_sub_buf_heads.emplace_back(buf_heads.sub_region(region_heads).value()) };
-            decltype(auto) sub_buf_explored{ v_sub_buf_explored.emplace_back(buf_explored.sub_region(region_explored).value()) };
-            decltype(auto) sub_buf_stubs{ v_sub_buf_stubs.emplace_back(buf_stubs.sub_region(region_stubs).value()) };
+            decltype(auto) buf_dirty{ v_buf_dirty.emplace_back(context.create_buffer<uint32_t>(CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, a_dirty).value()) };
+            decltype(auto) buf_routed_lines{ v_buf_routed_lines.emplace_back(context.create_buffer(CL_MEM_WRITE_ONLY | CL_MEM_HOST_NO_ACCESS, region_routed_lines.size).value()) };
+            decltype(auto) buf_drawIndirect{ v_buf_drawIndirect.emplace_back(context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, s_drawIndirect.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
+            decltype(auto) buf_heads{ v_buf_heads.emplace_back(context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, s_heads.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
+            decltype(auto) buf_explored{ v_buf_explored.emplace_back(context.create_buffer(CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, s_explored.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
+            decltype(auto) buf_stubs{ v_buf_stubs.emplace_back(context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, s_stubs.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
+            decltype(auto) buf_pip_offset_count{ v_buf_pip_offset_count.emplace_back(context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, s_pip_count_offset).value()) };
+            decltype(auto) buf_pip_tile_body{ v_buf_pip_tile_body.emplace_back(context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, s_pip_tile_body).value()) };
+
+            //decltype(auto) sub_buf_routed_lines{ v_sub_buf_routed_lines.emplace_back(buf_routed_lines.sub_region(region_routed_lines).value()) };
+            //decltype(auto) sub_buf_drawIndirect{ v_sub_buf_drawIndirect.emplace_back(buf_drawIndirect.sub_region(region_drawIndirect).value()) };
+            //decltype(auto) sub_buf_heads{ v_sub_buf_heads.emplace_back(buf_heads.sub_region(region_heads).value()) };
+            //decltype(auto) sub_buf_explored{ v_sub_buf_explored.emplace_back(buf_explored.sub_region(region_explored).value()) };
+            //decltype(auto) sub_buf_stubs{ v_sub_buf_stubs.emplace_back(buf_stubs.sub_region(region_stubs).value()) };
 
             cloned_kernel.set_arg_t(0, 0).value();                     // 0 ro <duplicate>  const    uint                   series_id,
             cloned_kernel.set_arg(1, buf_dirty).value();               // 1 rw <duplicate>  global   uint*         restrict dirty
-            cloned_kernel.set_arg(2, sub_buf_routed_lines).value();    // 2 wo <sub-divide> global   routed_lines* restrict routed,
-            cloned_kernel.set_arg(3, sub_buf_drawIndirect).value();    // 3 rw <sub-divide> global   uint4*        restrict drawIndirect,
-            cloned_kernel.set_arg(4, sub_buf_heads).value();           // 4 rw <sub-divide> global   beam_t*       restrict heads, //cost height parent pip_idx
-            cloned_kernel.set_arg(5, sub_buf_explored).value();        // 5 wo <sub-divide> global   history_t*    restrict explored, //pip_idx parent
-            cloned_kernel.set_arg(6, sub_buf_stubs).value();           // 6 ro <sub-divide> constant uint4*        restrict stubs, // x, y, node_idx, net_idx
+            cloned_kernel.set_arg(2, buf_routed_lines).value();    // 2 wo <sub-divide> global   routed_lines* restrict routed,
+            cloned_kernel.set_arg(3, buf_drawIndirect).value();    // 3 rw <sub-divide> global   uint4*        restrict drawIndirect,
+            cloned_kernel.set_arg(4, buf_heads).value();           // 4 rw <sub-divide> global   beam_t*       restrict heads, //cost height parent pip_idx
+            cloned_kernel.set_arg(5, buf_explored).value();        // 5 wo <sub-divide> global   history_t*    restrict explored, //pip_idx parent
+            cloned_kernel.set_arg(6, buf_stubs).value();           // 6 ro <sub-divide> constant uint4*        restrict stubs, // x, y, node_idx, net_idx
             cloned_kernel.set_arg(7, buf_pip_offset_count).value();    // 7 ro <share>      constant uint2*        restrict pip_count_offset, // count offset
             cloned_kernel.set_arg(8, buf_pip_tile_body).value();       // 8 ro <share>      constant uint4*        restrict pip_tile_body, // x, y, node0_idx, node1_idx
+
+            std::array<ocl::buffer, 8> cloned_kernel_buffers{
+                buf_dirty,
+                buf_routed_lines,
+                buf_drawIndirect,
+                buf_heads,
+                buf_explored,
+                buf_stubs,
+                buf_pip_offset_count,
+                buf_pip_tile_body,
+            };
+
+            queues[cloned_kernel_index].enqueueMigrate(cloned_kernel_buffers).value();
         });
 
         return OCL_Node_Router{
@@ -538,15 +558,15 @@ public:
             .program{std::move(program)},
             .kernels{std::move(kernels)},
             .cloned_kernels{std::move(cloned_kernels)},
-            .buffers{std::move(buffers)},
-            .buf_routed_lines{std::move(buf_routed_lines)},
-            .buf_drawIndirect{std::move(buf_drawIndirect)},
-            .buf_heads{std::move(buf_heads)},
-            .buf_explored{std::move(buf_explored)},
-            .buf_pip_offset_count{std::move(buf_pip_offset_count)},
-            .buf_pip_tile_body{std::move(buf_pip_tile_body)},
-            .buf_stubs{std::move(buf_stubs)},
+            .from_gl_buffers{std::move(from_gl_buffers)},
             .v_buf_dirty{std::move(v_buf_dirty)},
+            .v_buf_routed_lines{std::move(v_buf_routed_lines)},
+            .v_buf_drawIndirect{std::move(v_buf_drawIndirect)},
+            .v_buf_heads{std::move(v_buf_heads)},
+            .v_buf_explored{std::move(v_buf_explored)},
+            .v_buf_stubs{std::move(v_buf_stubs)},
+            .v_buf_pip_offset_count{std::move(v_buf_pip_offset_count)},
+            .v_buf_pip_tile_body{std::move(v_buf_pip_tile_body)},
             .v_host_dirty{std::move(v_host_dirty)},
             .phys{ std::move(phys) },
             .netCount{ netCount },

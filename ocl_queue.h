@@ -222,6 +222,25 @@ public:
         return std::expected<void, status>();
     }
 
+    always_inline std::expected<void, status> enqueueMigrate(std::span<ocl::buffer> v_buf, cl_mem_migration_flags flags = 0) {
+        std::span<cl_mem> buf_mem{ ocl::buffer::get_buffer_mems(v_buf) };
+
+        cl_int errcode_ret{ clEnqueueMigrateMemObjects(
+            queue,
+            buf_mem.size(),
+            buf_mem.data(),
+            flags,
+            0,
+            nullptr,
+            nullptr
+        ) };
+
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<void, status>();
+    }
+
     template<typename T>
     always_inline std::expected<void, status> enqueueSVMMap(cl_bool blocking_map, cl_map_flags flags, ocl::svm<T> svm) {
         cl_int errcode_ret{ clEnqueueSVMMap(

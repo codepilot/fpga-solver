@@ -5,6 +5,10 @@ class buffer {
 public:
 	cl_mem mem;
 
+    always_inline static std::span<cl_mem> get_buffer_mems(std::span<ocl::buffer> buffers) {
+        return std::span<cl_mem>(&buffers[0].mem, buffers.size());
+    }
+
     always_inline static std::expected<ocl::buffer, status> sub_region(ocl::buffer &buf, cl_mem_flags flags, cl_buffer_region region) {
         cl_int errcode_ret{};
         puts(std::format("clCreateBuffer size:{} MiB", std::scalbln(static_cast<double>(region.size), -20)).c_str());
@@ -72,3 +76,4 @@ public:
 
 };
 };
+static_assert(sizeof(ocl::buffer) == sizeof(cl_mem));
