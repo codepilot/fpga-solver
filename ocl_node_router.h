@@ -23,7 +23,7 @@ public:
     static inline constexpr uint32_t max_tile_count{ 5884ul };
     static inline constexpr uint32_t tt_body_count{ 4293068ul };
     static inline constexpr size_t largest_ocl_counter_max{ 64ull };
-    static inline constexpr uint32_t series_id_max{ 1024ul };
+    static inline constexpr uint32_t series_id_max{ 1024ul * 1024ul };
 
     using beam_t = std::array<std::array<uint32_t, 4>, beam_width>;
     using history_t = std::array<std::array<uint32_t, 2>, largest_ocl_counter_max>;
@@ -116,10 +116,13 @@ public:
     std::expected<void, ocl::status> step_all(const uint32_t series_id) {
         kernels.front().set_arg_t(0, series_id);
 
-        for (auto&& queue : queues) {
+        each(queues, [&](uint64_t queue_index, ocl::queue& queue) {
+            if (queue_index == 0) return;
             auto result{ queue.enqueue<1>(kernels.front(), { 0 }, { max_workgroup_size * workgroup_count }, { max_workgroup_size }) };
-            if (!result.has_value()) return result;
-        }
+            if (!result.has_value()) {
+                result.value();
+            }
+        });
         return std::expected<void, ocl::status>();
     }
 
@@ -142,14 +145,14 @@ public:
             std::vector<uint32_t> host_dirty(svm_dirty.size(), 0);
 #endif
 #ifdef USE_READ_WRITE_BUFFERS
-            queues.front().enqueueRead<uint32_t>(buf_dirty, false, 0, host_dirty);
+            queues.front().enqueueRead<uint32_t>(buf_dirty, true, 0, host_dirty);
 #else
             queues.front().enqueueSVMMemcpy<uint32_t>(false, host_dirty, svm_dirty);
+            // queues.front().finish().value();
 #endif
-            queues.front().finish().value();
 
             std::cout << std::format("result {} {} {} {}\r", host_dirty[0], host_dirty[1], host_dirty[2], host_dirty[3]);
-            if(!host_dirty.front()) break;
+            // if(!host_dirty.front()) break;
             if (previous_dirty_count != host_dirty.front()) std::cout << "\n";
             previous_dirty_count = host_dirty.front();
         }
