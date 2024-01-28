@@ -4,6 +4,27 @@ namespace ocl {
 class kernel {
 public:
 	cl_kernel kernel;
+
+    always_inline std::expected<ocl::kernel, status> clone() const {
+        cl_int errcode_ret{};
+        cl_kernel cloned_kernel{ clCloneKernel(kernel, &errcode_ret) };
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<ocl::kernel, status>(ocl::kernel{ .kernel{cloned_kernel} });
+    }
+
+    always_inline std::expected<std::vector<ocl::kernel>, status> clone(size_t count) const {
+        std::vector<ocl::kernel> ret;
+        ret.reserve(count);
+        for (size_t i{}; i < count; i++) {
+            auto cloned_kernel{ clone() };
+            if (!cloned_kernel.has_value()) return std::unexpected<status>(cloned_kernel.error());
+            ret.emplace_back(cloned_kernel.value());
+        }
+        return ret;
+    }
+
     always_inline static std::expected<ocl::kernel, status> create(cl_program program, std::string kernel_name) noexcept {
         cl_int errcode_ret{};
         cl_kernel kernel{ clCreateKernel(program, kernel_name.c_str(), &errcode_ret)};
