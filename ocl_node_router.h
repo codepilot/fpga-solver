@@ -14,11 +14,11 @@
 
 class OCL_Node_Router {
 public:
-    static inline constexpr uint32_t beam_width{ 64ul };
+    static inline constexpr uint32_t beam_width{ 128ul };
     static inline constexpr uint32_t max_tile_count{ 5884ul };
     static inline constexpr uint32_t tt_body_count{ 4293068ul };
-    static inline constexpr size_t largest_ocl_counter_max{ 64ull };
-    static inline constexpr uint32_t series_id_max{ 1024ul * 1024ul };
+    static inline constexpr size_t largest_ocl_counter_max{ 1024ull };
+    static inline constexpr uint32_t series_id_max{ 1ul };
 
     using beam_t = std::array<std::array<uint32_t, 4>, beam_width>;
     using history_t = std::array<std::array<uint32_t, 2>, largest_ocl_counter_max>;
@@ -124,12 +124,29 @@ public:
         return std::expected<void, ocl::status>();
     }
 
+    template<typename T>
+    inline static std::vector<T> read_buffer_group(std::span<ocl::queue> queues, std::span<ocl::buffer> buffers) {
+        std::vector<std::array<uint32_t, 4>> v_T(ocl::buffer::sum_size_bytes(buffers).value());
+        auto s_T{ std::span(v_T) };
+        auto s_ui8{ std::span<uint8_t>(reinterpret_cast<uint8_t *>(s_T.data()), s_T.size_bytes()) };
+
+        size_t offset{};
+        each(buffers, [&](uint64_t queue_index, ocl::buffer& buffer) {
+            auto buf_size{ buffer.size_bytes().value() };
+            queues[queue_index].enqueueRead(buffer, true, 0, s_ui8.subspan(offset, offset + buf_size));
+            offset += buf_size;
+        });
+        return v_T;
+    }
+
     void inspect() {
             auto physStrs{ phys.getStrList() };
-            std::vector<std::array<uint32_t, 4>> v_drawIndirect;
-            auto s_drawIndirect{std::span(v_drawIndirect)};
-            each(s_drawIndirect.subspan(0, netCount), [&](uint64_t di_index, std::array<uint32_t, 4>& di) {
-                // if (di[3] == 1) return;
+
+            auto v_drawIndirect{ read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect) };
+            v_drawIndirect.resize(netCount);
+
+            each(v_drawIndirect, [&](uint64_t di_index, std::array<uint32_t, 4>& di) {
+                 if (di[3] != 1) return;
                 auto net = net_pairs[di_index].net;
                 auto source = net_pairs[di_index].source;
                 auto stub = net_pairs[di_index].stub;
@@ -144,11 +161,13 @@ public:
                 auto posA{ site_locations.at(src_site_names.front()) };
                 auto posB{ site_locations.at(dst_site_names.front()) };
 
-                printf("%u\t%u\t%u\t%u\t%s\t%s\t%s\n", di[0], di[1], di[2], di[3],
-                    physStrs[net.getName()].cStr(),
+                std::cout << std::format("{}\t{}\t{}\t{}\t{}\n",
+                    di[0], di[3],
                     src_site_names.front().c_str(),
-                    dst_site_names.front().c_str()
+                    dst_site_names.front().c_str(),
+                    physStrs[net.getName()].cStr()
                 );
+
             });
     }
 
@@ -283,7 +302,6 @@ public:
     }
 
     static std::tuple<std::vector<std::array<uint32_t, 4>>, std::vector<beam_t>, std::vector<std::array<uint32_t, 4>>, std::vector<net_pair_t>> make_vecs(const uint32_t netCount, const uint32_t netCountAligned, const uint32_t ocl_counter_max, net_list_reader nets, std::unordered_map<uint64_t, uint32_t> &site_pin_to_node, auto physStrs, std::map<std::string_view, std::array<uint16_t, 2>> site_locations) {
-        Timer<"upload to gpu {}\n"> t;
         std::atomic<uint32_t> global_stub_index{};
         std::vector<net_pair_t> net_pairs;
         net_pairs.resize(netCount);

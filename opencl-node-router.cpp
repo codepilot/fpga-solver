@@ -54,5 +54,5 @@ int main(int argc, char* argv[]) {
 
 	TimerVal(ocltr.do_all()).value();
 	puts("complete\n");
-	// ocltr.inspect();
+	ocltr.inspect();
 }

@@ -9,11 +9,35 @@ public:
         return std::span<cl_mem>(&buffers[0].mem, buffers.size());
     }
 
+    always_inline static std::expected<size_t, status> size_bytes(ocl::buffer buffer) {
+        return buffer.get_info_integral<size_t>(CL_MEM_SIZE);
+    }
+
+    always_inline std::expected<size_t, status> size_bytes() {
+        return size_bytes(*this);
+    }
+
+    always_inline static std::expected<size_t, status> sum_size_bytes(std::span<ocl::buffer> buffers) {
+        size_t total_size{};
+        for (auto&& buffer: buffers) {
+            auto result{ buffer.get_info_integral<size_t>(CL_MEM_SIZE) };
+            if (!result.has_value()) {
+                return std::unexpected<status>(result.error());
+            }
+            total_size += result.value();
+        }
+        return total_size;
+    }
+
     always_inline static std::expected<ocl::buffer, status> sub_region(ocl::buffer &buf, cl_mem_flags flags, cl_buffer_region region) {
         cl_int errcode_ret{};
+#ifdef _DEBUG
         puts(std::format("clCreateBuffer size:{} MiB", std::scalbln(static_cast<double>(region.size), -20)).c_str());
+#endif
         auto mem{ clCreateSubBuffer(buf.mem, flags, CL_BUFFER_CREATE_TYPE_REGION, &region, &errcode_ret) };
+#ifdef _DEBUG
         puts(std::format("clCreateBuffer status:{}", errcode_ret).c_str());
+#endif
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
         }
@@ -34,9 +58,13 @@ public:
 
     always_inline static std::expected<ocl::buffer, status> create(cl_context context, cl_mem_flags flags, size_t size, void* host_ptr) noexcept {
         cl_int errcode_ret{};
+#ifdef _DEBUG
         puts(std::format("clCreateBuffer size:{} MiB", std::scalbln(static_cast<double>(size), -20)).c_str());
+#endif
         cl_mem mem{ clCreateBuffer(context, flags, size, host_ptr, &errcode_ret) };
+#ifdef _DEBUG
         puts(std::format("clCreateBuffer status:{}", errcode_ret).c_str());
+#endif
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
         }
