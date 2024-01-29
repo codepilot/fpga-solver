@@ -6,8 +6,8 @@ Design Route Status
            # of internally routed nets........ :       30555 :
            # of nets with no loads............ :        3299 :
        # of routable nets..................... :       53821 :
-           # of unrouted nets................. :       38647 :
-           # of fully routed nets............. :       15174 :
+           # of unrouted nets................. :       38644 :
+           # of fully routed nets............. :       15177 :
        # of nets with routing errors.......... :           0 :
    ------------------------------------------- : ----------- :
 

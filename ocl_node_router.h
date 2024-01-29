@@ -148,7 +148,7 @@ public:
         return std::expected<void, ocl::status>();
     }
 
-    std::expected<void, ocl::status> do_all() {
+    std::expected<void, ocl::status> gpu_route() {
 #ifdef _DEBUG
         std::cout << std::format("ocl_counter_max: {}\n", ocl_counter_max);
 #endif
@@ -163,7 +163,9 @@ public:
         for (auto&& queue : queues) {
             queue.finish().value();
         }
+#ifdef _DEBUG
         puts("");
+#endif
 
         return std::expected<void, ocl::status>();
     }
