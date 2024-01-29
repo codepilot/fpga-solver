@@ -129,10 +129,11 @@ draw_wires(
 
         {
 
+            uint4 parent_head = cur_heads[0];
 #ifdef CL_DEBUG
-            printf("cur_heads[0]: %v4u\n", cur_heads[0]);
+            printf("parent_head: %v4u\n", parent_head);
 #endif
-            if(cur_heads[0][0] == UINT_MAX && cur_heads[1][1] == UINT_MAX && cur_heads[1][2] == UINT_MAX && cur_heads[1][3] == UINT_MAX) {
+            if(parent_head[0] == UINT_MAX && parent_head[1] == UINT_MAX && parent_head[2] == UINT_MAX && parent_head[3] == UINT_MAX) {
                 // dead end
                 (*drawIndirectN) = make_uint4(count_index, 1, get_global_id(0) * ocl_counter_max, 2);
                 // (*routedN)[count_index] = sourcePos;
@@ -141,11 +142,12 @@ draw_wires(
                 return;
             }
 
-            uint parent_id = series_id * ocl_counter_max + count_index;
+            uint parent_explored_id = series_id * ocl_counter_max + count_index;
 
-            uint parent_height = cur_heads[0][1];
-            uint parent_pip_idx = cur_heads[0][3];
-
+            uint parent_cost = parent_head[0];
+            uint parent_height = parent_head[1];
+            uint parent_parent_explored_id = parent_head[2];
+            uint parent_pip_idx = parent_head[3];
 
             if(parent_pip_idx >= count_pip_tile_body) {
                 printf("parent_pip_idx:%u >= count_pip_tile_body:%u\n", parent_pip_idx, count_pip_tile_body);
@@ -171,7 +173,13 @@ draw_wires(
             uint pip_count = count_offset[0];
             uint pip_offset = count_offset[1];
 
-            (*explore)[count_index] = make_uint2(parent_pip_idx, parent_id);
+            (*explore)[count_index] = make_uint2(parent_pip_idx, parent_parent_explored_id);
+
+            if (stub_node_idx == parent_node1_idx) {
+                (*drawIndirectN) = make_uint4(count_index + 1, 1, get_global_id(0) * ocl_counter_max, 1);
+                atomic_inc(dirty + 1);
+                return;
+            }
 
 #ifdef CL_DEBUG
             printf("count_offset: %v2u, pip_count: %u, pip_offset: %u, count_index: %u\n", count_offset, pip_count, pip_offset, count_index);
@@ -212,7 +220,7 @@ draw_wires(
                 float cur_dist = tile_distance(stub_xy, pip_info_xy);
                 float item_cost = ((cur_dist * 8.0f)) + ((float)parent_height * 1.0f) + node_diff;
 
-                uint4 item = make_uint4(as_uint(item_cost), parent_height + 1u, parent_id, pip_idx);//cost, height, (parent_id,my_id), pip_idx
+                uint4 item = make_uint4(as_uint(item_cost), parent_height + 1u, parent_explored_id, pip_idx);//cost, height, (parent_id,my_id), pip_idx
 
 #ifdef CL_DEBUG
                 printf("pip_node1_idx: %u, node_diff: %f, cur_dist: %f, item_cost: %f\nitem: %v4u\n", pip_node1_idx, node_diff, cur_dist, item_cost, item);
@@ -230,7 +238,8 @@ draw_wires(
 
         }
 
-        if(cur_heads[0][0] == UINT_MAX && cur_heads[1][1] == UINT_MAX && cur_heads[1][2] == UINT_MAX && cur_heads[1][3] == UINT_MAX) {
+        uint4 front_head = cur_heads[0];
+        if(front_head[0] == UINT_MAX && front_head[1] == UINT_MAX && front_head[2] == UINT_MAX && front_head[3] == UINT_MAX) {
             // dead end
             (*drawIndirectN) = make_uint4(count_index, 1, get_global_id(0) * ocl_counter_max, 2);
             // (*routedN)[count_index] = sourcePos;
@@ -239,7 +248,6 @@ draw_wires(
             return;
         }
 
-        uint4 front_head = cur_heads[0];
         uint front_head_pip_idx = front_head[3];
 #ifdef CL_DEBUG
         printf("front_head: %v4u, front_head_pip_idx: %u\n", front_head, front_head_pip_idx);
@@ -251,12 +259,6 @@ draw_wires(
         uint4 front_pip_info = pip_tile_body[front_head_pip_idx];
         uint2 front_head_pos = make_uint2(front_pip_info[0], front_pip_info[1]);
         uint front_node1_idx = front_pip_info[3];
-
-        if (stub_node_idx == front_node1_idx) {
-            (*drawIndirectN) = make_uint4(count_index + 1, 1, get_global_id(0) * ocl_counter_max, 1);
-            atomic_inc(dirty + 1);
-            return;
-        }
 
         //(*routedN)[count_index] = newPos;
     }

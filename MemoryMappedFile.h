@@ -166,7 +166,13 @@ public:
 
   inline static decltype(fp) mmap_readonly(decltype(fh) fh, decltype(fsize) fsize, decltype(fm) fm) {
 #ifdef _WIN32
-      return MapViewOfFile3(fm, GetCurrentProcess(), nullptr, 0, 0, 0, PAGE_READONLY, nullptr, 0);
+      auto VirtualAddress{ MapViewOfFile3(fm, GetCurrentProcess(), nullptr, 0, 0, 0, PAGE_READONLY, nullptr, 0) };
+      auto VirtualAddresses{ std::array<WIN32_MEMORY_RANGE_ENTRY, 1>{ WIN32_MEMORY_RANGE_ENTRY{.VirtualAddress{VirtualAddress}, .NumberOfBytes{fsize} } } };
+      auto prefetch_success{ PrefetchVirtualMemory(GetCurrentProcess(), VirtualAddresses.size(), VirtualAddresses.data(), 0) };
+      if (!prefetch_success) {
+          puts(std::format("PrefetchVirtualMemory last error: {}\n", GetLastError()).c_str());
+      }
+      return VirtualAddress;
 #else
     return mmap(nullptr, fsize, PROT_READ, MAP_PRIVATE, fh, 0);
 #endif

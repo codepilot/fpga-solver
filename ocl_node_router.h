@@ -21,15 +21,30 @@ public:
     static inline constexpr uint32_t series_id_max{ 1ul };
 
     using beam_t = std::array<std::array<uint32_t, 4>, beam_width>;
-    using history_t = std::array<std::array<uint32_t, 2>, largest_ocl_counter_max>;
+    struct history_item { uint32_t pip_idx, parent_id; };
+    using history_t = std::array<history_item, largest_ocl_counter_max>;
 
     static inline const MemoryMappedFile mmf_v_pip_count_offset{ "pip_count_offset.bin" };
-    static inline const MemoryMappedFile mmf_v_pip_tile_body{ "pip_tile_body.bin" };
-    static inline const MemoryMappedFile mmf_v_pip_body{ "pip_body.bin" };
+    static inline const MemoryMappedFile mmf_v_pip_tile_body{ "pip_tile_body.bin" }; // tile0.getCol(), tile0.getRow(), node0_idx, node1_idx
+    static inline const MemoryMappedFile mmf_v_pip_body{ "pip_body.bin" }; // node0_idx, node1_idx, wire0_idx, wire1_idx
     static inline const MemoryMappedFile mmf_v_inverse_wires{ "Inverse_Wires.bin" };
-    static inline const std::span<std::array<uint32_t, 2>> s_pip_count_offset{ mmf_v_pip_count_offset.get_span<std::array<uint32_t, 2>>() };
-    static inline const std::span<std::array<uint32_t, 4>> s_pip_tile_body{ mmf_v_pip_tile_body.get_span<std::array<uint32_t, 4>>() };
-    static inline const std::span<std::array<uint32_t, 4>> s_pip_body{ mmf_v_pip_body.get_span<std::array<uint32_t, 4>>() };
+    // static inline const std::span<std::array<uint32_t, 2>> s_pip_count_offset{ mmf_v_pip_count_offset.get_span<std::array<uint32_t, 2>>() };
+    struct pip_count_offset { uint32_t count, offset; };
+    static inline const std::span<pip_count_offset> t_pip_count_offset{ mmf_v_pip_count_offset.get_span<pip_count_offset>() };
+
+    // static inline const std::span<std::array<uint32_t, 4>> s_pip_tile_body{ mmf_v_pip_tile_body.get_span<std::array<uint32_t, 4>>() };
+    struct pip_tile_body { uint32_t tile_x, tile_y, node0_idx, node1_idx;  };
+    static inline const std::span<pip_tile_body> t_pip_tile_body{ mmf_v_pip_tile_body.get_span<pip_tile_body>() };
+
+    // static inline const std::span<std::array<uint32_t, 4>> s_pip_body{ mmf_v_pip_body.get_span<std::array<uint32_t, 4>>() };
+    struct pip_body {
+        uint32_t node0_idx : 31;
+        uint32_t is_forward : 1;
+        uint32_t node1_idx;
+        uint32_t wire0_idx;
+        uint32_t wire1_idx;
+    };
+    static inline const std::span<pip_body> t_pip_body{ mmf_v_pip_body.get_span<pip_body>() };
     static inline const Inverse_Wires inverse_wires{ mmf_v_inverse_wires.get_span<uint64_t>() };
 
     static inline constexpr std::array<uint32_t, 4> fill_draw_commands {
@@ -77,6 +92,7 @@ public:
 
     uint32_t ocl_counter_max;
     struct net_pair_t {
+        uint32_t net_idx;
         net_reader net;
         branch_reader source;
         branch_reader stub;
@@ -86,6 +102,25 @@ public:
     std::map<std::string_view, std::array<uint16_t, 2>> site_locations;
 
     cl_uint max_workgroup_size;
+    std::vector<uint32_t> physStrs_to_devStrs;
+    std::vector<uint32_t> devStrs_to_physStrs;
+    std::unordered_map<uint64_t, uint32_t> site_pin_to_node;
+    std::vector<uint32_t> v_node_nets;
+
+    std::string_view get_physStr(uint32_t physStr_idx) {
+        auto physStrs{ phys.getStrList() };
+        if (physStr_idx < physStrs.size()) return physStrs[physStr_idx].cStr();
+        return dev.getStrList()[physStrs_to_devStrs.at(physStr_idx)].cStr();
+    }
+
+    uint32_t alloc_physStr_from_devStr(uint32_t devStr_idx) {
+        auto physStr_idx{ devStrs_to_physStrs.at(devStr_idx) };
+        if (physStr_idx != UINT32_MAX) return physStr_idx;
+        physStr_idx = physStrs_to_devStrs.size();
+        physStrs_to_devStrs.emplace_back(devStr_idx);
+        devStrs_to_physStrs[devStr_idx] = physStr_idx;
+        return physStr_idx;
+    }
 
     std::expected<void, ocl::status> step_all(const uint32_t series_id) {
 
@@ -127,14 +162,22 @@ public:
 
     template<typename T>
     inline static std::vector<T> read_buffer_group(std::span<ocl::queue> queues, std::span<ocl::buffer> buffers) {
-        std::vector<std::array<uint32_t, 4>> v_T(ocl::buffer::sum_size_bytes(buffers).value());
+        auto sum_size{ ocl::buffer::sum_size_bytes(buffers).value() };
+        std::vector<T> v_T(sum_size / sizeof(T));
         auto s_T{ std::span(v_T) };
+        if (s_T.size_bytes() != sum_size) {
+            abort();
+        }
         auto s_ui8{ std::span<uint8_t>(reinterpret_cast<uint8_t *>(s_T.data()), s_T.size_bytes()) };
+        if (s_ui8.size_bytes() != sum_size) {
+            abort();
+        }
 
         size_t offset{};
         each(buffers, [&](uint64_t queue_index, ocl::buffer& buffer) {
             auto buf_size{ buffer.size_bytes().value() };
-            queues[queue_index].enqueueRead(buffer, true, 0, s_ui8.subspan(offset, offset + buf_size));
+
+            queues[queue_index].enqueueRead(buffer, true, 0, s_ui8.subspan(offset, buf_size));
             offset += buf_size;
         });
         return v_T;
@@ -144,7 +187,9 @@ public:
         auto physStrs{ phys.getStrList() };
 
         auto v_drawIndirect{ read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect) };
+        auto v_explored{ read_buffer_group<history_t>(queues, v_buf_explored) };
         v_drawIndirect.resize(netCount);
+        v_explored.resize(netCount);
 
         ::capnp::MallocMessageBuilder message{ };
         PhysicalNetlist::PhysNetlist::Builder b_phys{ message.initRoot<PhysicalNetlist::PhysNetlist>() };
@@ -155,51 +200,193 @@ public:
         auto r_nets{ phys.getPhysNets() };
         auto b_nets{ b_phys.initPhysNets(r_nets.size()) };
 
-        each(r_nets, [&](uint64_t net_idx, net_reader r_net) {
-            b_nets.setWithCaveats(net_idx, r_net);
-        });
-#if 0
+        std::vector<bool> is_routed(r_nets.size());
+
         each(v_drawIndirect, [&](uint64_t di_index, std::array<uint32_t, 4>& di) {
-                if (di[3] != 1) return;
-            auto net = net_pairs[di_index].net;
-            auto source = net_pairs[di_index].source;
-            auto stub = net_pairs[di_index].stub;
-            std::set<uint32_t> src_sites, dst_sites;
+            uint32_t  count{ di[0] };
+            uint32_t  instanceCount{ di[1] };
+            uint32_t  first{ di[2] };
+            uint32_t  baseInstance{ di[3] };
+
+            if (baseInstance != 1) return;
+            decltype(auto) np{ net_pairs[di_index] };
+            auto net = np.net;
+            if (net.getStubs().size() != 1) return;
+            if (net.getSources().size() != 1) return;
+
+            auto source = np.source;
+            auto stub = np.stub;
+
+            auto r_net{ r_nets[np.net_idx] };
+            auto r_sources{ r_net.getSources() };
+
+            auto b_net{ b_nets[np.net_idx] };
+
+
+            b_net.setName(r_net.getName());
+            b_net.setSources(r_sources);
+            b_net.initStubs(0);
+            b_net.setType(r_net.getType());
+            b_net.setStubNodes(r_net.getStubNodes());
+
+            auto b_sources{ b_net.getSources() };
+
+            std::vector<phys_site_pin_reader> src_sites, dst_sites;
+            branch_builder_map src_builder_site_pins;
+            for (auto&& b_source : b_sources) {
+                get_site_pin_nodes(b_source, src_builder_site_pins, physStrs_to_devStrs, site_pin_to_node);
+            }
+            std::set<uint32_t> stub_nodes;
+            get_site_pin_nodes(stub, stub_nodes, physStrs_to_devStrs, site_pin_to_node);
+
             get_site_pins(source, src_sites);
             get_site_pins(stub, dst_sites);
             if (!src_sites.size()) return;
             if (!dst_sites.size()) return;
+
+            auto ei_full{ std::span(v_explored.at(di_index)) };
+            auto ei{ ei_full.subspan(0, count) };
+
+            std::cout << std::format("{}\n", physStrs[net.getName()].cStr());
+#if 0
+            each(ei, [&](uint64_t ei_index, history_item& ein) {
+                decltype(auto) pip{ t_pip_body[ein.pip_idx] };
+                std::cout << std::format("#{} pip:{} parent:{} nodes:{},{} wires:{}:{}\n", ei_index, ein.pip_idx, ein.parent_id, pip.node0_idx, pip.node1_idx, pip.wire0_idx, pip.wire1_idx);
+            });
+#endif
+
+            // branch_builder current_branch();
+            // current_branch.
+            // { np.stub };
+
+            puts("reverse");
+            std::vector<uint32_t> ids;
+            ids.reserve(ei.size());
+
+            {
+                uint32_t cur_history_index{ count - 1 };
+                for (size_t i{}; cur_history_index != UINT32_MAX && i < ei.size(); i++) {
+                    ids.emplace_back(cur_history_index);
+                    auto ein{ ei[cur_history_index] };
+                    // decltype(auto) pip{ t_pip_body[ein.pip_idx] };
+                    // std::cout << std::format("#{} pip:{} parent:{} nodes:{},{} wires:{}:{}\n", cur_history_index, ein.pip_idx, ein.parent_id, pip.node0_idx, pip.node1_idx, pip.wire0_idx, pip.wire1_idx);
+                    cur_history_index = ein.parent_id;
+                }
+                std::cout << "\n";
+            }
+
+            auto b_cur_branch{ src_builder_site_pins.at(t_pip_body[ei[ids.back()].pip_idx].node0_idx) };
+            
+            std::set<uint32_t> node_loop_detector;
+
+            puts("forward");
+            for (auto ri{ ids.rbegin() }; ri != ids.rend(); ri++) {
+                auto b_cur_branches{ b_cur_branch.initBranches(1) };
+                auto b_cur_branch_branch{ b_cur_branches[0] };
+                auto rs{ b_cur_branch_branch.initRouteSegment() };
+                auto sub_pip{ rs.initPip() };
+                
+                auto ein{ ei[*ri] };
+                decltype(auto) pip{ t_pip_body[ein.pip_idx] };
+
+                decltype(auto) node0_net{ v_node_nets[pip.node0_idx] };
+                decltype(auto) node1_net{ v_node_nets[pip.node1_idx] };
+                if (node_loop_detector.contains(pip.node1_idx)) return;
+                node_loop_detector.insert(pip.node1_idx);
+
+                if (node0_net != np.net_idx && node0_net != UINT32_MAX) { return; }
+                if (node1_net != np.net_idx && node1_net != UINT32_MAX) { return; }
+
+                auto wire0{ dev.getWires()[pip.wire0_idx] };
+                auto wire1{ dev.getWires()[pip.wire1_idx] };
+
+                auto ds_tile0{ wire0.getTile() };
+                auto ds_tile1{ wire1.getTile() };
+
+                auto ds_wire0{ wire0.getWire() };
+                auto ds_wire1{ wire1.getWire() };
+
+                auto ps_tile0{ alloc_physStr_from_devStr(ds_tile0) };
+                auto ps_tile1{ alloc_physStr_from_devStr(ds_tile1) };
+
+                auto ps_wire0{ alloc_physStr_from_devStr(ds_wire0) };
+                auto ps_wire1{ alloc_physStr_from_devStr(ds_wire1) };
+
+                sub_pip.setTile(ps_tile0);
+                sub_pip.setWire0(ps_wire0);
+                sub_pip.setWire1(ps_wire1);
+                sub_pip.setForward(static_cast<bool>(pip.is_forward)); //fixme
+                sub_pip.setIsFixed(false);
+
+                std::cout << std::format("#{} pip:{} parent:{} is_foreward:{} nodes:{},{} {}/{}->{}/{}\n",
+                    *ri, ein.pip_idx, ein.parent_id, static_cast<bool>(pip.is_forward), static_cast<uint32_t>(pip.node0_idx), pip.node1_idx,
+                    get_physStr(ps_tile0), get_physStr(ps_wire0),
+                    get_physStr(ps_tile1), get_physStr(ps_wire1)
+                );
+                b_cur_branch = b_cur_branch_branch;
+            }
+            auto b_cur_branch_branches{ b_cur_branch.initBranches(1) };
+            b_cur_branch_branches.setWithCaveats(0, stub);
+
+            std::cout << "\n";
+
+            for (auto ri{ ids.rbegin() }; ri != ids.rend(); ri++) {
+                auto ein{ ei[*ri] };
+                decltype(auto) pip{ t_pip_body[ein.pip_idx] };
+
+                v_node_nets[pip.node0_idx] = np.net_idx;
+                v_node_nets[pip.node1_idx] = np.net_idx;
+            }
+
+            is_routed[np.net_idx] = true;
+            // exit(0);
+            // return;
+#if 0
             std::vector<std::string> src_site_names, dst_site_names;
-            for (uint32_t site : src_sites) src_site_names.emplace_back(physStrs[site].cStr());
-            for (uint32_t site : dst_sites) dst_site_names.emplace_back(physStrs[site].cStr());
+            for (auto && site : src_sites) src_site_names.emplace_back(physStrs[site].cStr());
+            for (auto && site : dst_sites) dst_site_names.emplace_back(physStrs[site].cStr());
             auto posA{ site_locations.at(src_site_names.front()) };
             auto posB{ site_locations.at(dst_site_names.front()) };
 
-            std::cout << std::format("{}\t{}\t{}\t{}\t{}\n",
-                di[0], di[3],
+            if(false) std::cout << std::format("{}\t{}\t{}\t{}\t{}\n",
+                count, baseInstance,
                 src_site_names.front().c_str(),
                 dst_site_names.front().c_str(),
                 physStrs[net.getName()].cStr()
             );
-
-        });
 #endif
 
+        });
+
+        each(r_nets, [&](uint64_t net_idx, net_reader r_net) {
+            if(!is_routed[net_idx]) b_nets.setWithCaveats(net_idx, r_net);
+        });
+
         b_phys.setPhysCells(phys.getPhysCells());
-#if 1
+#if 0
         b_phys.setStrList(phys.getStrList());
 #else
+
         auto devStrs{ dev.getStrList() };
-        std::vector<uint32_t> extra_dev_strIdx;
-        auto b_strs{ b_phys.initStrList(static_cast<uint32_t>(physStrs.size() + extra_dev_strIdx.size())) };
-
-        each(physStrs, [&](uint64_t strIdx, ::capnp::Text::Reader r_str) {
-            b_strs.set(strIdx, r_str);
+        auto b_strs{ b_phys.initStrList(static_cast<uint32_t>(physStrs_to_devStrs.size())) };
+        each(physStrs_to_devStrs, [&](uint64_t physStr_idx, uint32_t devStr_idx) {
+            if (devStr_idx == UINT32_MAX) {
+                b_strs.set(physStr_idx, physStrs[physStr_idx]);
+            }
+            else {
+                b_strs.set(physStr_idx, devStrs[devStr_idx]);
+            }
         });
 
-        each(extra_dev_strIdx, [&](uint64_t extraIdx, uint32_t dev_strIdx) {
-            b_strs.set(physStrs.size() + extraIdx, devStrs[dev_strIdx]);
-        });
+        //std::vector<uint32_t> extra_dev_strIdx;
+
+        //each(physStrs, [&](uint64_t strIdx, ::capnp::Text::Reader r_str) {
+        //    b_strs.set(strIdx, r_str);
+        //});
+
+        //each(extra_dev_strIdx, [&](uint64_t extraIdx, uint32_t dev_strIdx) {
+        //    b_strs.set(physStrs.size() + extraIdx, devStrs[dev_strIdx]);
+        //});
 #endif
 
         b_phys.setSiteInsts(phys.getSiteInsts());
@@ -223,7 +410,14 @@ public:
     }
 
     static void get_site_pins(branch_reader src, std::set<uint32_t> &dst) {
-        if (src.getRouteSegment().isSitePin()) dst.insert(src.getRouteSegment().getSitePin().getSite());
+        if (src.getRouteSegment().isSitePin()) dst.insert({ src.getRouteSegment().getSitePin().getSite() });
+        for (auto&& subbranch : src.getBranches()) {
+            get_site_pins(subbranch, dst);
+        }
+    }
+
+    static void get_site_pins(branch_reader src, std::vector<phys_site_pin_reader>& dst) {
+        if (src.getRouteSegment().isSitePin()) dst.emplace_back( src.getRouteSegment().getSitePin() );
         for (auto&& subbranch : src.getBranches()) {
             get_site_pins(subbranch, dst);
         }
@@ -234,6 +428,17 @@ public:
             auto sitePin{ src.getRouteSegment().getSitePin() };
             std::array<uint32_t, 2> site_pin_key{ physStrs_to_devStrs[sitePin.getSite()], physStrs_to_devStrs[sitePin.getPin()] };
             dst.insert(site_pin_to_node.at(std::bit_cast<uint64_t>(site_pin_key)));
+        }
+        for (auto&& subbranch : src.getBranches()) {
+            get_site_pin_nodes(subbranch, dst, physStrs_to_devStrs, site_pin_to_node);
+        }
+    }
+
+    static void get_site_pin_nodes(branch_builder src, branch_builder_map& dst, std::span<const uint32_t> physStrs_to_devStrs, std::unordered_map<uint64_t, uint32_t>& site_pin_to_node) {
+        if (src.getRouteSegment().isSitePin()) {
+            auto sitePin{ src.getRouteSegment().getSitePin() };
+            std::array<uint32_t, 2> site_pin_key{ physStrs_to_devStrs[sitePin.getSite()], physStrs_to_devStrs[sitePin.getPin()] };
+            dst.insert({ site_pin_to_node.at(std::bit_cast<uint64_t>(site_pin_key)), src });
         }
         for (auto&& subbranch : src.getBranches()) {
             get_site_pin_nodes(subbranch, dst, physStrs_to_devStrs, site_pin_to_node);
@@ -289,7 +494,7 @@ public:
 
     static std::vector<uint32_t> make_wire_idx_to_node_idx(wire_list_reader wires, node_list_reader nodes) {
         std::vector<uint32_t> wire_idx_to_node_idx(static_cast<size_t>(wires.size()), UINT32_MAX);
-        each(nodes, [&](uint64_t node_idx, node_reader node) {
+        jthread_each(nodes, [&](uint64_t node_idx, node_reader node) {
             for (auto wire_idx : node.getWires()) {
                 wire_idx_to_node_idx[wire_idx] = static_cast<uint32_t>(node_idx);
             }
@@ -300,6 +505,8 @@ public:
 
     static std::unordered_map<uint64_t, uint32_t> make_site_pin_to_node(tile_list_reader tiles, tile_type_list_reader tile_types, site_type_list_reader site_types, std::span<const uint32_t> wire_idx_to_node_idx) {
         std::unordered_map<uint64_t, uint32_t> site_pin_to_node;
+        site_pin_to_node.reserve(wire_idx_to_node_idx.size());
+
         for (auto&& tile : tiles) {
             auto tile_str_idx{ tile.getName() };
             auto sites{ tile.getSites() };
@@ -370,7 +577,7 @@ public:
 
             each(stubs, [&](uint32_t stub_offset, branch_reader& stub) {
                 const uint32_t stub_index{ local_stub_index + stub_offset };
-                net_pairs[stub_index] = { net, source , stub };
+                net_pairs[stub_index] = { .net_idx{static_cast<uint32_t>(net_index)}, .net{net}, .source{source} , .stub{stub} };
                 std::set<uint32_t> src_sites, dst_sites;
                 get_site_pins(source, src_sites);
                 get_site_pins(stub, dst_sites);
@@ -394,21 +601,39 @@ public:
                     static_cast<uint32_t>(net_index), //net_idx
                 };
                 v_stubs[stub_index] = stub_n;
-                auto count_offset{ s_pip_count_offset[*src_nodes.begin()] };
-                auto pip_offset{ count_offset[1] };
-                auto infos{ s_pip_tile_body.subspan(pip_offset, count_offset[0]) };
+                std::vector<std::array<uint32_t, 4>> infos;
+
+                for (auto&& src_node_idx : src_nodes) {
+                    auto pip_co{ t_pip_count_offset[src_node_idx] };
+                    auto pips{ t_pip_tile_body.subspan(pip_co.offset, pip_co.count) };
+                    each(pips, [&](uint64_t pip_index, pip_tile_body &pip_info) {
+                        infos.emplace_back(std::array<uint32_t, 4>{
+                            0, //cost
+                            0, //height
+                            UINT32_MAX, //parent
+                            pip_co.offset + static_cast<uint32_t>(pip_index), //pip_idx
+                        });
+                    });
+                }
+
                 if (infos.size() > v_heads[stub_index].size()) {
                     DebugBreak();
                 }
+
+                std::span<std::array<uint32_t, 4>> s_infos{ std::span(infos).subspan(0, std::min(static_cast<uint64_t>(beam_width), infos.size()) ) };
+                std::array<std::array<uint32_t, 4>, beam_width> &r_head{ v_heads[stub_index] };
+                std::copy(s_infos.begin(), s_infos.end(), r_head.begin());
+#if 0
                 each(infos, [&](uint64_t info_idx, std::array<uint32_t, 4>& info) {
                     if (info_idx >= v_heads[stub_index].size()) return;
                     v_heads[stub_index][info_idx] = std::array<uint32_t, 4>{
                         0, //cost
-                            0, //height
-                            UINT32_MAX, //parent
-                            pip_offset + static_cast<uint32_t>(info_idx), //pip_idx
+                        0, //height
+                        UINT32_MAX, //parent
+                        pip_offset + static_cast<uint32_t>(info_idx), //pip_idx
                     };
-                    });
+                });
+#endif
 
                 if (!v_drawIndirect.empty()) {
                     v_drawIndirect[stub_index] = {
@@ -557,8 +782,8 @@ public:
             max_tile_count,
             tt_body_count,
             max_workgroup_size,
-            s_pip_count_offset.size(),
-            s_pip_body.size())
+            t_pip_count_offset.size(),
+            t_pip_body.size())
         };
         auto build_result{ TimerVal(program.build(options)) };
         auto build_logs{ program.get_build_info_string(CL_PROGRAM_BUILD_LOG).value() };
@@ -585,8 +810,8 @@ public:
         const auto devStrs_map{ TimerVal(make_devStrs_map(dev)) };
 
         const auto string_interchange{ TimerVal(make_string_interchange(devStrs_map, devStrs, physStrs)) };
-        const auto physStrs_to_devStrs{ std::span(string_interchange.at(0)) };
-        const auto devStrs_to_physStrs{ std::span(string_interchange.at(1)) };
+        const auto physStrs_to_devStrs{ std::move(string_interchange.at(0)) };
+        const auto devStrs_to_physStrs{ std::move(string_interchange.at(1)) };
 
         const auto wire_idx_to_node_idx{ TimerVal(make_wire_idx_to_node_idx(dev.getWires(), dev.getNodes())) };
 
@@ -609,9 +834,9 @@ public:
 
 
 
-        auto history_item{ std::array<uint32_t, 2>{ UINT32_MAX, UINT32_MAX } };
+        auto history_item_fill{ history_item{.pip_idx{ UINT32_MAX}, .parent_id{UINT32_MAX }} };
         history_t a_history;
-        a_history.fill(history_item);
+        a_history.fill(history_item_fill);
         auto v_explored{ std::vector<history_t>(netCountAligned, a_history) };
         auto s_explored{ std::span(v_explored) };
 
@@ -662,8 +887,8 @@ public:
             decltype(auto) buf_heads{ v_buf_heads.emplace_back(context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, s_heads.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
             decltype(auto) buf_explored{ v_buf_explored.emplace_back(context.create_buffer(CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, s_explored.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
             decltype(auto) buf_stubs{ v_buf_stubs.emplace_back(context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, s_stubs.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
-            decltype(auto) buf_pip_offset_count{ v_buf_pip_offset_count.emplace_back(context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, s_pip_count_offset).value()) };
-            decltype(auto) buf_pip_tile_body{ v_buf_pip_tile_body.emplace_back(context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, s_pip_tile_body).value()) };
+            decltype(auto) buf_pip_offset_count{ v_buf_pip_offset_count.emplace_back(context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, t_pip_count_offset).value()) };
+            decltype(auto) buf_pip_tile_body{ v_buf_pip_tile_body.emplace_back(context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, t_pip_tile_body).value()) };
             decltype(auto) buf_node_nets{ v_buf_node_nets.emplace_back(context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, v_node_nets).value()) };
 
             //decltype(auto) sub_buf_routed_lines{ v_sub_buf_routed_lines.emplace_back(buf_routed_lines.sub_region(region_routed_lines).value()) };
@@ -726,6 +951,10 @@ public:
             .net_pairs{ std::move(std::get<3>(vecs)) },
             .site_locations{ std::move(site_locations) },
             .max_workgroup_size{max_workgroup_size},
+            .physStrs_to_devStrs{std::move(physStrs_to_devStrs)},
+            .devStrs_to_physStrs{std::move(devStrs_to_physStrs)},
+            .site_pin_to_node{std::move(site_pin_to_node)},
+            .v_node_nets{std::move(v_node_nets)},
         };
     }
 };

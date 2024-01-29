@@ -419,6 +419,14 @@ public:
 		return upti;
 	}
 
+	struct pip_body {
+		uint32_t node0_idx : 31;
+		uint32_t is_forward : 1;
+		uint32_t node1_idx;
+		uint32_t wire0_idx;
+		uint32_t wire1_idx;
+	};
+
 	static void make_cl_pip_files() {
 		{
 			MemoryMappedFile mmf_v_pip_count_offset{ "pip_count_offset.bin" };
@@ -482,7 +490,7 @@ public:
 
 //		std::vector<std::array<uint32_t, 4>> verts(static_cast<size_t>(128ull * 1024ull * 1024ull), std::array<uint32_t, 4>{UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX}); // node0_idx node1_idx wire0_idx, wire1_idx
 		MemoryMappedFile mmf_pip_body{ "pip_body.bin", sizeof(std::array<uint32_t, 4>) * static_cast<size_t>(128ull * 1024ull * 1024ull) };
-		auto s_verts{ mmf_pip_body.get_span<std::array<uint32_t, 4>>() };
+		auto s_verts{ mmf_pip_body.get_span<pip_body>() };
 		std::atomic<uint32_t> vert_idx{};
 
 		jthread_each(tiles, [&](uint64_t tile_index, tile_reader tile)-> void {
@@ -532,51 +540,61 @@ public:
 					puts(std::format("!inverse_nodes {} {}", devStrs[tile_strIdx].cStr(), devStrs[wire1_strIdx].cStr()).c_str());
 					continue;
 				}
-				s_verts[vert_idx++] = std::array<uint32_t, 4>{ node0_idx, node1_idx, wire0_idx, wire1_idx };
+				s_verts[vert_idx++] = pip_body{
+					.node0_idx{node0_idx},
+					.is_forward{true},
+					.node1_idx{node1_idx},
+					.wire0_idx{wire0_idx},
+					.wire1_idx{wire1_idx},
+				};
 
 				if (!pip.getDirectional()) {
-					s_verts[vert_idx++] = std::array<uint32_t, 4>{ node1_idx, node0_idx, wire1_idx, wire0_idx };
+					s_verts[vert_idx++] = pip_body{
+						.node0_idx{node1_idx},
+						.is_forward{false},
+						.node1_idx{node0_idx},
+						.wire0_idx{wire1_idx},
+						.wire1_idx{wire0_idx},
+					};
 				}
 			}
 		});
 
-		auto mmf_pip_body_shrunk = mmf_pip_body.shrink(sizeof(std::array<uint32_t, 4>) * static_cast<size_t>(vert_idx.load()));
-		auto s_verts_shrunk{ mmf_pip_body_shrunk.get_span<std::array<uint32_t, 4>>() };
+		auto mmf_pip_body_shrunk = mmf_pip_body.shrink(sizeof(pip_body) * static_cast<size_t>(vert_idx.load()));
+		auto s_verts_shrunk{ mmf_pip_body_shrunk.get_span<pip_body>() };
 
 		MemoryMappedFile mmf_pip_tile_body{ "pip_tile_body.bin", sizeof(std::array<uint32_t, 4>) * static_cast<size_t>(vert_idx.load()) };
 		auto s_pip_tile_body{ mmf_pip_tile_body.get_span<std::array<uint32_t, 4>>() };
 
-		std::sort(std::execution::par_unseq, s_verts_shrunk.begin(), s_verts_shrunk.end(), [](std::array<uint32_t, 4> &a, std::array<uint32_t, 4> &b) {
-			if (a[0] < b[0]) return true;
-			if (a[0] > b[0]) return false;
+		std::sort(std::execution::par_unseq, s_verts_shrunk.begin(), s_verts_shrunk.end(), [](pip_body &a, pip_body &b) {
+			if (a.node0_idx < b.node0_idx) return true;
+			if (a.node0_idx > b.node0_idx) return false;
 
-			if (a[1] < b[1]) return true;
-			if (a[1] > b[1]) return false;
+			if (a.node1_idx < b.node1_idx) return true;
+			if (a.node1_idx > b.node1_idx) return false;
 
-			if (a[2] < b[2]) return true;
-			if (a[2] > b[2]) return false;
+			if (a.wire0_idx < b.wire0_idx) return true;
+			if (a.wire0_idx > b.wire0_idx) return false;
 
-			return (a[3] < b[0]);
+			return (a.wire1_idx < b.wire1_idx);
 		});
 
-		jthread_each(s_verts_shrunk, [&](uint64_t vert_idx, std::array<uint32_t, 4>& vert) {
-			auto node0_idx = vert[0];
-			auto node1_idx = vert[1];
-			auto wire0 = wires[vert[2]];
-			auto wire1 = wires[vert[3]];
+		jthread_each(s_verts_shrunk, [&](uint64_t vert_idx, pip_body& vert) {
+			auto wire0 = wires[vert.wire0_idx];
+			auto wire1 = wires[vert.wire1_idx];
 			auto tile0_idx = inverse_tiles[wire0.getTile()];
 			auto tile1_idx = inverse_tiles[wire1.getTile()];
 			if (tile0_idx != tile1_idx) abort();
 			auto tile0 = tiles[tile0_idx];
-			s_pip_tile_body[vert_idx] = std::array<uint32_t, 4>{tile0.getCol(), tile0.getRow(), node0_idx, node1_idx};
+			s_pip_tile_body[vert_idx] = std::array<uint32_t, 4>{tile0.getCol(), tile0.getRow(), vert.node0_idx, vert.node1_idx};
 		});
 
 		MemoryMappedFile mmf_pip_count_offset{ "pip_count_offset.bin", sizeof(std::array<uint32_t, 2>) * static_cast<size_t>(nodes.size()) };
 		auto s_pip_count_offset{ mmf_pip_count_offset.get_span<std::array<uint32_t, 2>>()};
 
 		jthread_each(nodes, [&](uint64_t node_idx, node_reader& node) {
-			std::array<uint32_t, 4> node_key{ static_cast<uint32_t>(node_idx) };
-			auto node_range{ std::span(std::ranges::equal_range(s_verts_shrunk, node_key, [](const std::array<uint32_t, 4> &a, const std::array<uint32_t, 4> &b)-> bool { return a[0] < b[0]; })) };
+			pip_body node_key{ .node0_idx{static_cast<uint32_t>(node_idx)} };
+			auto node_range{ std::span(std::ranges::equal_range(s_verts_shrunk, node_key, [](const pip_body &a, const pip_body &b)-> bool { return a.node0_idx < b.node0_idx; })) };
 			uint32_t offset{ static_cast<uint32_t>(node_range.data() - s_verts_shrunk.data()) };
 			uint32_t count{ static_cast<uint32_t>(node_range.size()) };
 			s_pip_count_offset[node_idx] = std::array<uint32_t, 2>{count, offset};

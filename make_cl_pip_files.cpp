@@ -47,6 +47,7 @@
 
 #include "Route_Phys.h"
 
+#if 0
 class inspect_pip_files {
 public:
 	static inline const MemoryMappedFile mmf_v_pip_count_offset{ "pip_count_offset.bin" };
@@ -70,6 +71,7 @@ public:
 		return;
 	}
 };
+#endif
 
 #include "Timer.h"
 #include "inverse_wires.h"
@@ -81,6 +83,6 @@ int main(int argc, char* argv[]) {
 	}
 
 	Route_Phys::make_cl_pip_files();
-	inspect_pip_files::inspect();
+	// inspect_pip_files::inspect();
 	return 0;
 }
