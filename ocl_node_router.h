@@ -124,7 +124,10 @@ public:
 
     std::expected<void, ocl::status> step_all(const uint32_t series_id) {
 
+#ifdef _DEBUG
         std::cout << std::format("ocl_counter_max: {}, step {} of {}, ", ocl_counter_max, series_id + 1, series_id_max);
+#endif
+
         each(queues, [&](uint64_t queue_index, ocl::queue& queue) {
             decltype(auto) cloned_kernel{ cloned_kernels[queue_index] };
             cloned_kernel.set_arg_t(0, series_id);
@@ -133,9 +136,14 @@ public:
         each(queues, [&](uint64_t queue_index, ocl::queue& queue) {
             queue.enqueueRead<uint32_t>(v_buf_dirty[queue_index], true, 0, v_host_dirty[queue_index]);
             queue.enqueueFillBuffer<uint32_t>(v_buf_dirty[queue_index], 0u);
+#ifdef _DEBUG
             std::cout << std::format(" {},{},{},{} ", v_host_dirty[queue_index][0], v_host_dirty[queue_index][1], v_host_dirty[queue_index][2], v_host_dirty[queue_index][3]);
+#endif
         });
+
+#ifdef _DEBUG
         std::cout << "\n";
+#endif
 
         return std::expected<void, ocl::status>();
     }
@@ -183,7 +191,7 @@ public:
         return v_T;
     }
 
-    void inspect() {
+    bool inspect(::capnp::MallocMessageBuilder &message) {
         auto physStrs{ phys.getStrList() };
 
         auto v_drawIndirect{ read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect) };
@@ -191,7 +199,6 @@ public:
         v_drawIndirect.resize(netCount);
         v_explored.resize(netCount);
 
-        ::capnp::MallocMessageBuilder message{ };
         PhysicalNetlist::PhysNetlist::Builder b_phys{ message.initRoot<PhysicalNetlist::PhysNetlist>() };
 
         b_phys.setPart(phys.getPart());
@@ -247,7 +254,10 @@ public:
             auto ei_full{ std::span(v_explored.at(di_index)) };
             auto ei{ ei_full.subspan(0, count) };
 
+#ifdef _DEBUG
             std::cout << std::format("{}\n", physStrs[net.getName()].cStr());
+#endif
+
 #if 0
             each(ei, [&](uint64_t ei_index, history_item& ein) {
                 decltype(auto) pip{ t_pip_body[ein.pip_idx] };
@@ -259,7 +269,7 @@ public:
             // current_branch.
             // { np.stub };
 
-            puts("reverse");
+            // puts("reverse");
             std::vector<uint32_t> ids;
             ids.reserve(ei.size());
 
@@ -272,14 +282,14 @@ public:
                     // std::cout << std::format("#{} pip:{} parent:{} nodes:{},{} wires:{}:{}\n", cur_history_index, ein.pip_idx, ein.parent_id, pip.node0_idx, pip.node1_idx, pip.wire0_idx, pip.wire1_idx);
                     cur_history_index = ein.parent_id;
                 }
-                std::cout << "\n";
+                // std::cout << "\n";
             }
 
             auto b_cur_branch{ src_builder_site_pins.at(t_pip_body[ei[ids.back()].pip_idx].node0_idx) };
             
             std::set<uint32_t> node_loop_detector;
 
-            puts("forward");
+            // puts("forward");
             for (auto ri{ ids.rbegin() }; ri != ids.rend(); ri++) {
                 auto b_cur_branches{ b_cur_branch.initBranches(1) };
                 auto b_cur_branch_branch{ b_cur_branches[0] };
@@ -318,17 +328,21 @@ public:
                 sub_pip.setForward(static_cast<bool>(pip.is_forward)); //fixme
                 sub_pip.setIsFixed(false);
 
+#ifdef _DEBUG
                 std::cout << std::format("#{} pip:{} parent:{} is_foreward:{} nodes:{},{} {}/{}->{}/{}\n",
                     *ri, ein.pip_idx, ein.parent_id, static_cast<bool>(pip.is_forward), static_cast<uint32_t>(pip.node0_idx), pip.node1_idx,
                     get_physStr(ps_tile0), get_physStr(ps_wire0),
                     get_physStr(ps_tile1), get_physStr(ps_wire1)
                 );
+#endif
                 b_cur_branch = b_cur_branch_branch;
             }
             auto b_cur_branch_branches{ b_cur_branch.initBranches(1) };
             b_cur_branch_branches.setWithCaveats(0, stub);
 
+#ifdef _DEBUG
             std::cout << "\n";
+#endif
 
             for (auto ri{ ids.rbegin() }; ri != ids.rend(); ri++) {
                 auto ein{ ei[*ri] };
@@ -393,7 +407,7 @@ public:
         b_phys.setProperties(phys.getProperties());
         b_phys.setNullNet(phys.getNullNet());
 
-        InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(message, Z_DEFAULT_COMPRESSION);
+        return true;
     }
 
     std::expected<void, ocl::status> gl_step(const uint32_t series_id) {
@@ -744,7 +758,7 @@ public:
         auto generic_workgroup_size{ ocl::device::get_info_integral<uint64_t>(device_ids.front(), CL_DEVICE_MAX_WORK_GROUP_SIZE).value_or(0) };
         auto amd_preferred_workgroup_size{ ocl::device::get_info_integral<uint64_t>(device_ids.front(), CL_DEVICE_PREFERRED_WORK_GROUP_SIZE_AMD) };
         auto mem_base_addr_align{ ocl::device::get_info_integral<uint64_t>(device_ids.front(), CL_DEVICE_MEM_BASE_ADDR_ALIGN).value_or(0) };
-        puts(std::format("mem_base_addr_align: {}", mem_base_addr_align).c_str());
+        // puts(std::format("mem_base_addr_align: {}", mem_base_addr_align).c_str());
         cl_uint max_workgroup_size{ static_cast<cl_uint>(amd_preferred_workgroup_size.value_or(generic_workgroup_size)) };
 
         auto queues{ context.create_queues().value() };
@@ -760,12 +774,14 @@ public:
             workgroup_offsets[wo] = workgroup_offsets[wo - 1] + workgroup_counts[wo - 1];
         }
 
+#ifdef _DEBUG
         each(queues, [&](uint64_t queue_index, ocl::queue& queue) {
             std::cout << std::format("workgroup_count: {}, workgroup_offset: {} of total_workgroup_count: {}\n",
             workgroup_counts[queue_index],
             workgroup_offsets[queue_index],
             total_workgroup_count);
         });
+#endif
 
         MemoryMappedFile source{ "../kernels/node_router.cl" };
         ocl::program program{ context.create_program(source.get_span<char>()).value() };

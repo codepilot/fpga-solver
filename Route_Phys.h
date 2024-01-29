@@ -386,7 +386,7 @@ public:
 		physBuilder.setProperties(physRoot.getProperties());
 		physBuilder.setNullNet(physRoot.getNullNet());
 
-		phys.write(message);
+		phys.write("dst_written.phy.gz", message);
 
 		puts("route finish");
 

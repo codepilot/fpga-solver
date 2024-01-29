@@ -61,7 +61,7 @@ public:
 		root{ famr.getRoot<T>() }
 	{ }
 
-	static void write(::capnp::MallocMessageBuilder &message, int level = Z_NO_COMPRESSION) {
+	static size_t write(std::string gz_name, ::capnp::MallocMessageBuilder &message, int level = Z_NO_COMPRESSION) {
 		size_t gzSize{};
 		size_t msgSize{};
 		auto fa{ messageToFlatArray(message) };
@@ -75,7 +75,7 @@ public:
 
 		deflateInit2(&strm, level, Z_DEFLATED, 16 | 15, 9, Z_DEFAULT_STRATEGY);
 
-		MemoryMappedFile dst_written{ "dst_written.phy.gz", deflateBound(&strm, static_cast<uLong>(msgSize)) };
+		MemoryMappedFile dst_written{ gz_name, deflateBound(&strm, static_cast<uLong>(msgSize)) };
 		strm.next_out = reinterpret_cast<Bytef*>(dst_written.fp);
 		strm.avail_out = static_cast<uInt>(dst_written.fsize);
 		deflate(&strm, Z_FINISH);
@@ -83,7 +83,7 @@ public:
 
 		gzSize = strm.total_out;
 		auto shrunk_written{ dst_written.shrink(gzSize) };
-
+		return gzSize;
 	}
 };
 
