@@ -566,7 +566,7 @@ public:
 		MemoryMappedFile mmf_pip_tile_body{ "pip_tile_body.bin", sizeof(std::array<uint32_t, 4>) * static_cast<size_t>(vert_idx.load()) };
 		auto s_pip_tile_body{ mmf_pip_tile_body.get_span<std::array<uint32_t, 4>>() };
 
-		std::sort(std::execution::par_unseq, s_verts_shrunk.begin(), s_verts_shrunk.end(), [](pip_body &a, pip_body &b) {
+		std::sort(std::execution::par_unseq, s_verts_shrunk.begin(), s_verts_shrunk.end(), [](const pip_body &a, const pip_body &b) {
 			if (a.node0_idx < b.node0_idx) return true;
 			if (a.node0_idx > b.node0_idx) return false;
 

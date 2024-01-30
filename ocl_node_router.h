@@ -635,7 +635,7 @@ public:
                 }
 
                 if (infos.size() > v_heads[stub_index].size()) {
-                    DebugBreak();
+                    abort();
                 }
 
                 std::span<std::array<uint32_t, 4>> s_infos{ std::span(infos).subspan(0, std::min(static_cast<uint64_t>(beam_width), infos.size()) ) };
