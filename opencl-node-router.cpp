@@ -52,7 +52,7 @@ bool route_file(std::string src_phys_file, std::string dst_phys_file) {
 	auto ocltr{ TimerVal(OCL_Node_Router::make(dev.root, phys.root, create_nondefault_gpus_context().value())) };
 #endif
 
-	TimerVal(ocltr.gpu_route()).value();
+	TimerVal(ocltr.route()).value();
 	::capnp::MallocMessageBuilder message;
 	auto success{ TimerVal(ocltr.inspect(message)) };
 	TimerVal(InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(dst_phys_file, message));

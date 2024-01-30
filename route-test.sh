@@ -1,14 +1,4 @@
+cmake -S . -B build
 cd build
-./opencl-node-router "_deps/benchmark-files-src/boom_med_pb_unrouted.phys" "_deps/benchmark-files-build/boom_med_pb.phys"
-./opencl-node-router "_deps/benchmark-files-src/boom_soc_unrouted.phys" "_deps/benchmark-files-build/boom_soc.phys"
-./opencl-node-router "_deps/benchmark-files-src/corescore_500_pb_unrouted.phys" "_deps/benchmark-files-build/corescore_500_pb.phys"
-./opencl-node-router "_deps/benchmark-files-src/corescore_500_unrouted.phys" "_deps/benchmark-files-build/corescore_500.phys"
-./opencl-node-router "_deps/benchmark-files-src/corundum_25g_unrouted.phys" "_deps/benchmark-files-build/corundum_25g.phys"
-./opencl-node-router "_deps/benchmark-files-src/finn_radioml_unrouted.phys" "_deps/benchmark-files-build/finn_radioml.phys"
-./opencl-node-router "_deps/benchmark-files-src/ispd16_example2_unrouted.phys" "_deps/benchmark-files-build/ispd16_example2.phys"
-./opencl-node-router "_deps/benchmark-files-src/koios_dla_like_large_unrouted.phys" "_deps/benchmark-files-build/koios_dla_like_large.phys"
-./opencl-node-router "_deps/benchmark-files-src/logicnets_jscl_unrouted.phys" "_deps/benchmark-files-build/logicnets_jscl.phys"
-./opencl-node-router "_deps/benchmark-files-src/mlcad_d181_lefttwo3rds_unrouted.phys" "_deps/benchmark-files-build/mlcad_d181_lefttwo3rds.phys"
-./opencl-node-router "_deps/benchmark-files-src/rosetta_fd_unrouted.phys" "_deps/benchmark-files-build/rosetta_fd.phys"
-./opencl-node-router "_deps/benchmark-files-src/vtr_lu64peeng_unrouted.phys" "_deps/benchmark-files-build/vtr_lu64peeng.phys"
-./opencl-node-router "_deps/benchmark-files-src/vtr_mcml_unrouted.phys" "_deps/benchmark-files-build/vtr_mcml.phys"
+cmake --build . --config Release -t route_benchmarks
+cd ..
