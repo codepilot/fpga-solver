@@ -41,8 +41,9 @@ std::expected<ocl::context, ocl::status> create_nondefault_gpus_context() {
 
 bool route_file(std::string src_phys_file, std::string dst_phys_file) {
 	std::cout << std::format("  Routing {}\n", src_phys_file);
+	std::cout << std::format("  Routed  {}\n", dst_phys_file);
 
-	auto dev{ TimerVal(DevFlat("_deps/device-file-src/xcvu3p.device")) };
+	auto dev{ TimerVal(DevFlat("_deps/device-file-build/xcvu3p.device")) };
 	auto phys{ TimerVal(PhysGZ(src_phys_file)) };
 
 
@@ -59,14 +60,17 @@ bool route_file(std::string src_phys_file, std::string dst_phys_file) {
 }
 
 int main(int argc, char* argv[]) {
+	puts("");
+
 	std::vector<std::string> args;
 	for (auto &&arg: std::span<char*>(argv, static_cast<size_t>(argc))) args.emplace_back(arg);
 
-	auto src_phys_file{ (args.size() >= 2) ? args.at(1) : "_deps/benchmark-files-src/boom_med_pb_unrouted.phys" };
-	auto dst_phys_file{ (args.size() >= 3) ? args.at(2) : "dst_written.phy.gz" };
+	auto src_phys_file{ (args.size() >= 2) ? args.at(1) : "_deps/benchmark-files-src/vtr_mcml_unrouted.phys" };
+	auto dst_phys_file{ (args.size() >= 3) ? args.at(2) : "_deps/benchmark-files-build/vtr_mcml.phys" };
 	
-
 	TimerVal(route_file(src_phys_file, dst_phys_file));
+
+	puts("");
 
 	return 0;
 }

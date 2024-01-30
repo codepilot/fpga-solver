@@ -1,0 +1,67 @@
+
+  Routing D:/fpga-solver/build/_deps/benchmark-files-src/koios_dla_like_large_unrouted.phys
+  Routed  D:/fpga-solver/build/_deps/benchmark-files-build/koios_dla_like_large.phys
+  0.155919s  @ D:\fpga-solver\opencl-node-router.cpp:46 DevFlat("_deps/device-file-build/xcvu3p.device")
+  4.22968s   @ D:\fpga-solver\opencl-node-router.cpp:47 PhysGZ(src_phys_file)
+    1.26103s   @ D:\fpga-solver\ocl_node_router.h:808 program.build(options)
+    0.0399427s @ D:\fpga-solver\ocl_node_router.h:829 make_site_locations(dev)
+    0.0830428s @ D:\fpga-solver\ocl_node_router.h:830 make_devStrs_map(dev)
+    1.08658s   @ D:\fpga-solver\ocl_node_router.h:832 make_string_interchange(devStrs_map, devStrs, physStrs)
+    1.34688s   @ D:\fpga-solver\ocl_node_router.h:836 make_wire_idx_to_node_idx(dev.getWires(), dev.getNodes())
+    3.25322s   @ D:\fpga-solver\ocl_node_router.h:838 make_site_pin_to_node(dev.getTileList(), dev.getTileTypeList(), dev.getSiteTypeList(), wire_idx_to_node_idx)
+    1.32522s   @ D:\fpga-solver\ocl_node_router.h:846 make_vecs(netCount, netCountAligned, ocl_counter_max, nets, site_pin_to_node, physStrs, site_locations, physStrs_to_devStrs)
+  17.5081s   @ D:\fpga-solver\opencl-node-router.cpp:52 OCL_Node_Router::make(dev.root, phys.root, create_nondefault_gpus_context().value())
+  0.877289s  @ D:\fpga-solver\opencl-node-router.cpp:55 ocltr.gpu_route()
+  2.43212s   @ D:\fpga-solver\opencl-node-router.cpp:57 ocltr.inspect(message)
+  2.51564s   @ D:\fpga-solver\opencl-node-router.cpp:58 InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(dst_phys_file, message)
+28.7048s   @ D:\fpga-solver\opencl-node-router.cpp:71 route_file(src_phys_file, dst_phys_file)
+
+==============================================================================
+==                             Read LogNetlist                              ==
+==============================================================================
+               Read File:     0.656s
+            Read Strings:     0.097s
+              Read Ports:     0.105s
+          Read CellDecls:     0.071s
+              Read Insts:     0.330s
+              Read Cells:     3.140s
+            Populate Top:     0.000s
+         Order Libraries:     0.082s
+           Expand Macros:     0.326s
+------------------------------------------------------------------------------
+         [No GC] *Total*:     4.808s
+==============================================================================
+==                             Read PhysNetlist                             ==
+==============================================================================
+               Read File:     6.270s
+            Read Strings:     0.407s
+Check Constant Routing & Net Naming:    15.311s
+          Read SiteInsts:     0.044s
+          Read Placement:     2.507s
+            Check Macros:     0.135s
+            Read Routing:    10.082s
+       Read Design Props:     0.001s
+------------------------------------------------------------------------------
+         [No GC] *Total*:    34.759s
+==============================================================================
+==                         Interchange Format->DCP                          ==
+==============================================================================
+    Read Logical Netlist:     4.820s
+   Read Physical Netlist:    34.764s
+               Write DCP:     4.920s
+------------------------------------------------------------------------------
+         [No GC] *Total*:    44.504s
+Design Route Status
+                                               :      # nets :
+   ------------------------------------------- : ----------- :
+   # of logical nets.......................... :     2486091 :
+       # of nets not needing routing.......... :     1977495 :
+           # of internally routed nets........ :     1707613 :
+           # of nets with no loads............ :      269016 :
+           # of implicitly routed ports....... :         866 :
+       # of routable nets..................... :      508596 :
+           # of unrouted nets................. :      399826 :
+           # of fully routed nets............. :      108770 :
+       # of nets with routing errors.......... :           0 :
+   ------------------------------------------- : ----------- :
+

@@ -50,7 +50,7 @@ class Route_Phys {
 public:
 
 	Counter fully_routed, skip_route, failed_route, total_attempts;
-	DevFlat dev{ "_deps/device-file-src/xcvu3p.device" };
+	DevFlat dev{ "_deps/device-file-build/xcvu3p.device" };
 	PhysGZ phys{ "_deps/benchmark-files-src/boom_med_pb_unrouted.phys" };
 //	PhysGZ phys{ "_deps/benchmark-files-src/boom_soc_unrouted.phys" };
 //  PhysGZ phys{ "_deps/benchmark-files-src/corescore_500_pb_unrouted.phys" };
@@ -435,7 +435,7 @@ public:
 			if (mmf_v_pip_count_offset.fsize && mmf_v_pip_tile_body.fsize && mmf_v_pip_body.fsize) return;
 		}
 
-		DevFlat dev{ "_deps/device-file-src/xcvu3p.device" };
+		DevFlat dev{ "_deps/device-file-build/xcvu3p.device" };
 		auto devRoot{ dev.root };
 		auto tiles{ devRoot.getTileList() };
 		auto nodes{ devRoot.getNodes() };
@@ -602,7 +602,7 @@ public:
 	}
 
 	static void make_cl_files() {
-		DevFlat dev{ "_deps/device-file-src/xcvu3p.device" };
+		DevFlat dev{ "_deps/device-file-build/xcvu3p.device" };
 		auto devRoot{ dev.root };
 		auto tiles{ devRoot.getTileList() };
 		auto nodes{ devRoot.getNodes() };
@@ -776,8 +776,8 @@ public:
 		puts(std::format("v_tt_body: {}", v_tt_body.size()).c_str());
 	}
 
-	static void make_search_files() {
-		auto dev{ TimerVal(DevGZ( "_deps/device-file-src/xcvu3p.device", false )) };
+	static void make_search_files(std::string src_dev_file, std::string dst_dev_file) {
+		auto dev{ TimerVal(DevGZ( src_dev_file, dst_dev_file )) };
 		decltype(dev.root) devRoot{ dev.root };
 
 		{

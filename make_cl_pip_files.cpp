@@ -78,7 +78,7 @@ public:
 
 int main(int argc, char* argv[]) {
 	{
-		DevFlat dev{ "_deps/device-file-src/xcvu3p.device" };
+		DevFlat dev{ "_deps/device-file-build/xcvu3p.device" };
 		const auto v_inverse_wires{ TimerVal(Inverse_Wires::make(dev.root.getWires())) };
 	}
 

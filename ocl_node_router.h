@@ -14,10 +14,10 @@
 
 class OCL_Node_Router {
 public:
-    static inline constexpr uint32_t beam_width{ 128ul };
+    static inline constexpr uint32_t beam_width{ 32ul };
     static inline constexpr uint32_t max_tile_count{ 5884ul };
     static inline constexpr uint32_t tt_body_count{ 4293068ul };
-    static inline constexpr size_t largest_ocl_counter_max{ 1024ull };
+    static inline constexpr size_t largest_ocl_counter_max{ 32ull };
     static inline constexpr uint32_t series_id_max{ 1ul };
 
     using beam_t = std::array<std::array<uint32_t, 4>, beam_width>;
@@ -220,6 +220,7 @@ public:
             if (baseInstance != 1) return;
             decltype(auto) np{ net_pairs[di_index] };
             auto net = np.net;
+            if (net.getType() != ::PhysicalNetlist::PhysNetlist::NetType::SIGNAL) return;
             if (net.getStubs().size() != 1) return;
             if (net.getSources().size() != 1) return;
 
@@ -464,7 +465,7 @@ public:
     static uint32_t count_stubs(net_list_reader nets) {
         std::atomic<uint32_t> ret{};
         jthread_each(nets, [&](uint64_t net_index, net_reader &net) {
-            if (net.getSources().size() == 1) {
+            if (net.getType() == ::PhysicalNetlist::PhysNetlist::NetType::SIGNAL && net.getSources().size() == 1) {
                 ret += net.getStubs().size();
             }
         });
@@ -583,6 +584,7 @@ public:
         auto v_drawIndirect{ std::vector<std::array<uint32_t, 4>>(static_cast<size_t>(netCountAligned), fill_draw_commands) };
 
         jthread_each(nets, [&](uint64_t net_index, net_reader& net) {
+            if (net.getType() != ::PhysicalNetlist::PhysNetlist::NetType::SIGNAL) return;
             auto stubs{ net.getStubs() };
             if (!stubs.size()) return;
             auto sources{ net.getSources() };

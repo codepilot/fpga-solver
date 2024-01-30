@@ -48,11 +48,18 @@
 #include "Route_Phys.h"
 
 int main(int argc, char* argv[]) {
+	std::vector<std::string> args;
+	for (auto &&arg: std::span<char*>(argv, static_cast<size_t>(argc))) args.emplace_back(arg);
+
+	auto src_dev_file{ (args.size() >= 2) ? args.at(1) : "_deps/device-file-src/xcvu3p.device" };
+	auto dst_dev_file{ (args.size() >= 3) ? args.at(2) : "_deps/device-file-build/xcvu3p.device" };
+
 	{
-		MemoryMappedFile mmf_dev{ "_deps/device-file-src/xcvu3p.device.temp" };
+		MemoryMappedFile mmf_dev{ dst_dev_file };
 		if (mmf_dev.fsize) return 0;
 	}
-	Route_Phys::make_search_files();
+
+	Route_Phys::make_search_files(src_dev_file, dst_dev_file);
 
 	return 0;
 }

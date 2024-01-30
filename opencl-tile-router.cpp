@@ -14,7 +14,7 @@ int main(int argc, char* argv[]) {
 
 	std::cout << std::format("Routing {}\n", phys_file);
 
-	auto dev{ TimerVal(DevFlat("_deps/device-file-src/xcvu3p.device" )) };
+	auto dev{ TimerVal(DevFlat("_deps/device-file-build/xcvu3p.device" )) };
 	auto phys{ TimerVal(PhysGZ(phys_file)) };
 
 	std::vector<cl_context_properties> context_properties;
