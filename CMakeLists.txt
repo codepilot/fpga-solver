@@ -74,7 +74,7 @@ include(prepare-benchmark.cmake)
 include(interchange-files.cmake)
 
 include(route_benchmarks.cmake)
-if(FALSE)
+if(MSVC)
   include(dcp_benchmarks.cmake)
   include(route_status_benchmarks.cmake)
 endif()

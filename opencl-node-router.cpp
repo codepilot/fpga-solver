@@ -20,7 +20,10 @@ std::expected<ocl::context, ocl::status> create_nondefault_gpus_context() {
 		auto maybe_all_gpus{ platform.get_devices<CL_DEVICE_TYPE_GPU>() };
 		if (!maybe_all_gpus.has_value()) continue;
 		std::vector<ocl::device> all_gpus{ maybe_all_gpus.value() };
-		std::ranges::copy_if(all_gpus, std::back_inserter(non_default_gpus), [&](ocl::device dev)->bool { return dev.device != default_device.device; });
+
+#ifdef _WIN32
+		std::ranges::copy_if(all_gpus, std::back_inserter(non_default_gpus), [&](ocl::device dev)->bool {return dev.device != default_device.device; });
+#endif
 
 #ifdef _DEBUG
 		for (auto&& dev : all_gpus) {
@@ -36,7 +39,7 @@ std::expected<ocl::context, ocl::status> create_nondefault_gpus_context() {
 		auto device_ids{ ocl::device::get_device_ids(non_default_gpus.empty() ? all_gpus : non_default_gpus) };
 		return ocl::context::create(context_properties, device_ids);
 	};
-	return ocl::context::create<CL_DEVICE_TYPE_GPU>();
+	return ocl::context::create<CL_DEVICE_TYPE_CPU>();
 }
 
 bool route_file(std::string src_phys_file, std::string dst_phys_file) {
