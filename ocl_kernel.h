@@ -1,17 +1,15 @@
 #pragma once
 
 namespace ocl {
-class kernel {
+class kernel : public ocl_handle::shared_handle<cl_kernel> {
 public:
-	cl_kernel kernel;
-
     always_inline std::expected<ocl::kernel, status> clone() const {
         cl_int errcode_ret{};
-        cl_kernel cloned_kernel{ clCloneKernel(kernel, &errcode_ret) };
+        cl_kernel cloned_kernel{ clCloneKernel(m_ptr, &errcode_ret) };
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
         }
-        return std::expected<ocl::kernel, status>(ocl::kernel{ .kernel{cloned_kernel} });
+        return std::expected<ocl::kernel, status>(ocl::kernel{ cloned_kernel });
     }
 
     always_inline std::expected<std::vector<ocl::kernel>, status> clone(size_t count) const {
@@ -20,7 +18,7 @@ public:
         for (size_t i{}; i < count; i++) {
             auto cloned_kernel{ clone() };
             if (!cloned_kernel.has_value()) return std::unexpected<status>(cloned_kernel.error());
-            ret.emplace_back(cloned_kernel.value());
+            ret.emplace_back(std::move(cloned_kernel.value()));
         }
         return ret;
     }
@@ -31,7 +29,7 @@ public:
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
         }
-        return std::expected<ocl::kernel, status>(ocl::kernel{ .kernel{kernel} });
+        return std::expected<ocl::kernel, status>(ocl::kernel{ kernel });
     }
     always_inline static std::expected<cl_uint, status> create_count(cl_program program) noexcept {
         cl_uint num_kernels_ret{};
@@ -68,7 +66,7 @@ public:
         return std::expected<size_t, status>(param_value_size_ret);
     }
     always_inline std::expected<size_t, status> get_info_size(cl_kernel_info param_name) const noexcept {
-        return get_info_size(kernel, param_name);
+        return get_info_size(m_ptr, param_name);
     }
 
     template<typename cl_integral>
@@ -85,7 +83,7 @@ public:
 
     template<typename cl_integral>
     always_inline std::expected<cl_integral, status> get_info_integral(cl_kernel_info param_name) const noexcept {
-        return get_info_integral<cl_integral>(kernel, param_name);
+        return get_info_integral<cl_integral>(m_ptr, param_name);
     }
 
     always_inline static std::expected<std::string, status> get_info_string(cl_kernel kernel, cl_kernel_info param_name) noexcept {
@@ -100,7 +98,7 @@ public:
     }
 
     always_inline std::expected<std::string, status> get_info_string(cl_kernel_info param_name) const noexcept {
-        return get_info_string(kernel, param_name);
+        return get_info_string(m_ptr, param_name);
     }
 
     std::expected<cl_uint, status> get_reference_count() {
@@ -115,7 +113,7 @@ public:
         return std::expected<size_t, status>(param_value_size_ret);
     }
     always_inline std::expected<size_t, status> get_arg_info_size(cl_uint arg_index, cl_kernel_info param_name) const noexcept {
-        return get_arg_info_size(kernel, arg_index, param_name);
+        return get_arg_info_size(m_ptr, arg_index, param_name);
     }
 
     template<typename cl_integral>
@@ -147,12 +145,12 @@ public:
     }
 
     always_inline std::expected<std::string, status> get_arg_info_string(cl_uint arg_index, cl_kernel_info param_name) const noexcept {
-        return get_arg_info_string(kernel, arg_index, param_name);
+        return get_arg_info_string(m_ptr, arg_index, param_name);
     }
 
     always_inline std::expected<void, status> set_arg_t(cl_uint arg_index, auto arg) noexcept {
         cl_int errcode_ret{ clSetKernelArg(
-            kernel,
+            m_ptr,
             arg_index,
             sizeof(arg),
             &arg) };
@@ -163,12 +161,12 @@ public:
         return std::expected<void, status>();
     }
 
-    always_inline std::expected<void, status> set_arg(cl_uint arg_index, ocl::buffer buf) noexcept {
+    always_inline std::expected<void, status> set_arg(cl_uint arg_index, ocl::buffer &buf) noexcept {
         cl_int errcode_ret{ clSetKernelArg(
-            kernel,
+            m_ptr,
             arg_index,
             sizeof(cl_mem),
-            &buf.mem) };
+            &buf.m_ptr) };
 
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
@@ -179,7 +177,7 @@ public:
     template<typename T>
     always_inline std::expected<void, status> set_arg(cl_uint arg_index, ocl::svm<T> svm) noexcept {
         cl_int errcode_ret{ clSetKernelArgSVMPointer(
-            kernel,
+            m_ptr,
             arg_index,
             svm.data()) };
 
@@ -201,7 +199,7 @@ public:
         return std::expected<size_t, status>(param_value_size_ret);
     }
     always_inline std::expected<size_t, status> get_work_group_info_size(cl_kernel_work_group_info param_name, cl_device_id device) const noexcept {
-        return get_work_group_info_size(kernel, device, param_name);
+        return get_work_group_info_size(m_ptr, device, param_name);
     }
 
     template<typename cl_integral>

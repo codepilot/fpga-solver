@@ -124,7 +124,7 @@ public:
             status sts1{ clGetDeviceIDs(platform, device_type, static_cast<cl_uint>(ret.size()), reinterpret_cast<cl_device_id*>(ret.data()), nullptr) };
             if (sts1 != status::SUCCESS) return std::unexpected(sts1);
 
-            return std::expected<std::vector<ocl::device>, status>(ret);
+            return std::expected<std::vector<ocl::device>, status>(std::move(ret));
         });
     }
 

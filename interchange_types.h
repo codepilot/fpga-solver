@@ -36,3 +36,5 @@ using wire_list_reader = ::capnp::List< ::DeviceResources::Device::Wire, ::capnp
 using node_list_reader = ::capnp::List< ::DeviceResources::Device::Node, ::capnp::Kind::STRUCT>::Reader;
 using net_list_reader = ::capnp::List< ::PhysicalNetlist::PhysNetlist::PhysNet, ::capnp::Kind::STRUCT>::Reader;
 using phys_site_pin_reader = ::PhysicalNetlist::PhysNetlist::PhysSitePin::Reader;
+using string_list_reader = ::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader;
+using device_reader = ::DeviceResources::Device::Reader;

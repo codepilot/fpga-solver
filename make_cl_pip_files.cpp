@@ -79,7 +79,7 @@ public:
 int main(int argc, char* argv[]) {
 	{
 		DevFlat dev{ "_deps/device-file-build/xcvu3p.device" };
-		const auto v_inverse_wires{ TimerVal(Inverse_Wires::make(dev.root.getWires())) };
+		const auto v_inverse_wires{ TimerVal(Inverse_Wires::make(dev.root.getWires(), dev.root.getStrList(), dev.root.getTileList(), dev.root.getTileTypeList())) };
 	}
 
 	Route_Phys::make_cl_pip_files();

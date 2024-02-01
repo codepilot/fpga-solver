@@ -19,7 +19,7 @@ foreach(NETLIST_FILE ${NETLIST_FILES})
 
   file(WRITE "${TCL_FILE}" "report_route_status -append -file ${LOG_FILE}\nexit\n")
   SET(CMD_FILE_CONTENTS "vivado.bat -mode batch -source \"${TCL_FILE}\" \"${DCP_FILE}\"")
-  file(WRITE "${CMD_FILE}" CMD_FILE_CONTENTS)
+  file(WRITE "${CMD_FILE}" "${CMD_FILE_CONTENTS}")
   file(APPEND "${ALL_ROUTE_STATUS}" "start \"route_status ${BENCHMARK_FILE_NAME}\" /MIN /LOW ${CMD_FILE_CONTENTS}\n")
   add_custom_command(TARGET route_status_benchmarks POST_BUILD COMMAND vivado.bat -mode batch -source "${TCL_FILE}" "${DCP_FILE}")
 endforeach(NETLIST_FILE)

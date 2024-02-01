@@ -52,6 +52,7 @@ include(search_files.cmake)
 
 include(make_cl_files.cmake)
 include(make_cl_pip_files.cmake)
+include(make_site_pin_to_node.cmake)
 include(cl_files.cmake)
 include(cl_pip_files.cmake)
 include(route_phys.cmake)

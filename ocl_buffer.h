@@ -1,15 +1,13 @@
 #pragma once
 
 namespace ocl {
-class buffer {
+class buffer : public ocl_handle::shared_handle<cl_mem> {
 public:
-	cl_mem mem;
-
     always_inline static std::span<cl_mem> get_buffer_mems(std::span<ocl::buffer> buffers) {
-        return std::span<cl_mem>(&buffers[0].mem, buffers.size());
+        return std::span<cl_mem>(&buffers[0].m_ptr, buffers.size());
     }
 
-    always_inline static std::expected<size_t, status> size_bytes(ocl::buffer buffer) {
+    always_inline static std::expected<size_t, status> size_bytes(ocl::buffer &buffer) {
         return buffer.get_info_integral<size_t>(CL_MEM_SIZE);
     }
 
@@ -34,14 +32,14 @@ public:
 #ifdef _DEBUG
         puts(std::format("clCreateBuffer size:{} MiB", std::scalbln(static_cast<double>(region.size), -20)).c_str());
 #endif
-        auto mem{ clCreateSubBuffer(buf.mem, flags, CL_BUFFER_CREATE_TYPE_REGION, &region, &errcode_ret) };
+        auto _ptr{ clCreateSubBuffer(buf.m_ptr, flags, CL_BUFFER_CREATE_TYPE_REGION, &region, &errcode_ret) };
 #ifdef _DEBUG
         puts(std::format("clCreateBuffer status:{}", errcode_ret).c_str());
 #endif
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
         }
-        return std::expected<ocl::buffer, status>(ocl::buffer{ .mem{mem} });
+        return std::expected<ocl::buffer, status>(ocl::buffer{ _ptr });
     }
 
     always_inline std::expected<ocl::buffer, status> sub_region(cl_mem_flags flags, cl_buffer_region region) {
@@ -61,14 +59,14 @@ public:
 #ifdef _DEBUG
         puts(std::format("clCreateBuffer size:{} MiB", std::scalbln(static_cast<double>(size), -20)).c_str());
 #endif
-        cl_mem mem{ clCreateBuffer(context, flags, size, host_ptr, &errcode_ret) };
+        cl_mem _ptr{ clCreateBuffer(context, flags, size, host_ptr, &errcode_ret) };
 #ifdef _DEBUG
         puts(std::format("clCreateBuffer status:{}", errcode_ret).c_str());
 #endif
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
         }
-        return std::expected<ocl::buffer, status>(ocl::buffer{ .mem{mem} });
+        return std::expected<ocl::buffer, status>(ocl::buffer{ _ptr });
     }
 
     always_inline static std::expected<size_t, status> get_info_size(cl_mem mem, cl_mem_info param_name) noexcept {
@@ -78,7 +76,7 @@ public:
         return std::expected<size_t, status>(param_value_size_ret);
     }
     always_inline std::expected<size_t, status> get_info_size(cl_mem_info param_name) const noexcept {
-        return get_info_size(mem, param_name);
+        return get_info_size(m_ptr, param_name);
     }
 
     template<typename cl_integral>
@@ -95,7 +93,7 @@ public:
 
     template<typename cl_integral>
     always_inline std::expected<cl_integral, status> get_info_integral(cl_mem_info param_name) const noexcept {
-        return get_info_integral<cl_integral>(mem, param_name);
+        return get_info_integral<cl_integral>(m_ptr, param_name);
     }
 
     std::expected<cl_uint, status> get_reference_count() {

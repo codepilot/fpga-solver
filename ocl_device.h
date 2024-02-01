@@ -1,12 +1,10 @@
 #pragma once
 
 namespace ocl {
-class device {
+class device : public ocl_handle::shared_handle<cl_device_id> {
 public:
-	cl_device_id device;
-
     always_inline static std::span<cl_device_id> get_device_ids(std::span<ocl::device> devices) {
-        return std::span<cl_device_id>(&devices[0].device, devices.size());
+        return std::span<cl_device_id>(&devices[0].m_ptr, devices.size());
     }
 
     always_inline static std::expected<size_t, status> get_info_size(cl_device_id device, cl_device_info param_name) noexcept {
@@ -18,7 +16,7 @@ public:
         return std::expected<size_t, status>(param_value_size_ret);
     }
     always_inline std::expected<size_t, status> get_info_size(cl_device_info param_name) const noexcept {
-        return get_info_size(device, param_name);
+        return get_info_size(m_ptr, param_name);
     }
 
     always_inline static std::expected<std::string, status> get_info_string(cl_device_id device, cl_device_info param_name) noexcept {
@@ -32,7 +30,7 @@ public:
         });
     }
     always_inline std::expected<std::string, status> get_info_string(cl_device_info param_name) const noexcept {
-        return get_info_string(device, param_name);
+        return get_info_string(m_ptr, param_name);
     }
 
     template<typename cl_integral>
@@ -49,40 +47,40 @@ public:
 
     template<typename cl_integral>
     always_inline std::expected<cl_integral, status> get_info_integral(cl_device_info param_name) const noexcept {
-        return get_info_integral<cl_integral>(device, param_name);
+        return get_info_integral<cl_integral>(m_ptr, param_name);
     }
 
     always_inline static std::expected<std::string, status> get_profile(cl_device_id device) noexcept { return get_info_string(device, CL_DEVICE_PROFILE); }
-    always_inline std::expected<std::string, status> get_profile() const noexcept { return get_profile(device); }
+    always_inline std::expected<std::string, status> get_profile() const noexcept { return get_profile(m_ptr); }
 
     always_inline static std::expected<std::string, status> get_version(cl_device_id device) noexcept { return get_info_string(device, CL_DEVICE_VERSION); }
-    always_inline std::expected<std::string, status> get_version() const noexcept { return get_version(device); }
+    always_inline std::expected<std::string, status> get_version() const noexcept { return get_version(m_ptr); }
 
     always_inline static std::expected<std::string, status> get_name(cl_device_id device) noexcept { return get_info_string(device, CL_DEVICE_NAME); }
-    always_inline std::expected<std::string, status> get_name() const noexcept { return get_name(device); }
+    always_inline std::expected<std::string, status> get_name() const noexcept { return get_name(m_ptr); }
 
     always_inline static std::expected<std::string, status> get_vendor(cl_device_id device) noexcept { return get_info_string(device, CL_DEVICE_VENDOR); }
-    always_inline std::expected<std::string, status> get_vendor() const noexcept { return get_vendor(device); }
+    always_inline std::expected<std::string, status> get_vendor() const noexcept { return get_vendor(m_ptr); }
 
     always_inline static std::expected<std::set<std::string>, status> get_extensions(cl_device_id device) noexcept {
         return get_info_string(device, CL_DEVICE_EXTENSIONS).and_then([](std::string ext) -> std::expected<std::set<std::string>, status> { return std::expected<std::set<std::string>, status>(ocl::split(ext)); });
     }
-    always_inline std::expected<std::set<std::string>, status> get_extensions() const noexcept { return get_extensions(device); }
+    always_inline std::expected<std::set<std::string>, status> get_extensions() const noexcept { return get_extensions(m_ptr); }
 
     always_inline static std::expected<std::string, status> get_il_version(cl_device_id device) noexcept { return get_info_string(device, CL_DEVICE_IL_VERSION); }
-    always_inline std::expected<std::string, status> get_il_version() const noexcept { return get_il_version(device); }
+    always_inline std::expected<std::string, status> get_il_version() const noexcept { return get_il_version(m_ptr); }
 
     always_inline static std::expected<std::string, status> get_built_in_kernels(cl_device_id device) noexcept { return get_info_string(device, CL_DEVICE_BUILT_IN_KERNELS); }
-    always_inline std::expected<std::string, status> get_built_in_kernels() const noexcept { return get_built_in_kernels(device); }
+    always_inline std::expected<std::string, status> get_built_in_kernels() const noexcept { return get_built_in_kernels(m_ptr); }
 
     always_inline static std::expected<std::string, status> get_opencl_c_version(cl_device_id device) noexcept { return get_info_string(device, CL_DEVICE_OPENCL_C_VERSION); }
-    always_inline std::expected<std::string, status> get_opencl_c_version() const noexcept { return get_opencl_c_version(device); }
+    always_inline std::expected<std::string, status> get_opencl_c_version() const noexcept { return get_opencl_c_version(m_ptr); }
 
     always_inline static std::expected<std::string, status> get_latest_conformancce_version_passed(cl_device_id device) noexcept { return get_info_string(device, CL_DEVICE_LATEST_CONFORMANCE_VERSION_PASSED); }
-    always_inline std::expected<std::string, status> get_latest_conformancce_version_passed() const noexcept { return get_latest_conformancce_version_passed(device); }
+    always_inline std::expected<std::string, status> get_latest_conformancce_version_passed() const noexcept { return get_latest_conformancce_version_passed(m_ptr); }
 
     always_inline static std::expected<std::string, status> get_driver_version(cl_device_id device) noexcept { return get_info_string(device, CL_DRIVER_VERSION); }
-    always_inline std::expected<std::string, status> get_driver_version() const noexcept { return get_driver_version(device); }
+    always_inline std::expected<std::string, status> get_driver_version() const noexcept { return get_driver_version(m_ptr); }
 
     always_inline static void log_info(cl_device_id device) {
         std::string na{"N/A"};
@@ -213,17 +211,17 @@ public:
     }
 
     always_inline std::expected<bool, status> supports_svm_fine_grain_buffer() {
-        return get_info_integral<cl_device_svm_capabilities>(device, CL_DEVICE_SVM_CAPABILITIES).and_then([](cl_device_svm_capabilities svm_caps)-> std::expected<bool, status> {
+        return get_info_integral<cl_device_svm_capabilities>(m_ptr, CL_DEVICE_SVM_CAPABILITIES).and_then([](cl_device_svm_capabilities svm_caps)-> std::expected<bool, status> {
             return std::expected<bool, status>(svm_caps & CL_DEVICE_SVM_FINE_GRAIN_BUFFER);
         });
     }
 
     always_inline void log_info() {
-        log_info(device);
+        log_info(m_ptr);
     }
 
     always_inline auto create_context() {
-        std::vector<cl_device_id> devices{ device };
+        std::vector<cl_device_id> devices{ m_ptr };
         return context::create(devices);
     }
 

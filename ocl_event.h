@@ -1,9 +1,8 @@
 #pragma once
 
 namespace ocl {
-class event {
+class event : public ocl_handle::shared_handle<cl_event> {
 public:
-	cl_event event;
     always_inline static std::expected<size_t, status> get_info_size(cl_event event, cl_event_info param_name) noexcept {
         size_t param_value_size_ret{};
         status sts0{ clGetEventInfo(event, param_name, 0, nullptr, &param_value_size_ret) };
@@ -11,7 +10,7 @@ public:
         return std::expected<size_t, status>(param_value_size_ret);
     }
     always_inline std::expected<size_t, status> get_info_size(cl_event_info param_name) const noexcept {
-        return get_info_size(event, param_name);
+        return get_info_size(m_ptr, param_name);
     }
 
     template<typename cl_integral>
@@ -28,7 +27,7 @@ public:
 
     template<typename cl_integral>
     always_inline std::expected<cl_integral, status> get_info_integral(cl_event_info param_name) const noexcept {
-        return get_info_integral<cl_integral>(event, param_name);
+        return get_info_integral<cl_integral>(m_ptr, param_name);
     }
 
     std::expected<cl_uint, status> get_reference_count() {
@@ -36,7 +35,7 @@ public:
     }
 
     std::expected<void, status> wait() {
-        status sts{clWaitForEvents(1, &event)};
+        status sts{clWaitForEvents(1, &m_ptr)};
         if (sts != status::SUCCESS) return std::unexpected(sts);
         return std::expected<void, status>();
     }

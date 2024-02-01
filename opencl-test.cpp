@@ -5,7 +5,7 @@ void test_opencl() {
     puts("test_opencl()");
     ocl::platform::each([](uint64_t platform_idx, ocl::platform &platform) {
         platform.log_info();
-        platform.each_device<CL_DEVICE_TYPE_GPU>([](uint64_t device_idx, ocl::device &device) {
+        platform.each_device<CL_DEVICE_TYPE_ALL>([](uint64_t device_idx, ocl::device &device) {
             device.log_info();
             auto max_workgroup_size{ device.get_info_integral<size_t>(CL_DEVICE_MAX_WORK_GROUP_SIZE).value() };
             auto context{ device.create_context().value() };

@@ -167,6 +167,8 @@ class event;
 template<typename T> class svm;
 };
 
+#include "ocl_handle.h"
+
 #include "ocl_platform.h"
 #include "ocl_svm.h"
 #include "ocl_event.h"

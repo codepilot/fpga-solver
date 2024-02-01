@@ -209,7 +209,7 @@ public:
   inline MemoryMappedFile() : file_name{ "<EMPTY>" } {
   }
 
-  inline MemoryMappedFile(MemoryMappedFile&& other) :
+  inline MemoryMappedFile(MemoryMappedFile&& other) noexcept :
       file_name{ std::move(other.file_name) },
       fh{ other.fh },
       sparse{ other.sparse },

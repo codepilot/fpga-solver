@@ -3,10 +3,8 @@
 #include <span>
 
 namespace ocl {
-class program {
+class program : public ocl_handle::shared_handle<cl_program> {
 public:
-	cl_program program;
-
     always_inline static std::expected<ocl::program, status> create(cl_context context, std::span<char> source) noexcept {
         cl_int errcode_ret{};
         const char* strings{ source.data() };
@@ -16,7 +14,7 @@ public:
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
         }
-        return std::expected<ocl::program, status>(ocl::program{ .program{program} });
+        return std::expected<ocl::program, status>(ocl::program{ program });
     }
 
     always_inline static std::expected<ocl::program, status> create(cl_context context, std::string_view source) noexcept {
@@ -28,7 +26,7 @@ public:
         if (errcode_ret) {
             return std::unexpected<status>(status{ errcode_ret });
         }
-        return std::expected<ocl::program, status>(ocl::program{ .program{program} });
+        return std::expected<ocl::program, status>(ocl::program{ program });
     }
 
     always_inline static std::expected<size_t, status> get_info_size(cl_program program, cl_program_info param_name) noexcept {
@@ -38,7 +36,7 @@ public:
         return std::expected<size_t, status>(param_value_size_ret);
     }
     always_inline std::expected<size_t, status> get_info_size(cl_program_info param_name) const noexcept {
-        return get_info_size(program, param_name);
+        return get_info_size(m_ptr, param_name);
     }
 
     always_inline static std::expected<std::string, status> get_info_string(cl_program program, cl_program_info param_name) noexcept {
@@ -52,7 +50,7 @@ public:
         });
     }
     always_inline std::expected<std::string, status> get_info_string(cl_program_info param_name) const noexcept {
-        return get_info_string(program, param_name);
+        return get_info_string(m_ptr, param_name);
     }
 
     template<typename cl_integral>
@@ -69,7 +67,7 @@ public:
 
     template<typename cl_integral>
     always_inline std::expected<cl_integral, status> get_info_integral(cl_program_info param_name) const noexcept {
-        return get_info_integral<cl_integral>(program, param_name);
+        return get_info_integral<cl_integral>(m_ptr, param_name);
     }
 
     std::expected<cl_uint, status> get_reference_count() {
@@ -89,7 +87,7 @@ public:
             auto ret{ std::vector<cl_device_id>(static_cast<size_t>(num_devices), static_cast<cl_device_id>(nullptr)) };
             std::span<cl_device_id> ret_span{ ret };
             status sts{ clGetProgramInfo(
-                program,
+                m_ptr,
                 CL_PROGRAM_DEVICES,
                 ret_span.size_bytes(),
                 ret_span.data(),
@@ -104,7 +102,7 @@ public:
 
     std::expected<void, status> build() noexcept {
         cl_int errcode_ret{ clBuildProgram(
-            program,
+            m_ptr,
             0,
             nullptr,
             nullptr,
@@ -120,7 +118,7 @@ public:
 
     std::expected<void, status> build(std::string options) noexcept {
         cl_int errcode_ret{ clBuildProgram(
-            program,
+            m_ptr,
             0,
             nullptr,
             options.c_str(),
@@ -144,7 +142,7 @@ public:
         std::vector<size_t> ret;
         auto devices{ get_devices().value() };
         for (auto&& device : devices) {
-            ret.emplace_back(get_build_info_size(program, device, param_name).value());
+            ret.emplace_back(get_build_info_size(m_ptr, device, param_name).value());
         }
         return ret;
     }
@@ -176,7 +174,7 @@ public:
         std::vector<std::string> ret;
         auto devices{ get_devices().value() };
         for (auto&& device : devices) {
-            ret.emplace_back(get_build_info_string(program, device, param_name).value());
+            ret.emplace_back(get_build_info_string(m_ptr, device, param_name).value());
         }
         return ret;
     }
@@ -192,11 +190,11 @@ public:
     }
 
     always_inline std::expected<ocl::kernel, status> create_kernel(std::string kernel_name) noexcept {
-        return ocl::kernel::create(program, kernel_name);
+        return ocl::kernel::create(m_ptr, kernel_name);
     }
 
     always_inline std::expected<std::vector<ocl::kernel>, status> create_kernels() noexcept {
-        return ocl::kernel::create(program);
+        return ocl::kernel::create(m_ptr);
     }
 
 #if 0
