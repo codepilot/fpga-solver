@@ -1,37 +1,37 @@
 
   Routing D:/fpga-solver/build/_deps/benchmark-files-src/vtr_mcml_unrouted.phys
   Routed  D:/fpga-solver/build/_deps/benchmark-files-build/vtr_mcml.phys
-  0.155959s  @ D:\fpga-solver\opencl-node-router.cpp:46 DevFlat("_deps/device-file-build/xcvu3p.device")
-  0.459929s  @ D:\fpga-solver\opencl-node-router.cpp:47 PhysGZ(src_phys_file)
-    1.27374s   @ D:\fpga-solver\ocl_node_router.h:808 program.build(options)
-    0.0393427s @ D:\fpga-solver\ocl_node_router.h:829 make_site_locations(dev)
-    0.0832601s @ D:\fpga-solver\ocl_node_router.h:830 make_devStrs_map(dev)
-    0.0820179s @ D:\fpga-solver\ocl_node_router.h:832 make_string_interchange(devStrs_map, devStrs, physStrs)
-    1.36254s   @ D:\fpga-solver\ocl_node_router.h:836 make_wire_idx_to_node_idx(dev.getWires(), dev.getNodes())
-    3.24355s   @ D:\fpga-solver\ocl_node_router.h:838 make_site_pin_to_node(dev.getTileList(), dev.getTileTypeList(), dev.getSiteTypeList(), wire_idx_to_node_idx)
-    0.279987s  @ D:\fpga-solver\ocl_node_router.h:846 make_vecs(netCount, netCountAligned, ocl_counter_max, nets, site_pin_to_node, physStrs, site_locations, physStrs_to_devStrs)
-  11.9638s   @ D:\fpga-solver\opencl-node-router.cpp:52 OCL_Node_Router::make(dev.root, phys.root, create_nondefault_gpus_context().value())
-  0.691785s  @ D:\fpga-solver\opencl-node-router.cpp:55 ocltr.gpu_route()
-  0.314412s  @ D:\fpga-solver\opencl-node-router.cpp:57 ocltr.inspect(message)
-  0.331742s  @ D:\fpga-solver\opencl-node-router.cpp:58 InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(dst_phys_file, message)
-14.6443s   @ D:\fpga-solver\opencl-node-router.cpp:71 route_file(src_phys_file, dst_phys_file)
+  0.17466s   @ D:\fpga-solver\opencl-node-router.cpp:54 DevFlat("_deps/device-file-build/xcvu3p.device")
+  0.389505s  @ D:\fpga-solver\opencl-node-router.cpp:55 PhysGZ(src_phys_file)
+    0.00205s   @ D:\fpga-solver\ocl_node_router.h:790 program.build(options)
+    0.0448167s @ D:\fpga-solver\ocl_node_router.h:811 make_site_locations(dev)
+    0.117406s  @ D:\fpga-solver\ocl_node_router.h:812 make_devStrs_map(dev)
+    0.0829172s @ D:\fpga-solver\ocl_node_router.h:814 make_string_interchange(devStrs_map, devStrs, physStrs)
+    1.15337s   @ D:\fpga-solver\ocl_node_router.h:818 make_wire_idx_to_node_idx(dev.getWires(), dev.getNodes())
+    0.304417s  @ D:\fpga-solver\ocl_node_router.h:826 make_vecs(netCount, netCountAligned, ocl_counter_max, nets, physStrs, site_locations, physStrs_to_devStrs)
+  4.45619s   @ D:\fpga-solver\opencl-node-router.cpp:60 OCL_Node_Router::make(dev.root, phys.root, create_nondefault_gpus_context().value())
+ocl_counter_max: 32, step 1 of 1:  212428,24460,6,0 
+  0.30095s   @ D:\fpga-solver\opencl-node-router.cpp:63 ocltr.route()
+  0.25085s   @ D:\fpga-solver\opencl-node-router.cpp:65 ocltr.make_phys(message)
+  0.281168s  @ D:\fpga-solver\opencl-node-router.cpp:66 InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(dst_phys_file, message)
+6.21609s   @ D:\fpga-solver\opencl-node-router.cpp:79 route_file(src_phys_file, dst_phys_file)
 
 ==============================================================================
 ==                             Read LogNetlist                              ==
 ==============================================================================
-               Read File:     0.100s
-            Read Strings:     0.048s
-              Read Ports:     0.016s
-          Read CellDecls:     0.025s
-              Read Insts:     0.101s
-              Read Cells:     1.142s
-            Populate Top:     0.003s
-         Order Libraries:     0.031s
-           Expand Macros:     0.080s
+               Read File:     0.114s
+            Read Strings:     0.054s
+              Read Ports:     0.027s
+          Read CellDecls:     0.031s
+              Read Insts:     0.114s
+              Read Cells:     1.265s
+            Populate Top:     0.000s
+         Order Libraries:     0.023s
+           Expand Macros:     0.055s
 ------------------------------------------------------------------------------
-         [No GC] *Total*:     1.545s
+         [No GC] *Total*:     1.684s
 ==============================================================================
 ==                             Read PhysNetlist                             ==
 ==============================================================================
-               Read File:     1.390s
-            Read Strings:     0.026s
+               Read File:     1.365s
+            Read Strings:     0.125s
