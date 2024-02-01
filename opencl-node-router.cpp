@@ -62,7 +62,6 @@ bool route_file(std::string src_phys_file, std::string dst_phys_file) {
 #endif
 
 	TimerVal(ocltr.route()).value();
-	auto success{ TimerVal(ocltr.make_phys()) };
 	TimerVal(ocltr.write_phys_unrouted_nets());
 	TimerVal(ocltr.write_phys_strings());
 	TimerVal(InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(dst_phys_file, message));

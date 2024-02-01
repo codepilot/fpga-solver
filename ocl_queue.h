@@ -93,6 +93,26 @@ public:
     }
 
     template<typename T>
+    always_inline std::expected<void, status> enqueueWrite(ocl::buffer& buffer, cl_bool blocking_write, size_t offset, std::span<T> dest) {
+        cl_int errcode_ret{ clEnqueueWriteBuffer(
+            m_ptr,
+            buffer.m_ptr,
+            blocking_write,
+            offset,
+            dest.size_bytes(),
+            dest.data(),
+            0,
+            nullptr,
+            nullptr
+        ) };
+
+        if (errcode_ret) {
+            return std::unexpected<status>(status{ errcode_ret });
+        }
+        return std::expected<void, status>();
+    }
+
+    template<typename T>
     always_inline std::expected<void, status> enqueueSVMMemFill(std::span<T> dst, const T &pattern) {
         if(dst.empty()) return std::expected<void, status>();
         cl_int errcode_ret{ clEnqueueSVMMemFill(

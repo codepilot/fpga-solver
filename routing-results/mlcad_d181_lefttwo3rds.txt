@@ -1,22 +1,96 @@
 
-  Routing /home/ubuntu/fpga-solver/build/_deps/benchmark-files-src/mlcad_d181_lefttwo3rds_unrouted.phys
-  Routed  /home/ubuntu/fpga-solver/build/_deps/benchmark-files-build/mlcad_d181_lefttwo3rds.phys
-  4.3961e-05s @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:54 DevFlat("_deps/device-file-build/xcvu3p.device")
-  1.72758s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:55 PhysGZ(src_phys_file)
-    0.723648s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:868 program.build(options)
-    0.0235669s @ /home/ubuntu/fpga-solver/ocl_node_router.h:889 make_site_locations(dev)
-    0.0466499s @ /home/ubuntu/fpga-solver/ocl_node_router.h:890 make_devStrs_map(dev)
-    0.211349s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:892 make_string_interchange(devStrs_map, devStrs, physStrs)
-    0.670918s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:900 make_vecs(netCount, netCountAligned, ocl_counter_max, nets, physStrs, site_locations, physStrs_to_devStrs)
-    0.846895s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:933 block_all_resources(phys.getPhysNets(), v_node_nets, physStrs_to_devStrs)
-    2.73324s   @ /home/ubuntu/fpga-solver/ocl_node_router.h:935 setup_buffers(context, queues, cloned_kernels, workgroup_counts, workgroup_offsets, v_host_dirty, ocl_counter_max, max_workgroup_size, v_buf_dirty, v_buf_routed_lines, v_buf_drawIndirect, v_buf_heads, v_buf_explored, v_buf_stubs, v_buf_pip_offset_count, v_buf_pip_tile_body, v_buf_node_nets, s_drawIndirect, s_heads, s_explored, s_stubs, v_node_nets )
-    0.108114s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:937 make_phys_builder(phys, message)
-  6.05241s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:61 OCL_Node_Router::make(message, dev.root, phys.root, create_nondefault_gpus_context().value())
-ocl_counter_max: 32, step 1 of 1:  741537,166882,7398,0 
-  0.504883s  @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:64 ocltr.route()
-  0.374361s  @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:65 ocltr.make_phys()
-  0.804087s  @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:66 ocltr.write_phys_unrouted_nets()
-  0.0924006s @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:67 ocltr.write_phys_strings()
-  1.63761s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:68 InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(dst_phys_file, message)
-11.5965s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:83 route_file(src_phys_file, dst_phys_file)
+  Routing _deps/benchmark-files-src/mlcad_d181_lefttwo3rds_unrouted.phys
+  Routed  _deps/benchmark-files-build/mlcad_d181_lefttwo3rds.phys
+  0.201449s  @ D:\fpga-solver\opencl-node-router.cpp:54 DevFlat("_deps/device-file-build/xcvu3p.device")
+  1.91599s   @ D:\fpga-solver\opencl-node-router.cpp:55 PhysGZ(src_phys_file)
+    0.0008522s @ D:\fpga-solver\ocl_node_router.h:924 program.build(options)
+    0.0488359s @ D:\fpga-solver\ocl_node_router.h:945 make_site_locations(dev)
+    0.133097s  @ D:\fpga-solver\ocl_node_router.h:946 make_devStrs_map(dev)
+    0.649614s  @ D:\fpga-solver\ocl_node_router.h:948 make_string_interchange(devStrs_map, devStrs, physStrs)
+    1.2911s    @ D:\fpga-solver\ocl_node_router.h:956 make_vecs(netCount, netCountAligned, ocl_counter_max, nets, physStrs, site_locations, physStrs_to_devStrs)
+    0.931133s  @ D:\fpga-solver\ocl_node_router.h:989 block_all_resources(phys.getPhysNets(), v_node_nets, physStrs_to_devStrs)
+    1.63572s   @ D:\fpga-solver\ocl_node_router.h:991 setup_buffers(context, queues, cloned_kernels, workgroup_counts, workgroup_offsets, v_host_dirty, ocl_counter_max, max_workgroup_size, v_buf_dirty, v_buf_routed_lines, v_buf_drawIndirect, v_buf_heads, v_buf_explored, v_buf_stubs, v_buf_pip_offset_count, v_buf_pip_tile_body, v_buf_node_nets, s_drawIndirect, s_heads, s_explored, s_stubs, v_node_nets )
+    0.18197s   @ D:\fpga-solver\ocl_node_router.h:993 make_phys_builder(phys, message)
+  5.65565s   @ D:\fpga-solver\opencl-node-router.cpp:61 OCL_Node_Router::make(message, dev.root, phys.root, create_nondefault_gpus_context().value())
+ocl_counter_max: 128, step 1 of 8:  566233,336295,13289,0 
+  stored_nets: 174791
+    1.85654s   @ D:\fpga-solver\ocl_node_router.h:171 store_possibly_routed_nets()
+ocl_counter_max: 128, step 2 of 8:  513723,41486,11024,0 
+  stored_nets: 3482
+    0.478017s  @ D:\fpga-solver\ocl_node_router.h:171 store_possibly_routed_nets()
+ocl_counter_max: 128, step 3 of 8:  498556,10431,4736,0 
+  stored_nets: 204
+    0.506035s  @ D:\fpga-solver\ocl_node_router.h:171 store_possibly_routed_nets()
+ocl_counter_max: 128, step 4 of 8:  491198,4585,2773,0 
+  stored_nets: 45
+    0.46141s   @ D:\fpga-solver\ocl_node_router.h:171 store_possibly_routed_nets()
+ocl_counter_max: 128, step 5 of 8:  486911,2378,1909,0 
+  stored_nets: 12
+    0.464011s  @ D:\fpga-solver\ocl_node_router.h:171 store_possibly_routed_nets()
+ocl_counter_max: 128, step 6 of 8:  484017,1443,1451,0 
+  stored_nets: 3
+    0.673625s  @ D:\fpga-solver\ocl_node_router.h:171 store_possibly_routed_nets()
+ocl_counter_max: 128, step 7 of 8:  482027,1020,970,0 
+  stored_nets: 1
+    0.51136s   @ D:\fpga-solver\ocl_node_router.h:171 store_possibly_routed_nets()
+ocl_counter_max: 128, step 8 of 8:  480626,747,654,0 
+  stored_nets: 0
+    0.66228s   @ D:\fpga-solver\ocl_node_router.h:171 store_possibly_routed_nets()
+  25.1644s   @ D:\fpga-solver\opencl-node-router.cpp:64 ocltr.route()
+    fully_routed_nets: 178538
+  0.712628s  @ D:\fpga-solver\opencl-node-router.cpp:65 ocltr.write_phys_unrouted_nets()
+  0.0702047s @ D:\fpga-solver\opencl-node-router.cpp:66 ocltr.write_phys_strings()
+  1.89317s   @ D:\fpga-solver\opencl-node-router.cpp:67 InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(dst_phys_file, message)
+36.3314s   @ D:\fpga-solver\opencl-node-router.cpp:82 route_file(src_phys_file, dst_phys_file)
+
+
+D:\fpga-solver\build>rapidwright.bat PhysicalNetlistToDcp "D:/fpga-solver/build/_deps/benchmark-files-src/mlcad_d181_lefttwo3rds.netlist" "D:/fpga-solver/build/_deps/benchmark-files-build/mlcad_d181_lefttwo3rds.phys" "D:/fpga-solver/build/_deps/benchmark-files-build/mlcad_d181_lefttwo3rds.xdc" "D:/fpga-solver/build/_deps/benchmark-files-build/mlcad_d181_lefttwo3rds.dcp" 
+==============================================================================
+==                             Read LogNetlist                              ==
+==============================================================================
+               Read File:     0.361s
+            Read Strings:     0.146s
+              Read Ports:     0.041s
+          Read CellDecls:     0.065s
+              Read Insts:     0.233s
+              Read Cells:     2.453s
+            Populate Top:     0.000s
+         Order Libraries:     0.063s
+           Expand Macros:     0.162s
+------------------------------------------------------------------------------
+         [No GC] *Total*:     3.524s
+==============================================================================
+==                             Read PhysNetlist                             ==
+==============================================================================
+               Read File:     3.500s
+            Read Strings:     0.303s
+Check Constant Routing & Net Naming:     9.926s
+          Read SiteInsts:     0.034s
+          Read Placement:     1.690s
+            Check Macros:     0.076s
+            Read Routing:     5.877s
+       Read Design Props:     0.001s
+------------------------------------------------------------------------------
+         [No GC] *Total*:    21.407s
+==============================================================================
+==                         Interchange Format->DCP                          ==
+==============================================================================
+    Read Logical Netlist:     3.539s
+   Read Physical Netlist:    21.412s
+               Write DCP:     7.843s
+------------------------------------------------------------------------------
+         [No GC] *Total*:    32.793s
+Design Route Status
+                                               :      # nets :
+   ------------------------------------------- : ----------- :
+   # of logical nets.......................... :     1527048 :
+       # of nets not needing routing.......... :     1165582 :
+           # of internally routed nets........ :      957739 :
+           # of nets with no loads............ :      201494 :
+           # of implicitly routed ports....... :        6349 :
+       # of routable nets..................... :      361466 :
+           # of unrouted nets................. :      310057 :
+           # of fully routed nets............. :       51409 :
+       # of nets with routing errors.......... :           0 :
+   ------------------------------------------- : ----------- :
 

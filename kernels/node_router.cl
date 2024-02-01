@@ -135,7 +135,7 @@ draw_wires(
 #endif
             if(parent_head[0] == UINT_MAX && parent_head[1] == UINT_MAX && parent_head[2] == UINT_MAX && parent_head[3] == UINT_MAX) {
                 // dead end
-                (*drawIndirectN) = make_uint4(count_index, 1, get_global_id(0) * ocl_counter_max, 2);
+                (*drawIndirectN) = make_uint4((series_id * ocl_counter_max) + count_index, 1, get_global_id(0) * ocl_counter_max, 2);
                 // (*routedN)[count_index] = sourcePos;
                 // printf("ULONG_MAX (%lu)\n", get_global_id(0));
                 atomic_inc(dirty + 2);
@@ -176,7 +176,7 @@ draw_wires(
             (*explore)[count_index] = make_uint2(parent_pip_idx, parent_parent_explored_id);
 
             if (stub_node_idx == parent_node1_idx) {
-                (*drawIndirectN) = make_uint4(count_index + 1, 1, get_global_id(0) * ocl_counter_max, 1);
+                (*drawIndirectN) = make_uint4((series_id * ocl_counter_max) + count_index + 1, 1, get_global_id(0) * ocl_counter_max, 1);
                 atomic_inc(dirty + 1);
                 return;
             }
@@ -241,7 +241,7 @@ draw_wires(
         uint4 front_head = cur_heads[0];
         if(front_head[0] == UINT_MAX && front_head[1] == UINT_MAX && front_head[2] == UINT_MAX && front_head[3] == UINT_MAX) {
             // dead end
-            (*drawIndirectN) = make_uint4(count_index, 1, get_global_id(0) * ocl_counter_max, 2);
+            (*drawIndirectN) = make_uint4((series_id * ocl_counter_max) + count_index, 1, get_global_id(0) * ocl_counter_max, 2);
             // (*routedN)[count_index] = sourcePos;
             // printf("ULONG_MAX (%lu)\n", get_global_id(0));
             atomic_inc(dirty + 2);
@@ -263,7 +263,7 @@ draw_wires(
         //(*routedN)[count_index] = newPos;
     }
 
-    (*drawIndirectN) = make_uint4(ocl_counter_max, 1, get_global_id(0) * ocl_counter_max, 0);
+    (*drawIndirectN) = make_uint4((series_id * ocl_counter_max) + ocl_counter_max, 1, get_global_id(0) * ocl_counter_max, 0);
 
     __attribute__((opencl_unroll_hint(beam_width))) for (uint j = 0; j < beam_width; j++) { (*head)[j] = cur_heads[j]; }
 
