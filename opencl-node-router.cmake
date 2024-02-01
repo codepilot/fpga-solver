@@ -1,5 +1,5 @@
 include_guard(GLOBAL)
 block()
   standard_executable(opencl-node-router)
-  add_dependencies(opencl-node-router cl_pip_files)
+  add_dependencies(opencl-node-router cl_pip_files site_pin_to_node wire_idx_to_node_idx)
 endblock()

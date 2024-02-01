@@ -1,11 +1,13 @@
 #pragma once
 
+#include <utility>
+
 namespace ocl_handle {
 
-    template<typename T> static std::expected<T, ocl::status> release(T _ptr) noexcept;
-    template<typename T> static std::expected<T, ocl::status> retain(T _ptr) noexcept;
+    template<typename T> std::expected<T, ocl::status> release(T _ptr) noexcept;
+    template<typename T> std::expected<T, ocl::status> retain(T _ptr) noexcept;
 
-    template<> static std::expected<cl_context, ocl::status> release(cl_context _ptr) noexcept {
+    template<> std::expected<cl_context, ocl::status> release(cl_context _ptr) noexcept {
 #ifdef _DEBUG
         std::cout << std::format("clReleaseContext(0x{:x})\n", std::bit_cast<uintptr_t>(_ptr));
 #endif
@@ -14,7 +16,7 @@ namespace ocl_handle {
         return std::unexpected<ocl::status>(result);
     }
 
-    template<> static std::expected<cl_context, ocl::status> retain(cl_context _ptr) noexcept {
+    template<> std::expected<cl_context, ocl::status> retain(cl_context _ptr) noexcept {
 #ifdef _DEBUG
         std::cout << std::format("clRetainContext(0x{:x})\n", std::bit_cast<uintptr_t>(_ptr));
 #endif
@@ -23,7 +25,7 @@ namespace ocl_handle {
         return std::unexpected<ocl::status>(result);
     }
 
-    template<> static std::expected<cl_mem, ocl::status> release(cl_mem _ptr) noexcept {
+    template<> std::expected<cl_mem, ocl::status> release(cl_mem _ptr) noexcept {
 #ifdef _DEBUG
         std::cout << std::format("clReleaseMemObject(0x{:x})\n", std::bit_cast<uintptr_t>(_ptr));
 #endif
@@ -32,7 +34,7 @@ namespace ocl_handle {
         return std::unexpected<ocl::status>(result);
     }
 
-    template<> static std::expected<cl_mem, ocl::status> retain(cl_mem _ptr) noexcept {
+    template<> std::expected<cl_mem, ocl::status> retain(cl_mem _ptr) noexcept {
 #ifdef _DEBUG
         std::cout << std::format("clRetainMemObject(0x{:x})\n", std::bit_cast<uintptr_t>(_ptr));
 #endif
@@ -41,7 +43,7 @@ namespace ocl_handle {
         return std::unexpected<ocl::status>(result);
     }
 
-    template<> static std::expected<cl_kernel, ocl::status> release(cl_kernel _ptr) noexcept {
+    template<> std::expected<cl_kernel, ocl::status> release(cl_kernel _ptr) noexcept {
 #ifdef _DEBUG
         std::cout << std::format("clReleaseKernel(0x{:x})\n", std::bit_cast<uintptr_t>(_ptr));
 #endif
@@ -50,7 +52,7 @@ namespace ocl_handle {
         return std::unexpected<ocl::status>(result);
     }
 
-    template<> static std::expected<cl_kernel, ocl::status> retain(cl_kernel _ptr) noexcept {
+    template<> std::expected<cl_kernel, ocl::status> retain(cl_kernel _ptr) noexcept {
 #ifdef _DEBUG
         std::cout << std::format("clRetainKernel(0x{:x})\n", std::bit_cast<uintptr_t>(_ptr));
 #endif
@@ -59,7 +61,7 @@ namespace ocl_handle {
         return std::unexpected<ocl::status>(result);
     }
 
-    template<> static std::expected<cl_command_queue, ocl::status> release(cl_command_queue _ptr) noexcept {
+    template<> std::expected<cl_command_queue, ocl::status> release(cl_command_queue _ptr) noexcept {
 #ifdef _DEBUG
         std::cout << std::format("clReleaseCommandQueue(0x{:x})\n", std::bit_cast<uintptr_t>(_ptr));
 #endif
@@ -68,7 +70,7 @@ namespace ocl_handle {
         return std::unexpected<ocl::status>(result);
     }
 
-    template<> static std::expected<cl_command_queue, ocl::status> retain(cl_command_queue _ptr) noexcept {
+    template<> std::expected<cl_command_queue, ocl::status> retain(cl_command_queue _ptr) noexcept {
 #ifdef _DEBUG
         std::cout << std::format("clRetainCommandQueue(0x{:x})\n", std::bit_cast<uintptr_t>(_ptr));
 #endif
@@ -77,7 +79,7 @@ namespace ocl_handle {
         return std::unexpected<ocl::status>(result);
     }
 
-    template<> static std::expected<cl_program, ocl::status> release(cl_program _ptr) noexcept {
+    template<> std::expected<cl_program, ocl::status> release(cl_program _ptr) noexcept {
 #ifdef _DEBUG
         std::cout << std::format("clReleaseProgram(0x{:x})\n", std::bit_cast<uintptr_t>(_ptr));
 #endif
@@ -86,7 +88,7 @@ namespace ocl_handle {
         return std::unexpected<ocl::status>(result);
     }
 
-    template<> static std::expected<cl_program, ocl::status> retain(cl_program _ptr) noexcept {
+    template<> std::expected<cl_program, ocl::status> retain(cl_program _ptr) noexcept {
 #ifdef _DEBUG
         std::cout << std::format("clRetainProgram(0x{:x})\n", std::bit_cast<uintptr_t>(_ptr));
 #endif
@@ -95,7 +97,7 @@ namespace ocl_handle {
         return std::unexpected<ocl::status>(result);
     }
 
-    template<> static std::expected<cl_device_id, ocl::status> release(cl_device_id _ptr) noexcept {
+    template<> std::expected<cl_device_id, ocl::status> release(cl_device_id _ptr) noexcept {
 #ifdef _DEBUG
         std::cout << std::format("clReleaseDevice(0x{:x})\n", std::bit_cast<uintptr_t>(_ptr));
 #endif
@@ -104,7 +106,7 @@ namespace ocl_handle {
         return std::unexpected<ocl::status>(result);
     }
 
-    template<> static std::expected<cl_device_id, ocl::status> retain(cl_device_id _ptr) noexcept {
+    template<> std::expected<cl_device_id, ocl::status> retain(cl_device_id _ptr) noexcept {
 #ifdef _DEBUG
         std::cout << std::format("clRetainDevice(0x{:x})\n", std::bit_cast<uintptr_t>(_ptr));
 #endif
