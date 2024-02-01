@@ -3,6 +3,7 @@
 #include <chrono>
 #include <iostream>
 #include "constexpr_string.h"
+#include <atomic>
 
 static std::atomic<uint32_t> timer_depth{};
 

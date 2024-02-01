@@ -184,7 +184,7 @@ public:
         std::vector<cl_integral> ret;
         auto devices{ get_devices().value() };
         for (auto&& device : devices) {
-            ret.emplace_back(get_build_info_integral<cl_integral>(program, device, param_name).value());
+            ret.emplace_back(get_build_info_integral<cl_integral>(m_ptr, device, param_name).value());
         }
         return ret;
     }

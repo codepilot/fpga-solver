@@ -96,7 +96,7 @@ public:
     always_inline std::expected<void, status> enqueueSVMMemFill(std::span<T> dst, const T &pattern) {
         if(dst.empty()) return std::expected<void, status>();
         cl_int errcode_ret{ clEnqueueSVMMemFill(
-            queue,
+            m_ptr,
             dst.data(),
             &pattern,
             sizeof(pattern),
@@ -137,7 +137,7 @@ public:
     always_inline std::expected<void, status> enqueueSVMMemFill(std::span<T> dst, auto pattern) {
         if (dst.empty()) return std::expected<void, status>();
         cl_int errcode_ret{ clEnqueueSVMMemFill(
-            queue,
+            m_ptr,
             dst.data(),
             &pattern,
             sizeof(pattern),
@@ -156,7 +156,7 @@ public:
     template<typename T>
     always_inline std::expected<void, status> enqueueSVMMemcpy(cl_bool blocking_copy, std::span<T> dst, std::span<T> src) {
         cl_int errcode_ret{ clEnqueueSVMMemcpy(
-            queue,
+            m_ptr,
             blocking_copy,
             dst.data(),
             src.data(),
@@ -180,7 +180,7 @@ public:
         const void* svm_pointer{ svm.data() };
 
         cl_int errcode_ret{ clEnqueueSVMMigrateMem(
-            queue,
+            m_ptr,
             1,
             &svm_pointer,
             nullptr,
@@ -205,7 +205,7 @@ public:
         }
 
         cl_int errcode_ret{ clEnqueueSVMMigrateMem(
-            queue,
+            m_ptr,
             svm_pointers.size(),
             svm_pointers.data(),
             nullptr,
@@ -245,7 +245,7 @@ public:
     template<typename T>
     always_inline std::expected<void, status> enqueueSVMMap(cl_bool blocking_map, cl_map_flags flags, std::span<T> svm) {
         cl_int errcode_ret{ clEnqueueSVMMap(
-            queue,
+            m_ptr,
             blocking_map,
             flags,
             svm.data(),
@@ -264,7 +264,7 @@ public:
     template<typename T>
     always_inline std::expected<void, status> enqueueSVMUnmap(std::span<T> svm) {
         cl_int errcode_ret{ clEnqueueSVMUnmap(
-            queue,
+            m_ptr,
             svm.data(),
             0,
             nullptr,
@@ -281,7 +281,7 @@ public:
     always_inline std::expected<void, status> enqueueSVMMap(cl_map_flags flags, std::span<T> svm, auto lambda) {
         if (!svm.empty()) {
             cl_int map_errcode_ret{ clEnqueueSVMMap(
-                queue,
+                m_ptr,
                 true,
                 flags,
                 svm.data(),
@@ -297,7 +297,7 @@ public:
         lambda();
         if (!svm.empty()) {
             cl_int unmap_errcode_ret{ clEnqueueSVMUnmap(
-                queue,
+                m_ptr,
                 svm.data(),
                 0,
                 nullptr,
@@ -315,7 +315,7 @@ public:
     always_inline std::expected<void, status> enqueueSVMMap(cl_map_flags flags, std::span<std::span<T>> s_svm, auto lambda) {
         for(auto &&svm: s_svm) {
             cl_int map_errcode_ret{ clEnqueueSVMMap(
-                queue,
+                m_ptr,
                 true,
                 flags,
                 svm.data(),
@@ -331,7 +331,7 @@ public:
         lambda();
         for (auto&& svm : s_svm) {
             cl_int unmap_errcode_ret{ clEnqueueSVMUnmap(
-                queue,
+                m_ptr,
                 svm.data(),
                 0,
                 nullptr,

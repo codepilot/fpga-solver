@@ -130,7 +130,7 @@ public:
 
     template<typename cl_integral>
     always_inline std::expected<cl_integral, status> get_arg_info_integral(cl_uint arg_index, cl_kernel_info param_name) const noexcept {
-        return get_arg_info_integral<cl_integral>(kernel, arg_index, param_name);
+        return get_arg_info_integral<cl_integral>(m_ptr, arg_index, param_name);
     }
 
     always_inline static std::expected<std::string, status> get_arg_info_string(cl_kernel kernel, cl_uint arg_index, cl_kernel_info param_name) noexcept {
@@ -216,7 +216,7 @@ public:
 
     template<typename cl_integral>
     always_inline std::expected<cl_integral, status> get_work_group_info_integral(cl_device_id device, cl_kernel_work_group_info param_name) const noexcept {
-        return get_work_group_info_integral<cl_integral>(kernel, device, param_name);
+        return get_work_group_info_integral<cl_integral>(m_ptr, device, param_name);
     }
 };
 };

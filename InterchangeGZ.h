@@ -6,6 +6,7 @@
 #include <capnp/serialize.h>
 #include <zlib.h>
 #include "MemoryMappedFile.h"
+#include <vector>
 
 template<typename T>
 class InterchangeGZ_Vector {
