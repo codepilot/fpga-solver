@@ -307,7 +307,7 @@ public:
             std::vector<history_item> ei_full;
             ei_full.reserve(vv_explored.size() * largest_ocl_counter_max);
             for (auto&& vvi_explored : vv_explored) {
-                ei_full.append_range(vvi_explored[di_index]);
+                std::ranges::copy(vvi_explored[di_index], std::back_inserter(ei_full));
             }
             auto ei{ std::span(ei_full).subspan(0, count) };
 
