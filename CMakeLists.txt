@@ -68,7 +68,7 @@ include(opencl-test.cmake)
 
 include(opencl-interface.cmake)
 
-include(opencl-tile-router.cmake)
+# include(opencl-tile-router.cmake)
 include(opencl-node-router.cmake)
 
 
