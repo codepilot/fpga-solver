@@ -20,7 +20,8 @@ public:
     static inline constexpr uint32_t max_tile_count{ 5884ul };
     static inline constexpr uint32_t tt_body_count{ 4293068ul };
     static inline constexpr size_t largest_ocl_counter_max{ 128ull };
-    static inline constexpr uint32_t series_id_max{ 8ul };
+    static inline constexpr uint32_t series_id_max{ 4ul };
+    static inline constexpr uint32_t restart_count_max{ 1ul };
 
     using beam_t = std::array<std::array<uint32_t, 4>, beam_width>;
     struct history_item { uint32_t pip_idx, parent_id; };
@@ -117,6 +118,8 @@ public:
     std::vector<uint32_t> physStrs_to_devStrs;
     std::vector<uint32_t> devStrs_to_physStrs;
     std::vector<uint32_t> v_node_nets;
+    std::vector<beam_t> v_heads;
+    std::vector<std::array<uint32_t, 4>> v_drawIndirect;
 
     std::string_view get_physStr(uint32_t physStr_idx) {
         auto physStrs{ phys.getStrList() };
@@ -165,13 +168,32 @@ public:
         std::cout << std::format("ocl_counter_max: {}\n", ocl_counter_max);
 #endif
         //uint32_t previous_dirty_count{};
-        for (uint32_t series_id{}; series_id < series_id_max; series_id++) {
-            step_all(series_id).value();
-            vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored));
-            TimerVal(store_possibly_routed_nets());
-            // if(!host_dirty.front()) break;
-            //if (previous_dirty_count != host_dirty.front()) std::cout << "\n";
-            //previous_dirty_count = host_dirty.front();
+        for (uint32_t restart_count{}; restart_count < restart_count_max; restart_count++) {
+            std::span s_heads{ v_heads };
+            std::span s_drawIndirect{ v_drawIndirect };
+            each(queues, [&](uint64_t queue_index, ocl::queue& queue) {
+                auto wo{ workgroup_offsets[queue_index] };
+                auto wc{ workgroup_counts[queue_index] };
+                queue.enqueueWrite(v_buf_heads[queue_index], false, 0, s_heads.subspan(wo * max_workgroup_size, wc * max_workgroup_size));
+                queue.enqueueWrite(v_buf_drawIndirect[queue_index], false, 0, s_drawIndirect.subspan(wo * max_workgroup_size, wc * max_workgroup_size));
+            });
+
+            for (uint32_t series_id{}; series_id < series_id_max; series_id++) {
+                TimerVal(step_all(series_id)).value();
+                TimerVal(vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored)));
+                TimerVal(v_drawIndirect = std::move(read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect)));
+                TimerVal(store_possibly_routed_nets());
+                // if(!host_dirty.front()) break;
+                //if (previous_dirty_count != host_dirty.front()) std::cout << "\n";
+                //previous_dirty_count = host_dirty.front();
+            }
+            vv_explored.empty();
+            for (auto&& di : v_drawIndirect) {
+                if (di[3] == 2) {//baseInstance
+                    di[3] = 0;
+                }
+            }
+            // heads
         }
         for (auto&& queue : queues) {
             queue.finish().value();
@@ -226,15 +248,13 @@ public:
     bool store_possibly_routed_nets() {
         auto physStrs{ phys.getStrList() };
 
-        auto v_drawIndirect{ read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect) };
-        v_drawIndirect.resize(netCount);
 
         auto r_nets{ phys.getPhysNets() };
         auto b_nets{ b_phys.getPhysNets() };
 
         uint32_t stored_nets{};
 
-        each(v_drawIndirect, [&](uint64_t di_index, std::array<uint32_t, 4>& di) {
+        each(std::span(v_drawIndirect).subspan(0, netCount), [&](uint64_t di_index, std::array<uint32_t, 4>& di) {
             decltype(auto) np{ net_pairs[di_index] };
             if (is_routed[np.net_idx]) return;
 
@@ -1029,6 +1049,8 @@ public:
             .physStrs_to_devStrs{std::move(physStrs_to_devStrs)},
             .devStrs_to_physStrs{std::move(devStrs_to_physStrs)},
             .v_node_nets{std::move(v_node_nets)},
+            .v_heads{std::move(std::get<1>(vecs))},
+            .v_drawIndirect{std::move(std::get<2>(vecs))},
         };
     }
 };

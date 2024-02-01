@@ -95,7 +95,7 @@ float tile_distance(uint2 a, uint2 b) {
 kernel void
 __attribute__((work_group_size_hint(max_workgroup_size, 1, 1)))
 __attribute__((reqd_work_group_size(max_workgroup_size, 1, 1)))
-draw_wires(
+node_router(
 /*0 ro <duplicate>  */const uint series_id,
 /*1 rw <duplicate>  */global uint* restrict dirty,
 /*2 wo <sub-divide> */global routed_lines_t* restrict routed,
