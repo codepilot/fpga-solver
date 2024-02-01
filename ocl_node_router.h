@@ -11,6 +11,7 @@
 #include "interchange_types.h"
 #include "inverse_wires.h"
 #include "site_pin_to_node.h"
+#include "wire_idx_to_node_idx.h"
 #include "Timer.h"
 
 class OCL_Node_Router {
@@ -30,6 +31,7 @@ public:
     static inline const MemoryMappedFile mmf_v_pip_body{ "pip_body.bin" }; // node0_idx, node1_idx, wire0_idx, wire1_idx
     static inline const MemoryMappedFile mmf_v_inverse_wires{ "Inverse_Wires.bin" };
     static inline const MemoryMappedFile mmf_v_site_pin_to_node{ "site_pin_to_node.bin" };
+    static inline const MemoryMappedFile mmf_wire_idx_to_node_idx{ "wire_idx_to_node_idx.bin" };
 
     // static inline const std::span<std::array<uint32_t, 2>> s_pip_count_offset{ mmf_v_pip_count_offset.get_span<std::array<uint32_t, 2>>() };
     struct pip_count_offset { uint32_t count, offset; };
@@ -50,6 +52,7 @@ public:
     static inline const std::span<pip_body> t_pip_body{ mmf_v_pip_body.get_span<pip_body>() };
     static inline const Inverse_Wires inverse_wires{ mmf_v_inverse_wires.get_span<uint64_t>() };
     static inline const Site_Pin_to_Node site_pin_to_node{ mmf_v_site_pin_to_node.get_span<uint64_t>() };
+    static inline const Wire_Idx_to_Node_Idx wire_idx_to_node_idx{ mmf_wire_idx_to_node_idx.get_span<uint32_t>() };
 
     static inline constexpr std::array<uint32_t, 4> fill_draw_commands {
         0,//count
@@ -512,29 +515,6 @@ public:
         return { physStrs_to_devStrs , devStrs_to_physStrs };
     }
 
-    static std::vector<uint32_t> make_wire_idx_to_node_idx(wire_list_reader wires, node_list_reader nodes) {
-        std::vector<uint32_t> wire_idx_to_node_idx(static_cast<size_t>(wires.size()), UINT32_MAX);
-        jthread_each(nodes, [&](uint64_t node_idx, node_reader node) {
-            for (auto wire_idx : node.getWires()) {
-                wire_idx_to_node_idx[wire_idx] = static_cast<uint32_t>(node_idx);
-            }
-        });
-
-        return wire_idx_to_node_idx;
-    }
-
-    static std::vector<uint32_t> make_inverse_nodes(wire_list_reader wires, node_list_reader nodes) {
-        std::vector<uint32_t> inverse_nodes(static_cast<size_t>(wires.size()), UINT32_MAX);
-        jthread_each(nodes, [&](uint64_t node_idx, node_reader& node) {
-            auto node_wires = node.getWires();
-            for (uint32_t wire_idx : node_wires) {
-                inverse_nodes[wire_idx] = static_cast<uint32_t>(node_idx);
-            }
-        });
-
-        return inverse_nodes;
-    }
-
     static std::tuple<std::vector<std::array<uint32_t, 4>>, std::vector<beam_t>, std::vector<std::array<uint32_t, 4>>, std::vector<net_pair_t>> make_vecs(
         const uint32_t netCount,
         const uint32_t netCountAligned,
@@ -655,7 +635,7 @@ public:
         node_nets[source_node_idx] = net_idx;
     }
 
-    static void block_pip(uint32_t net_idx, ::PhysicalNetlist::PhysNetlist::PhysPIP::Reader pip, std::span<uint32_t> node_nets, std::span<const uint32_t> physStrs_to_devStrs, std::span<uint32_t> inverse_nodes) {
+    static void block_pip(uint32_t net_idx, ::PhysicalNetlist::PhysNetlist::PhysPIP::Reader pip, std::span<uint32_t> node_nets, std::span<const uint32_t> physStrs_to_devStrs) {
         auto ps_tile{ pip.getTile() };
         auto ps_wire0{ pip.getWire0() };
         auto ps_wire1{ pip.getWire1() };
@@ -668,14 +648,14 @@ public:
         auto wire1_idx{ inverse_wires.at(ds_tile, ds_wire1) };
 
         if (!wire0_idx.empty()) {
-            auto node0_idx{ inverse_nodes[wire0_idx.at(0)] };
+            auto node0_idx{ wire_idx_to_node_idx[wire0_idx.at(0)] };
             node_nets[node0_idx] = net_idx;
         }
         else {
             abort();
         }
         if (!wire1_idx.empty()) {
-            auto node1_idx{ inverse_nodes[wire1_idx.at(0)] };
+            auto node1_idx{ wire_idx_to_node_idx[wire1_idx.at(0)] };
             node_nets[node1_idx] = net_idx;
         }
         else {
@@ -683,7 +663,7 @@ public:
         }
     }
 
-    static void block_source_resource(uint32_t net_idx, PhysicalNetlist::PhysNetlist::RouteBranch::Reader branch, std::span<uint32_t> node_nets, std::span<const uint32_t> physStrs_to_devStrs, std::span<uint32_t> inverse_nodes) {
+    static void block_source_resource(uint32_t net_idx, PhysicalNetlist::PhysNetlist::RouteBranch::Reader branch, std::span<uint32_t> node_nets, std::span<const uint32_t> physStrs_to_devStrs) {
         auto rs{ branch.getRouteSegment() };
         switch (rs.which()) {
         case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::BEL_PIN: {
@@ -698,7 +678,7 @@ public:
         }
         case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::PIP: {
             auto pip{ rs.getPip() };
-            block_pip(net_idx, pip, node_nets, physStrs_to_devStrs, inverse_nodes);
+            block_pip(net_idx, pip, node_nets, physStrs_to_devStrs);
             break;
         }
         case ::PhysicalNetlist::PhysNetlist::RouteBranch::RouteSegment::Which::SITE_P_I_P: {
@@ -710,18 +690,25 @@ public:
             abort();
         }
         for (auto&& sub_branch : branch.getBranches()) {
-            block_source_resource(net_idx, sub_branch, node_nets, physStrs_to_devStrs, inverse_nodes);
+            block_source_resource(net_idx, sub_branch, node_nets, physStrs_to_devStrs);
         }
     }
 
 
-    static void block_resources(uint32_t net_idx, PhysicalNetlist::PhysNetlist::PhysNet::Reader physNet, std::span<uint32_t> node_nets, std::span<const uint32_t> physStrs_to_devStrs, std::span<uint32_t> inverse_nodes) {
+    static void block_resources(uint32_t net_idx, PhysicalNetlist::PhysNetlist::PhysNet::Reader physNet, std::span<uint32_t> node_nets, std::span<const uint32_t> physStrs_to_devStrs) {
         for (auto&& src_branch : physNet.getSources()) {
-            block_source_resource(net_idx, src_branch, node_nets, physStrs_to_devStrs, inverse_nodes);
+            block_source_resource(net_idx, src_branch, node_nets, physStrs_to_devStrs);
         }
         for (auto&& stub_branch : physNet.getStubs()) {
-            block_source_resource(net_idx, stub_branch, node_nets, physStrs_to_devStrs, inverse_nodes);
+            block_source_resource(net_idx, stub_branch, node_nets, physStrs_to_devStrs);
         }
+    }
+
+    static bool block_all_resources(net_list_reader nets, std::span<uint32_t> s_node_nets, std::span<const uint32_t> physStrs_to_devStrs) {
+        jthread_each(nets, [&](uint64_t net_idx, net_reader net) {
+            block_resources(net_idx, net, s_node_nets, physStrs_to_devStrs);
+        });
+        return true;
     }
 
     static OCL_Node_Router make(
@@ -815,10 +802,6 @@ public:
         const auto physStrs_to_devStrs{ std::move(string_interchange.at(0)) };
         const auto devStrs_to_physStrs{ std::move(string_interchange.at(1)) };
 
-        const auto wire_idx_to_node_idx{ TimerVal(make_wire_idx_to_node_idx(dev.getWires(), dev.getNodes())) };
- 
-        auto inverse_nodes{ make_inverse_nodes(dev.getWires(), dev.getNodes() ) };
-
 #ifdef _DEBUG
         puts("making stub locations");
 #endif
@@ -863,11 +846,7 @@ public:
         const size_t wg_explored{ sizeof(history_t) * max_workgroup_size };
         const size_t wg_stubs{ sizeof(std::array<uint32_t, 4>) * max_workgroup_size };
 
-#if 1
-        each(phys.getPhysNets(), [&](uint64_t net_idx, net_reader net) {
-            block_resources(net_idx, net, v_node_nets, physStrs_to_devStrs, inverse_nodes);
-        });
-#endif
+        TimerVal(block_all_resources(phys.getPhysNets(), v_node_nets, physStrs_to_devStrs));
 
         each(cloned_kernels, [&](uint64_t cloned_kernel_index, ocl::kernel &cloned_kernel) {
             v_host_dirty.emplace_back(a_dirty);

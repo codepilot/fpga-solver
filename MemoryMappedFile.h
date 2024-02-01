@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <format>
 #include "Trivial_Span.h"
+#include <array>
 
 class MemoryMappedFile {
 public:

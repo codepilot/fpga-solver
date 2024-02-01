@@ -5,6 +5,7 @@
 #include "PhysicalNetlist.capnp.h"
 #include <capnp/serialize.h>
 #include <zlib.h>
+#include "MemoryMappedFile.h"
 
 template<typename T>
 class InterchangeGZ {

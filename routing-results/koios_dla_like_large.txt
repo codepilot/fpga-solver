@@ -1,53 +1,18 @@
 
   Routing D:/fpga-solver/build/_deps/benchmark-files-src/koios_dla_like_large_unrouted.phys
   Routed  D:/fpga-solver/build/_deps/benchmark-files-build/koios_dla_like_large.phys
-  0.179613s  @ D:\fpga-solver\opencl-node-router.cpp:54 DevFlat("_deps/device-file-build/xcvu3p.device")
-  3.45378s   @ D:\fpga-solver\opencl-node-router.cpp:55 PhysGZ(src_phys_file)
-    1.46104s   @ D:\fpga-solver\ocl_node_router.h:790 program.build(options)
-    0.0340042s @ D:\fpga-solver\ocl_node_router.h:811 make_site_locations(dev)
-    0.0999521s @ D:\fpga-solver\ocl_node_router.h:812 make_devStrs_map(dev)
-    1.07331s   @ D:\fpga-solver\ocl_node_router.h:814 make_string_interchange(devStrs_map, devStrs, physStrs)
-    1.08073s   @ D:\fpga-solver\ocl_node_router.h:818 make_wire_idx_to_node_idx(dev.getWires(), dev.getNodes())
-    1.14993s   @ D:\fpga-solver\ocl_node_router.h:826 make_vecs(netCount, netCountAligned, ocl_counter_max, nets, physStrs, site_locations, physStrs_to_devStrs)
-  10.303s    @ D:\fpga-solver\opencl-node-router.cpp:60 OCL_Node_Router::make(dev.root, phys.root, create_nondefault_gpus_context().value())
-ocl_counter_max: 32, step 1 of 1:  842562,140514,476,0 
-  1.19184s   @ D:\fpga-solver\opencl-node-router.cpp:63 ocltr.route()
-  2.05818s   @ D:\fpga-solver\opencl-node-router.cpp:65 ocltr.make_phys(message)
-  3.06984s   @ D:\fpga-solver\opencl-node-router.cpp:66 InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(dst_phys_file, message)
-20.9538s   @ D:\fpga-solver\opencl-node-router.cpp:79 route_file(src_phys_file, dst_phys_file)
+  0.245116s  @ D:\fpga-solver\opencl-node-router.cpp:54 DevFlat("_deps/device-file-build/xcvu3p.device")
+  4.53569s   @ D:\fpga-solver\opencl-node-router.cpp:55 PhysGZ(src_phys_file)
+    0.0008451s @ D:\fpga-solver\ocl_node_router.h:777 program.build(options)
+    0.0378494s @ D:\fpga-solver\ocl_node_router.h:798 make_site_locations(dev)
+    0.123322s  @ D:\fpga-solver\ocl_node_router.h:799 make_devStrs_map(dev)
+    1.12097s   @ D:\fpga-solver\ocl_node_router.h:801 make_string_interchange(devStrs_map, devStrs, physStrs)
+    1.63564s   @ D:\fpga-solver\ocl_node_router.h:809 make_vecs(netCount, netCountAligned, ocl_counter_max, nets, physStrs, site_locations, physStrs_to_devStrs)
+    1.75091s   @ D:\fpga-solver\ocl_node_router.h:849 block_all_resources(phys.getPhysNets(), v_node_nets, physStrs_to_devStrs)
+  6.76569s   @ D:\fpga-solver\opencl-node-router.cpp:60 OCL_Node_Router::make(dev.root, phys.root, create_nondefault_gpus_context().value())
+ocl_counter_max: 32, step 1 of 1:  842555,140521,476,0 
+  1.20749s   @ D:\fpga-solver\opencl-node-router.cpp:63 ocltr.route()
+  2.08899s   @ D:\fpga-solver\opencl-node-router.cpp:65 ocltr.make_phys(message)
+  3.313s     @ D:\fpga-solver\opencl-node-router.cpp:66 InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(dst_phys_file, message)
+18.8208s   @ D:\fpga-solver\opencl-node-router.cpp:79 route_file(src_phys_file, dst_phys_file)
 
-==============================================================================
-==                             Read LogNetlist                              ==
-==============================================================================
-               Read File:     0.632s
-            Read Strings:     0.091s
-              Read Ports:     0.121s
-          Read CellDecls:     0.087s
-              Read Insts:     0.313s
-              Read Cells:     3.231s
-            Populate Top:     0.000s
-         Order Libraries:     0.060s
-           Expand Macros:     0.237s
-------------------------------------------------------------------------------
-         [No GC] *Total*:     4.772s
-==============================================================================
-==                             Read PhysNetlist                             ==
-==============================================================================
-               Read File:     4.951s
-            Read Strings:     0.402s
-Check Constant Routing & Net Naming:    16.381s
-          Read SiteInsts:     0.041s
-          Read Placement:     3.037s
-            Check Macros:     0.110s
-            Read Routing:    10.471s
-       Read Design Props:     0.001s
-------------------------------------------------------------------------------
-         [No GC] *Total*:    35.395s
-==============================================================================
-==                         Interchange Format->DCP                          ==
-==============================================================================
-    Read Logical Netlist:     4.784s
-   Read Physical Netlist:    35.401s
-               Write DCP:    12.939s
-------------------------------------------------------------------------------
-         [No GC] *Total*:    53.124s
