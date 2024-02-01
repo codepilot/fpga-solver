@@ -14,6 +14,8 @@
 #include "wire_idx_to_node_idx.h"
 #include "Timer.h"
 
+// #define VERBOSE_DEBUG
+
 class OCL_Node_Router {
 public:
     static inline constexpr uint32_t beam_width{ 32ul };
@@ -21,7 +23,7 @@ public:
     static inline constexpr uint32_t tt_body_count{ 4293068ul };
     static inline constexpr size_t largest_ocl_counter_max{ 128ull };
     static inline constexpr uint32_t series_id_max{ 4ul };
-    static inline constexpr uint32_t restart_count_max{ 1ul };
+    static inline constexpr uint32_t restart_count_max{ 4ul };
 
     using beam_t = std::array<std::array<uint32_t, 4>, beam_width>;
     struct history_item { uint32_t pip_idx, parent_id; };
@@ -145,7 +147,7 @@ public:
         each(queues, [&](uint64_t queue_index, ocl::queue& queue) {
             decltype(auto) cloned_kernel{ cloned_kernels[queue_index] };
             cloned_kernel.set_arg_t(0, series_id);
-            queue.enqueueWrite(v_buf_node_nets[queue_index], false, 0, std::span(v_node_nets));
+            queue.enqueueWrite(v_buf_node_nets[queue_index], false, 0, std::span(v_node_nets)).value();
             queue.enqueue<1>(cloned_kernel, { workgroup_offsets[queue_index]}, {max_workgroup_size * workgroup_counts[queue_index]}, {max_workgroup_size}).value();
         });
         each(queues, [&](uint64_t queue_index, ocl::queue& queue) {
@@ -170,12 +172,11 @@ public:
         //uint32_t previous_dirty_count{};
         for (uint32_t restart_count{}; restart_count < restart_count_max; restart_count++) {
             std::span s_heads{ v_heads };
-            std::span s_drawIndirect{ v_drawIndirect };
             each(queues, [&](uint64_t queue_index, ocl::queue& queue) {
                 auto wo{ workgroup_offsets[queue_index] };
                 auto wc{ workgroup_counts[queue_index] };
-                queue.enqueueWrite(v_buf_heads[queue_index], false, 0, s_heads.subspan(wo * max_workgroup_size, wc * max_workgroup_size));
-                queue.enqueueWrite(v_buf_drawIndirect[queue_index], false, 0, s_drawIndirect.subspan(wo * max_workgroup_size, wc * max_workgroup_size));
+                queue.enqueueWrite(v_buf_heads[queue_index], true, 0, s_heads.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value();
+                queue.enqueueWrite(v_buf_drawIndirect[queue_index], true, 0, std::span(v_drawIndirect).subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value();
             });
 
             for (uint32_t series_id{}; series_id < series_id_max; series_id++) {
@@ -188,11 +189,14 @@ public:
                 //previous_dirty_count = host_dirty.front();
             }
             vv_explored.clear();
-            for (auto&& di : v_drawIndirect) {
-                if (di[3] == 2) {//baseInstance
-                    di[3] = 0;
+            each(std::span(v_drawIndirect).subspan(0, netCount), [&](uint64_t di_index, auto&& di) {
+                di[0] = 0; //count
+                decltype(auto) np{ net_pairs[di_index] };
+
+                if (!is_routed[np.net_idx]) {
+                    di[3] = 0; //instance
                 }
-            }
+            });
             // heads
         }
         for (auto&& queue : queues) {
@@ -307,7 +311,7 @@ public:
             }
             auto ei{ std::span(ei_full).subspan(0, count) };
 
-#ifdef _DEBUG
+#ifdef VERBOSE_DEBUG
             std::cout << std::format("{}\n", physStrs[net.getName()].cStr());
 #endif
 
@@ -368,7 +372,7 @@ public:
                     auto ps_wire0{ alloc_physStr_from_devStr(ds_wire0) };
                     auto ps_wire1{ alloc_physStr_from_devStr(ds_wire1) };
 
-#ifdef _DEBUG
+#ifdef VERBOSE_DEBUG
                     std::cout << std::format("#{} pip:{} parent:{} is_foreward:{} nodes:{},{} {}/{}->{}/{}\n",
                         *ri, ein.pip_idx, ein.parent_id, static_cast<bool>(pip.is_forward), static_cast<uint32_t>(pip.node0_idx), pip.node1_idx,
                         get_physStr(ps_tile0), get_physStr(ps_wire0),
@@ -419,8 +423,8 @@ public:
                     sub_pip.setForward(static_cast<bool>(pip.is_forward)); //fixme
                     sub_pip.setIsFixed(false);
 
-#ifdef _DEBUG
-                    std::cout << std::format("#{} pip:{} parent:{} is_foreward:{} nodes:{},{} {}/{}->{}/{}\n",
+#ifdef VERBOSE_DEBUG
+                    if(false) std::cout << std::format("#{} pip:{} parent:{} is_foreward:{} nodes:{},{} {}/{}->{}/{}\n",
                         *ri, ein.pip_idx, ein.parent_id, static_cast<bool>(pip.is_forward), static_cast<uint32_t>(pip.node0_idx), pip.node1_idx,
                         get_physStr(ps_tile0), get_physStr(ps_wire0),
                         get_physStr(ps_tile1), get_physStr(ps_wire1)
@@ -431,7 +435,7 @@ public:
                 auto b_cur_branch_branches{ b_cur_branch.initBranches(1) };
                 b_cur_branch_branches.setWithCaveats(0, stub);
             }
-#ifdef _DEBUG
+#ifdef VERBOSE_DEBUG
             std::cout << "\n";
 #endif
 
@@ -834,13 +838,13 @@ public:
 
             decltype(auto) buf_dirty{ v_buf_dirty[cloned_kernel_index]=(context.create_buffer<uint32_t>(CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, a_dirty).value()) };
             decltype(auto) buf_routed_lines{ v_buf_routed_lines[cloned_kernel_index] = (context.create_buffer(CL_MEM_WRITE_ONLY | CL_MEM_HOST_NO_ACCESS, region_routed_lines.size).value()) };
-            decltype(auto) buf_drawIndirect{ v_buf_drawIndirect[cloned_kernel_index] = (context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, s_drawIndirect.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
-            decltype(auto) buf_heads{ v_buf_heads[cloned_kernel_index] = (context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, s_heads.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
+            decltype(auto) buf_drawIndirect{ v_buf_drawIndirect[cloned_kernel_index] = (context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, s_drawIndirect.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
+            decltype(auto) buf_heads{ v_buf_heads[cloned_kernel_index] = (context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, s_heads.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
             decltype(auto) buf_explored{ v_buf_explored[cloned_kernel_index] = (context.create_buffer(CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, s_explored.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
             decltype(auto) buf_stubs{ v_buf_stubs[cloned_kernel_index] = (context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, s_stubs.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
             decltype(auto) buf_pip_offset_count{ v_buf_pip_offset_count[cloned_kernel_index] = (context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, t_pip_count_offset).value()) };
             decltype(auto) buf_pip_tile_body{ v_buf_pip_tile_body[cloned_kernel_index] = (context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, t_pip_tile_body).value()) };
-            decltype(auto) buf_node_nets{ v_buf_node_nets[cloned_kernel_index] = (context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, s_node_nets).value()) };
+            decltype(auto) buf_node_nets{ v_buf_node_nets[cloned_kernel_index] = (context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_WRITE_ONLY, s_node_nets).value()) };
 
             //decltype(auto) sub_buf_routed_lines{ v_sub_buf_routed_lines.emplace_back(buf_routed_lines.sub_region(region_routed_lines).value()) };
             //decltype(auto) sub_buf_drawIndirect{ v_sub_buf_drawIndirect.emplace_back(buf_drawIndirect.sub_region(region_drawIndirect).value()) };
