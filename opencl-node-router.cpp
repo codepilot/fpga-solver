@@ -67,14 +67,16 @@ bool route_file(std::string src_phys_file, std::string dst_phys_file) {
 	return true;
 }
 
+inline static const std::string default_file{ "koios_dla_like_large" };
+
 int main(int argc, char* argv[]) {
 	puts("");
 
 	std::vector<std::string> args;
 	for (auto &&arg: std::span<char*>(argv, static_cast<size_t>(argc))) args.emplace_back(arg);
 
-	auto src_phys_file{ (args.size() >= 2) ? args.at(1) : "_deps/benchmark-files-src/mlcad_d181_lefttwo3rds_unrouted.phys" };
-	auto dst_phys_file{ (args.size() >= 3) ? args.at(2) : "_deps/benchmark-files-build/mlcad_d181_lefttwo3rds.phys" };
+	auto src_phys_file{ (args.size() >= 2) ? args.at(1) : ("_deps/benchmark-files-src/" + default_file + "_unrouted.phys") };
+	auto dst_phys_file{ (args.size() >= 3) ? args.at(2) : ("_deps/benchmark-files-build/" + default_file + ".phys") };
 	
 	TimerVal(route_file(src_phys_file, dst_phys_file));
 
