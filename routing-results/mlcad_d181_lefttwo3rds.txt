@@ -1,19 +1,19 @@
 
-  Routing D:/fpga-solver/build/_deps/benchmark-files-src/mlcad_d181_lefttwo3rds_unrouted.phys
-  Routed  D:/fpga-solver/build/_deps/benchmark-files-build/mlcad_d181_lefttwo3rds.phys
-  0.182955s  @ D:\fpga-solver\opencl-node-router.cpp:54 DevFlat("_deps/device-file-build/xcvu3p.device")
-  1.79798s   @ D:\fpga-solver\opencl-node-router.cpp:55 PhysGZ(src_phys_file)
-    0.0007758s @ D:\fpga-solver\ocl_node_router.h:865 program.build(options)
-    0.0479736s @ D:\fpga-solver\ocl_node_router.h:886 make_site_locations(dev)
-    0.104784s  @ D:\fpga-solver\ocl_node_router.h:887 make_devStrs_map(dev)
-    0.42372s   @ D:\fpga-solver\ocl_node_router.h:889 make_string_interchange(devStrs_map, devStrs, physStrs)
-    0.965769s  @ D:\fpga-solver\ocl_node_router.h:897 make_vecs(netCount, netCountAligned, ocl_counter_max, nets, physStrs, site_locations, physStrs_to_devStrs)
-    0.770715s  @ D:\fpga-solver\ocl_node_router.h:930 block_all_resources(phys.getPhysNets(), v_node_nets, physStrs_to_devStrs)
-    1.28011s   @ D:\fpga-solver\ocl_node_router.h:932 setup_buffers(context, queues, cloned_kernels, workgroup_counts, workgroup_offsets, v_host_dirty, ocl_counter_max, max_workgroup_size, v_buf_dirty, v_buf_routed_lines, v_buf_drawIndirect, v_buf_heads, v_buf_explored, v_buf_stubs, v_buf_pip_offset_count, v_buf_pip_tile_body, v_buf_node_nets, s_drawIndirect, s_heads, s_explored, s_stubs, v_node_nets )
-  4.11647s   @ D:\fpga-solver\opencl-node-router.cpp:60 OCL_Node_Router::make(dev.root, phys.root, create_nondefault_gpus_context().value())
+  Routing /home/ubuntu/fpga-solver/build/_deps/benchmark-files-src/mlcad_d181_lefttwo3rds_unrouted.phys
+  Routed  /home/ubuntu/fpga-solver/build/_deps/benchmark-files-build/mlcad_d181_lefttwo3rds.phys
+  0.000207555s @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:54 DevFlat("_deps/device-file-build/xcvu3p.device")
+  3.45004s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:55 PhysGZ(src_phys_file)
+    0.0914677s @ /home/ubuntu/fpga-solver/ocl_node_router.h:865 program.build(options)
+    0.0505976s @ /home/ubuntu/fpga-solver/ocl_node_router.h:886 make_site_locations(dev)
+    0.141731s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:887 make_devStrs_map(dev)
+    0.718852s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:889 make_string_interchange(devStrs_map, devStrs, physStrs)
+    1.63529s   @ /home/ubuntu/fpga-solver/ocl_node_router.h:897 make_vecs(netCount, netCountAligned, ocl_counter_max, nets, physStrs, site_locations, physStrs_to_devStrs)
+    1.27396s   @ /home/ubuntu/fpga-solver/ocl_node_router.h:930 block_all_resources(phys.getPhysNets(), v_node_nets, physStrs_to_devStrs)
+    2.7522s    @ /home/ubuntu/fpga-solver/ocl_node_router.h:932 setup_buffers(context, queues, cloned_kernels, workgroup_counts, workgroup_offsets, v_host_dirty, ocl_counter_max, max_workgroup_size, v_buf_dirty, v_buf_routed_lines, v_buf_drawIndirect, v_buf_heads, v_buf_explored, v_buf_stubs, v_buf_pip_offset_count, v_buf_pip_tile_body, v_buf_node_nets, s_drawIndirect, s_heads, s_explored, s_stubs, v_node_nets )
+  7.47132s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:60 OCL_Node_Router::make(dev.root, phys.root, create_nondefault_gpus_context().value())
 ocl_counter_max: 32, step 1 of 1:  741537,166882,7398,0 
-  0.95028s   @ D:\fpga-solver\opencl-node-router.cpp:63 ocltr.route()
-  1.22679s   @ D:\fpga-solver\opencl-node-router.cpp:65 ocltr.make_phys(message)
-  1.43863s   @ D:\fpga-solver\opencl-node-router.cpp:66 InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(dst_phys_file, message)
-10.1034s   @ D:\fpga-solver\opencl-node-router.cpp:81 route_file(src_phys_file, dst_phys_file)
+  2.07709s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:63 ocltr.route()
+  2.334s     @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:65 ocltr.make_phys(message)
+  2.86146s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:66 InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(dst_phys_file, message)
+18.9955s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:81 route_file(src_phys_file, dst_phys_file)
 

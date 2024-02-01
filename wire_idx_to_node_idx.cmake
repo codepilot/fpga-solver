@@ -11,4 +11,5 @@ block()
     DEPENDS search_files)
 
   add_custom_target(wire_idx_to_node_idx DEPENDS ${wire_idx_to_node_idx_bin})
+  add_dependencies(wire_idx_to_node_idx search_files make_wire_idx_to_node_idx)
 endblock()

@@ -19,6 +19,7 @@ public:
 	constexpr void increment() noexcept { value++; }
 };
 
+#if 0
 class InverseWires {
 public:
 	inline static constexpr uint64_t wire_count{ 83282368ull };
@@ -29,11 +30,13 @@ public:
 		each(wires, [&](uint64_t wire_idx, wire_reader &wire) {
 			q.push(((static_cast<uint64_t>(wire.getTile()) * str_count) + static_cast<uint64_t>(wire.getWire())) * wire_count);
 		});
+		return q.c;
 	}
 
 	InverseWires(wire_list_reader wires) {
 	}
 };
+#endif
 
 #include "wire_tile_node.h"
 #include "site_pin_nodes.h"

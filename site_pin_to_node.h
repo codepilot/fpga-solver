@@ -11,6 +11,7 @@
 #include "inverse_wires.h"
 #include "Timer.h"
 #include "InterchangeGZ.h"
+#include "wire_idx_to_node_idx.h"
 
 class Site_Pin_to_Node: public std::span<const uint64_t> {
 public:
@@ -63,27 +64,13 @@ public:
 		return ret.load();
 	}
 
-	static std::vector<uint32_t> make_wire_idx_to_node_idx(wire_list_reader wires, node_list_reader nodes) {
-		std::vector<uint32_t> wire_idx_to_node_idx(static_cast<size_t>(wires.size()), UINT32_MAX);
-		jthread_each(nodes, [&](uint64_t node_idx, node_reader node) {
-			for (auto wire_idx : node.getWires()) {
-				wire_idx_to_node_idx[wire_idx] = static_cast<uint32_t>(node_idx);
-			}
-			});
-
-		return wire_idx_to_node_idx;
-	}
-
-	inline static MemoryMappedFile make(device_reader devRoot, Inverse_Wires inverse_wires) {
+	inline static MemoryMappedFile make(device_reader devRoot, Inverse_Wires inverse_wires, Wire_Idx_to_Node_Idx wire_idx_to_node_idx) {
 		const node_list_reader nodes{ devRoot.getNodes() };
 		const wire_list_reader wires{ devRoot.getWires() };
 		const string_list_reader strList{ devRoot.getStrList() };
 		const tile_list_reader tiles{ devRoot.getTileList() };
 		const tile_type_list_reader tile_types{ devRoot.getTileTypeList() };
 		const site_type_list_reader site_types{ devRoot.getSiteTypeList() };
-		// const uint64_t site_pins_count{ count_site_pins(tiles, tile_types) };
-
-		const auto wire_idx_to_node_idx{ TimerVal(make_wire_idx_to_node_idx(wires, nodes)) };
 
 #if 1
 		{

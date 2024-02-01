@@ -4,7 +4,8 @@ block()
 FetchContent_MakeAvailable(benchmark-files)
 file(GLOB_RECURSE NETLIST_FILES "${benchmark-files_SOURCE_DIR}/*.netlist")
 
-add_custom_target(route_status_benchmarks DEPENDS dcp_benchmarks)
+add_custom_target(route_status_benchmarks)
+add_dependencies((route_status_benchmarks dcp_benchmarks)
 
 set(ALL_ROUTE_STATUS "${benchmark-files_BINARY_DIR}/ALL.route_status.cmd")
 file(WRITE "${ALL_ROUTE_STATUS}" "")

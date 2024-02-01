@@ -9,7 +9,8 @@ block()
 
   message("PROJECT_BINARY_DIR = ${PROJECT_BINARY_DIR}")
 
-  add_custom_target(search_files DEPENDS make_search_files)
+  add_custom_target(search_files)
+  add_dependencies(search_files make_search_files)
 
   add_custom_command(
     TARGET search_files

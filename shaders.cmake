@@ -22,4 +22,5 @@ block()
   endforeach(GLSL)
 
   add_custom_target(shaders DEPENDS ${SPIRV_BINARY_FILES})
+  add_dependencies(glslang-standalone)
 endblock()

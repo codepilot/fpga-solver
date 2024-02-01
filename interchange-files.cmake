@@ -12,6 +12,7 @@ block()
   )
 
   add_custom_target(interchange-files)
+  add_dependencies(interchange-files capnp_tool)
 
   foreach(CAPNP ${CAPNP_SOURCE_FILES})
     get_filename_component(FILE_NAME ${CAPNP} NAME)

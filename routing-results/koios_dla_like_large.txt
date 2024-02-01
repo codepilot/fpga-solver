@@ -1,19 +1,19 @@
 
-  Routing D:/fpga-solver/build/_deps/benchmark-files-src/koios_dla_like_large_unrouted.phys
-  Routed  D:/fpga-solver/build/_deps/benchmark-files-build/koios_dla_like_large.phys
-  0.195074s  @ D:\fpga-solver\opencl-node-router.cpp:54 DevFlat("_deps/device-file-build/xcvu3p.device")
-  3.07392s   @ D:\fpga-solver\opencl-node-router.cpp:55 PhysGZ(src_phys_file)
-    0.000783s  @ D:\fpga-solver\ocl_node_router.h:865 program.build(options)
-    0.0509504s @ D:\fpga-solver\ocl_node_router.h:886 make_site_locations(dev)
-    0.120201s  @ D:\fpga-solver\ocl_node_router.h:887 make_devStrs_map(dev)
-    1.07114s   @ D:\fpga-solver\ocl_node_router.h:889 make_string_interchange(devStrs_map, devStrs, physStrs)
-    1.2228s    @ D:\fpga-solver\ocl_node_router.h:897 make_vecs(netCount, netCountAligned, ocl_counter_max, nets, physStrs, site_locations, physStrs_to_devStrs)
-    1.35668s   @ D:\fpga-solver\ocl_node_router.h:930 block_all_resources(phys.getPhysNets(), v_node_nets, physStrs_to_devStrs)
-    1.30706s   @ D:\fpga-solver\ocl_node_router.h:932 setup_buffers(context, queues, cloned_kernels, workgroup_counts, workgroup_offsets, v_host_dirty, ocl_counter_max, max_workgroup_size, v_buf_dirty, v_buf_routed_lines, v_buf_drawIndirect, v_buf_heads, v_buf_explored, v_buf_stubs, v_buf_pip_offset_count, v_buf_pip_tile_body, v_buf_node_nets, s_drawIndirect, s_heads, s_explored, s_stubs, v_node_nets )
-  5.8508s    @ D:\fpga-solver\opencl-node-router.cpp:60 OCL_Node_Router::make(dev.root, phys.root, create_nondefault_gpus_context().value())
+  Routing /home/ubuntu/fpga-solver/build/_deps/benchmark-files-src/koios_dla_like_large_unrouted.phys
+  Routed  /home/ubuntu/fpga-solver/build/_deps/benchmark-files-build/koios_dla_like_large.phys
+  6.7451e-05s @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:54 DevFlat("_deps/device-file-build/xcvu3p.device")
+  5.72654s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:55 PhysGZ(src_phys_file)
+    0.104599s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:865 program.build(options)
+    0.0698871s @ /home/ubuntu/fpga-solver/ocl_node_router.h:886 make_site_locations(dev)
+    0.160433s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:887 make_devStrs_map(dev)
+    1.2753s    @ /home/ubuntu/fpga-solver/ocl_node_router.h:889 make_string_interchange(devStrs_map, devStrs, physStrs)
+    1.86838s   @ /home/ubuntu/fpga-solver/ocl_node_router.h:897 make_vecs(netCount, netCountAligned, ocl_counter_max, nets, physStrs, site_locations, physStrs_to_devStrs)
+    2.15666s   @ /home/ubuntu/fpga-solver/ocl_node_router.h:930 block_all_resources(phys.getPhysNets(), v_node_nets, physStrs_to_devStrs)
+    2.70568s   @ /home/ubuntu/fpga-solver/ocl_node_router.h:932 setup_buffers(context, queues, cloned_kernels, workgroup_counts, workgroup_offsets, v_host_dirty, ocl_counter_max, max_workgroup_size, v_buf_dirty, v_buf_routed_lines, v_buf_drawIndirect, v_buf_heads, v_buf_explored, v_buf_stubs, v_buf_pip_offset_count, v_buf_pip_tile_body, v_buf_node_nets, s_drawIndirect, s_heads, s_explored, s_stubs, v_node_nets )
+  9.41614s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:60 OCL_Node_Router::make(dev.root, phys.root, create_nondefault_gpus_context().value())
 ocl_counter_max: 32, step 1 of 1:  842635,140531,476,0 
-  1.48467s   @ D:\fpga-solver\opencl-node-router.cpp:63 ocltr.route()
-  2.45527s   @ D:\fpga-solver\opencl-node-router.cpp:65 ocltr.make_phys(message)
-  3.39017s   @ D:\fpga-solver\opencl-node-router.cpp:66 InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(dst_phys_file, message)
-16.9815s   @ D:\fpga-solver\opencl-node-router.cpp:81 route_file(src_phys_file, dst_phys_file)
+  2.32205s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:63 ocltr.route()
+  4.22007s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:65 ocltr.make_phys(message)
+  5.33737s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:66 InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(dst_phys_file, message)
+28.1133s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:81 route_file(src_phys_file, dst_phys_file)
 

@@ -1,4 +1,4 @@
-cmake -S . -B build
+cmake -DCMAKE_BUILD_TYPE=Release -S . -B build
 cd build
-cmake --build . --config Release -t route_benchmarks
+cmake --build . -t route_benchmarks -j
 cd ..
