@@ -123,7 +123,7 @@ namespace ocl_handle {
 
         //move constructors
         shared_handle(shared_handle&& other) noexcept : m_ptr{ std::exchange(other.m_ptr, nullptr) } { }
-        shared_handle& operator=(shared_handle&& other) noexcept { reset(); m_ptr = std::exchange(other.m_ptr, nullptr); }
+        shared_handle& operator=(shared_handle&& other) noexcept { reset(); m_ptr = std::exchange(other.m_ptr, nullptr); return *this; }
 
         //copy constructors
         shared_handle(const shared_handle& other) noexcept : m_ptr{ retain(other.m_ptr).value() } { }

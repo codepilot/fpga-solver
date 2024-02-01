@@ -711,6 +711,93 @@ public:
         return true;
     }
 
+    static bool setup_buffers(
+        ocl::context &context,
+        std::span<ocl::queue> queues,
+        std::span<ocl::kernel> cloned_kernels,
+        std::span<size_t> workgroup_counts,
+        std::span<size_t> workgroup_offsets,
+        std::span<std::array<uint32_t, 4>> s_host_dirty,
+        const uint32_t ocl_counter_max,
+        const cl_uint max_workgroup_size,
+        std::span<ocl::buffer> v_buf_dirty,
+        std::span<ocl::buffer> v_buf_routed_lines,
+        std::span<ocl::buffer> v_buf_drawIndirect,
+        std::span<ocl::buffer> v_buf_heads,
+        std::span<ocl::buffer> v_buf_explored,
+        std::span<ocl::buffer> v_buf_stubs,
+        std::span<ocl::buffer> v_buf_pip_offset_count,
+        std::span<ocl::buffer> v_buf_pip_tile_body,
+        std::span<ocl::buffer> v_buf_node_nets,
+        std::span<std::array<uint32_t, 4>> s_drawIndirect,
+        std::span<beam_t> s_heads,
+        std::span<history_t> s_explored,
+        std::span<std::array<uint32_t, 4>> s_stubs,
+        std::span<uint32_t> s_node_nets
+    ) {
+        each(cloned_kernels, [&](uint64_t cloned_kernel_index, ocl::kernel& cloned_kernel) {
+            const size_t wg_routed_lines{ static_cast<size_t>(ocl_counter_max) * sizeof(std::array<uint16_t, 4>) * max_workgroup_size };
+            const size_t wg_drawIndirect{ sizeof(std::array<uint32_t, 4>) * max_workgroup_size };
+            const size_t wg_heads{ sizeof(beam_t) * max_workgroup_size };
+            const size_t wg_explored{ sizeof(history_t) * max_workgroup_size };
+            const size_t wg_stubs{ sizeof(std::array<uint32_t, 4>) * max_workgroup_size };
+
+            std::array<uint32_t, 4> a_dirty{};
+            s_host_dirty[cloned_kernel_index] = a_dirty;
+
+            auto wo{ workgroup_offsets[cloned_kernel_index] };
+            auto wc{ workgroup_counts[cloned_kernel_index] };
+
+            auto region_routed_lines{ cl_buffer_region {.origin{wo * wg_routed_lines}, .size{wc * wg_routed_lines}} };
+            auto region_drawIndirect{ cl_buffer_region {.origin{wo * wg_drawIndirect}, .size{wc * wg_drawIndirect}} };
+            auto region_heads{ cl_buffer_region {.origin{wo * wg_heads}, .size{wc * wg_heads}} };
+            auto region_explored{ cl_buffer_region {.origin{wo * wg_explored}, .size{wc * wg_explored}} };
+            auto region_stubs{ cl_buffer_region {.origin{wo * wg_stubs}, .size{wc * wg_stubs}} };
+
+            decltype(auto) buf_dirty{ v_buf_dirty[cloned_kernel_index]=(context.create_buffer<uint32_t>(CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, a_dirty).value()) };
+            decltype(auto) buf_routed_lines{ v_buf_routed_lines[cloned_kernel_index] = (context.create_buffer(CL_MEM_WRITE_ONLY | CL_MEM_HOST_NO_ACCESS, region_routed_lines.size).value()) };
+            decltype(auto) buf_drawIndirect{ v_buf_drawIndirect[cloned_kernel_index] = (context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, s_drawIndirect.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
+            decltype(auto) buf_heads{ v_buf_heads[cloned_kernel_index] = (context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, s_heads.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
+            decltype(auto) buf_explored{ v_buf_explored[cloned_kernel_index] = (context.create_buffer(CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, s_explored.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
+            decltype(auto) buf_stubs{ v_buf_stubs[cloned_kernel_index] = (context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, s_stubs.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
+            decltype(auto) buf_pip_offset_count{ v_buf_pip_offset_count[cloned_kernel_index] = (context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, t_pip_count_offset).value()) };
+            decltype(auto) buf_pip_tile_body{ v_buf_pip_tile_body[cloned_kernel_index] = (context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, t_pip_tile_body).value()) };
+            decltype(auto) buf_node_nets{ v_buf_node_nets[cloned_kernel_index] = (context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, s_node_nets).value()) };
+
+            //decltype(auto) sub_buf_routed_lines{ v_sub_buf_routed_lines.emplace_back(buf_routed_lines.sub_region(region_routed_lines).value()) };
+            //decltype(auto) sub_buf_drawIndirect{ v_sub_buf_drawIndirect.emplace_back(buf_drawIndirect.sub_region(region_drawIndirect).value()) };
+            //decltype(auto) sub_buf_heads{ v_sub_buf_heads.emplace_back(buf_heads.sub_region(region_heads).value()) };
+            //decltype(auto) sub_buf_explored{ v_sub_buf_explored.emplace_back(buf_explored.sub_region(region_explored).value()) };
+            //decltype(auto) sub_buf_stubs{ v_sub_buf_stubs.emplace_back(buf_stubs.sub_region(region_stubs).value()) };
+
+            cloned_kernel.set_arg_t(0, 0).value();                     // 0 ro <duplicate>  const    uint                   series_id,
+            cloned_kernel.set_arg(1, buf_dirty).value();               // 1 rw <duplicate>  global   uint*         restrict dirty
+            cloned_kernel.set_arg(2, buf_routed_lines).value();        // 2 wo <sub-divide> global   routed_lines* restrict routed,
+            cloned_kernel.set_arg(3, buf_drawIndirect).value();        // 3 rw <sub-divide> global   uint4*        restrict drawIndirect,
+            cloned_kernel.set_arg(4, buf_heads).value();               // 4 rw <sub-divide> global   beam_t*       restrict heads, //cost height parent pip_idx
+            cloned_kernel.set_arg(5, buf_explored).value();            // 5 wo <sub-divide> global   history_t*    restrict explored, //pip_idx parent
+            cloned_kernel.set_arg(6, buf_stubs).value();               // 6 ro <sub-divide> constant uint4*        restrict stubs, // x, y, node_idx, net_idx
+            cloned_kernel.set_arg(7, buf_pip_offset_count).value();    // 7 ro <share>      constant uint2*        restrict pip_count_offset, // count offset
+            cloned_kernel.set_arg(8, buf_pip_tile_body).value();       // 8 ro <share>      constant uint4*        restrict pip_tile_body, // x, y, node0_idx, node1_idx
+            cloned_kernel.set_arg(9, buf_node_nets).value();           // 9 ro <share>      constant uint* restrict node_nets
+
+            std::array<cl_mem, 9> cloned_kernel_buffers{
+                buf_dirty.m_ptr,
+                buf_routed_lines.m_ptr,
+                buf_drawIndirect.m_ptr,
+                buf_heads.m_ptr,
+                buf_explored.m_ptr,
+                buf_stubs.m_ptr,
+                buf_pip_offset_count.m_ptr,
+                buf_pip_tile_body.m_ptr,
+                buf_node_nets.m_ptr,
+            };
+
+            queues[cloned_kernel_index].enqueueMigrate(cloned_kernel_buffers).value();
+        });
+        return true;
+    }
+
     static OCL_Node_Router make(
         DeviceResources::Device::Reader dev,
         PhysicalNetlist::PhysNetlist::Reader phys,
@@ -721,8 +808,6 @@ public:
         auto nets{ phys.getPhysNets() };
         auto physStrs{ phys.getStrList() };
         auto devStrs{ dev.getStrList() };
-        const uint32_t netCount{ count_stubs(nets) };
-        const uint32_t netCountAligned{ (((netCount + 255ul) >> 8ul) << 8ul) };
 
         // auto req_devices{ std::ranges::contains(context_properties, CL_GL_CONTEXT_KHR) ? ocl::device::get_gl_devices(context_properties).value() : std::vector<cl_device_id>{} };
         // ocl::context context{ req_devices.size() ? ocl::context::create(context_properties, req_devices).value(): ocl::context::create<CL_DEVICE_TYPE_GPU>(context_properties).value() };
@@ -734,10 +819,13 @@ public:
         // puts(std::format("mem_base_addr_align: {}", mem_base_addr_align).c_str());
         cl_uint max_workgroup_size{ static_cast<cl_uint>(amd_preferred_workgroup_size.value_or(generic_workgroup_size)) };
 
-        auto queues{ context.create_queues().value() };
+        const uint32_t netCount{ count_stubs(nets) };
+        const uint32_t netCountAligned{ (((netCount + (max_workgroup_size - 1)) / max_workgroup_size) * max_workgroup_size) };
+
+        std::vector<ocl::queue> queues{ context.create_queues().value() };
         size_t total_workgroup_count{ netCountAligned / max_workgroup_size };
-        auto workgroup_counts{ std::vector<size_t>(queues.size(), 0) };
-        auto workgroup_offsets{ std::vector<size_t>(queues.size(), 0) };
+        std::vector<size_t> workgroup_counts{ std::vector<size_t>(queues.size(), 0) };
+        std::vector<size_t> workgroup_offsets{ std::vector<size_t>(queues.size(), 0) };
 
         for (size_t wc{}; wc < total_workgroup_count; wc++) {
             workgroup_counts[wc % queues.size()]++;
@@ -807,9 +895,9 @@ public:
 #endif
 
         auto vecs{ TimerVal(make_vecs(netCount, netCountAligned, ocl_counter_max, nets, physStrs, site_locations, physStrs_to_devStrs)) };
-        auto s_drawIndirect{ std::span(std::get<2>(vecs)) };
-        auto s_heads{ std::span(std::get<1>(vecs)) };
-        auto s_stubs{ std::span(std::get<0>(vecs)) };
+        std::span<std::array<uint32_t, 4>> s_drawIndirect{ std::span(std::get<2>(vecs)) };
+        std::span<beam_t> s_heads{ std::span(std::get<1>(vecs)) };
+        std::span<std::array<uint32_t, 4>> s_stubs{ std::span(std::get<0>(vecs)) };
 
 #ifdef _DEBUG
         puts("setting kernel args");
@@ -821,86 +909,27 @@ public:
         history_t a_history;
         a_history.fill(history_item_fill);
         auto v_explored{ std::vector<history_t>(netCountAligned, a_history) };
-        auto s_explored{ std::span(v_explored) };
+        std::span<history_t> s_explored{ std::span(v_explored) };
 
-        std::array<uint32_t, 4> a_dirty{};
-        std::vector<ocl::buffer> v_buf_dirty;
-        std::vector<std::array<uint32_t, 4>> v_host_dirty{};
+        std::vector<ocl::buffer> v_buf_dirty(queues.size());
+        std::vector<std::array<uint32_t, 4>> v_host_dirty(queues.size());
         
-        auto cloned_kernels{ std::move(kernels.front().clone(queues.size()).value()) };
+        std::vector<ocl::kernel> cloned_kernels{ std::move(kernels.front().clone(queues.size()).value()) };
 
         auto v_node_nets{ std::vector<uint32_t>(static_cast<size_t>(dev.getNodes().size()), UINT32_MAX) };
 
-        std::vector<ocl::buffer> v_buf_routed_lines;
-        std::vector<ocl::buffer> v_buf_drawIndirect;
-        std::vector<ocl::buffer> v_buf_heads;
-        std::vector<ocl::buffer> v_buf_explored;
-        std::vector<ocl::buffer> v_buf_stubs;
-        std::vector<ocl::buffer> v_buf_pip_offset_count;
-        std::vector<ocl::buffer> v_buf_pip_tile_body;
-        std::vector<ocl::buffer> v_buf_node_nets;
-
-        const size_t wg_routed_lines{ static_cast<size_t>(ocl_counter_max) * sizeof(std::array<uint16_t, 4>) * max_workgroup_size };
-        const size_t wg_drawIndirect{ sizeof(std::array<uint32_t, 4>) * max_workgroup_size };
-        const size_t wg_heads{ sizeof(beam_t) * max_workgroup_size };
-        const size_t wg_explored{ sizeof(history_t) * max_workgroup_size };
-        const size_t wg_stubs{ sizeof(std::array<uint32_t, 4>) * max_workgroup_size };
+        std::vector<ocl::buffer> v_buf_routed_lines(queues.size());
+        std::vector<ocl::buffer> v_buf_drawIndirect(queues.size());
+        std::vector<ocl::buffer> v_buf_heads(queues.size());
+        std::vector<ocl::buffer> v_buf_explored(queues.size());
+        std::vector<ocl::buffer> v_buf_stubs(queues.size());
+        std::vector<ocl::buffer> v_buf_pip_offset_count(queues.size());
+        std::vector<ocl::buffer> v_buf_pip_tile_body(queues.size());
+        std::vector<ocl::buffer> v_buf_node_nets(queues.size());
 
         TimerVal(block_all_resources(phys.getPhysNets(), v_node_nets, physStrs_to_devStrs));
 
-        each(cloned_kernels, [&](uint64_t cloned_kernel_index, ocl::kernel &cloned_kernel) {
-            v_host_dirty.emplace_back(a_dirty);
-
-            auto wo{ workgroup_offsets[cloned_kernel_index] };
-            auto wc{ workgroup_counts[cloned_kernel_index] };
-
-            auto region_routed_lines{ cl_buffer_region {.origin{wo * wg_routed_lines}, .size{wc * wg_routed_lines}} };
-            auto region_drawIndirect{ cl_buffer_region {.origin{wo * wg_drawIndirect}, .size{wc * wg_drawIndirect}} };
-            auto region_heads{ cl_buffer_region {.origin{wo * wg_heads}, .size{wc * wg_heads}} };
-            auto region_explored{ cl_buffer_region {.origin{wo * wg_explored}, .size{wc * wg_explored}} };
-            auto region_stubs{ cl_buffer_region {.origin{wo * wg_stubs}, .size{wc * wg_stubs}} };
-
-            decltype(auto) buf_dirty{ v_buf_dirty.emplace_back(context.create_buffer<uint32_t>(CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, a_dirty).value()) };
-            decltype(auto) buf_routed_lines{ v_buf_routed_lines.emplace_back(context.create_buffer(CL_MEM_WRITE_ONLY | CL_MEM_HOST_NO_ACCESS, region_routed_lines.size).value()) };
-            decltype(auto) buf_drawIndirect{ v_buf_drawIndirect.emplace_back(context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, s_drawIndirect.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
-            decltype(auto) buf_heads{ v_buf_heads.emplace_back(context.create_buffer(CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, s_heads.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
-            decltype(auto) buf_explored{ v_buf_explored.emplace_back(context.create_buffer(CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY | CL_MEM_COPY_HOST_PTR, s_explored.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
-            decltype(auto) buf_stubs{ v_buf_stubs.emplace_back(context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, s_stubs.subspan(wo * max_workgroup_size, wc * max_workgroup_size)).value()) };
-            decltype(auto) buf_pip_offset_count{ v_buf_pip_offset_count.emplace_back(context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, t_pip_count_offset).value()) };
-            decltype(auto) buf_pip_tile_body{ v_buf_pip_tile_body.emplace_back(context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, t_pip_tile_body).value()) };
-            decltype(auto) buf_node_nets{ v_buf_node_nets.emplace_back(context.create_buffer(CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR | CL_MEM_HOST_NO_ACCESS, v_node_nets).value()) };
-
-            //decltype(auto) sub_buf_routed_lines{ v_sub_buf_routed_lines.emplace_back(buf_routed_lines.sub_region(region_routed_lines).value()) };
-            //decltype(auto) sub_buf_drawIndirect{ v_sub_buf_drawIndirect.emplace_back(buf_drawIndirect.sub_region(region_drawIndirect).value()) };
-            //decltype(auto) sub_buf_heads{ v_sub_buf_heads.emplace_back(buf_heads.sub_region(region_heads).value()) };
-            //decltype(auto) sub_buf_explored{ v_sub_buf_explored.emplace_back(buf_explored.sub_region(region_explored).value()) };
-            //decltype(auto) sub_buf_stubs{ v_sub_buf_stubs.emplace_back(buf_stubs.sub_region(region_stubs).value()) };
-
-            cloned_kernel.set_arg_t(0, 0).value();                     // 0 ro <duplicate>  const    uint                   series_id,
-            cloned_kernel.set_arg(1, buf_dirty).value();               // 1 rw <duplicate>  global   uint*         restrict dirty
-            cloned_kernel.set_arg(2, buf_routed_lines).value();        // 2 wo <sub-divide> global   routed_lines* restrict routed,
-            cloned_kernel.set_arg(3, buf_drawIndirect).value();        // 3 rw <sub-divide> global   uint4*        restrict drawIndirect,
-            cloned_kernel.set_arg(4, buf_heads).value();               // 4 rw <sub-divide> global   beam_t*       restrict heads, //cost height parent pip_idx
-            cloned_kernel.set_arg(5, buf_explored).value();            // 5 wo <sub-divide> global   history_t*    restrict explored, //pip_idx parent
-            cloned_kernel.set_arg(6, buf_stubs).value();               // 6 ro <sub-divide> constant uint4*        restrict stubs, // x, y, node_idx, net_idx
-            cloned_kernel.set_arg(7, buf_pip_offset_count).value();    // 7 ro <share>      constant uint2*        restrict pip_count_offset, // count offset
-            cloned_kernel.set_arg(8, buf_pip_tile_body).value();       // 8 ro <share>      constant uint4*        restrict pip_tile_body, // x, y, node0_idx, node1_idx
-            cloned_kernel.set_arg(9, buf_node_nets).value();           // 9 ro <share>      constant uint* restrict node_nets
-
-            std::array<cl_mem, 9> cloned_kernel_buffers{
-                buf_dirty.m_ptr,
-                buf_routed_lines.m_ptr,
-                buf_drawIndirect.m_ptr,
-                buf_heads.m_ptr,
-                buf_explored.m_ptr,
-                buf_stubs.m_ptr,
-                buf_pip_offset_count.m_ptr,
-                buf_pip_tile_body.m_ptr,
-                buf_node_nets.m_ptr,
-            };
-
-            queues[cloned_kernel_index].enqueueMigrate(cloned_kernel_buffers).value();
-        });
+        TimerVal(setup_buffers(context, queues, cloned_kernels, workgroup_counts, workgroup_offsets, v_host_dirty, ocl_counter_max, max_workgroup_size, v_buf_dirty, v_buf_routed_lines, v_buf_drawIndirect, v_buf_heads, v_buf_explored, v_buf_stubs, v_buf_pip_offset_count, v_buf_pip_tile_body, v_buf_node_nets, s_drawIndirect, s_heads, s_explored, s_stubs, v_node_nets ));
 
         return OCL_Node_Router{
             .context{std::move(context)},
