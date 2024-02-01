@@ -187,7 +187,7 @@ public:
                 //if (previous_dirty_count != host_dirty.front()) std::cout << "\n";
                 //previous_dirty_count = host_dirty.front();
             }
-            vv_explored.empty();
+            vv_explored.clear();
             for (auto&& di : v_drawIndirect) {
                 if (di[3] == 2) {//baseInstance
                     di[3] = 0;
