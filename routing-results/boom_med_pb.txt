@@ -1,19 +1,19 @@
 
   Routing D:/fpga-solver/build/_deps/benchmark-files-src/boom_med_pb_unrouted.phys
   Routed  D:/fpga-solver/build/_deps/benchmark-files-build/boom_med_pb.phys
-  0.157978s  @ D:\fpga-solver\opencl-node-router.cpp:54 DevFlat("_deps/device-file-build/xcvu3p.device")
-  0.231009s  @ D:\fpga-solver\opencl-node-router.cpp:55 PhysGZ(src_phys_file)
-    1.26728s   @ D:\fpga-solver\ocl_node_router.h:865 program.build(options)
-    0.0410982s @ D:\fpga-solver\ocl_node_router.h:886 make_site_locations(dev)
-    0.0822045s @ D:\fpga-solver\ocl_node_router.h:887 make_devStrs_map(dev)
-    0.0510898s @ D:\fpga-solver\ocl_node_router.h:889 make_string_interchange(devStrs_map, devStrs, physStrs)
-    0.212899s  @ D:\fpga-solver\ocl_node_router.h:897 make_vecs(netCount, netCountAligned, ocl_counter_max, nets, physStrs, site_locations, physStrs_to_devStrs)
-    0.13036s   @ D:\fpga-solver\ocl_node_router.h:930 block_all_resources(phys.getPhysNets(), v_node_nets, physStrs_to_devStrs)
-    1.95576s   @ D:\fpga-solver\ocl_node_router.h:932 setup_buffers(context, queues, cloned_kernels, workgroup_counts, workgroup_offsets, v_host_dirty, ocl_counter_max, max_workgroup_size, v_buf_dirty, v_buf_routed_lines, v_buf_drawIndirect, v_buf_heads, v_buf_explored, v_buf_stubs, v_buf_pip_offset_count, v_buf_pip_tile_body, v_buf_node_nets, s_drawIndirect, s_heads, s_explored, s_stubs, v_node_nets )
-  5.66821s   @ D:\fpga-solver\opencl-node-router.cpp:60 OCL_Node_Router::make(dev.root, phys.root, create_nondefault_gpus_context().value())
-ocl_counter_max: 32, step 1 of 1:  50731,5562,27,0  50557,5733,30,0  50117,5925,22,0  50487,5411,21,0 
-  0.710561s  @ D:\fpga-solver\opencl-node-router.cpp:63 ocltr.route()
-  0.213005s  @ D:\fpga-solver\opencl-node-router.cpp:65 ocltr.make_phys(message)
-  0.189873s  @ D:\fpga-solver\opencl-node-router.cpp:66 InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(dst_phys_file, message)
-8.00538s   @ D:\fpga-solver\opencl-node-router.cpp:81 route_file(src_phys_file, dst_phys_file)
+  0.172053s  @ D:\fpga-solver\opencl-node-router.cpp:54 DevFlat("_deps/device-file-build/xcvu3p.device")
+  0.221336s  @ D:\fpga-solver\opencl-node-router.cpp:55 PhysGZ(src_phys_file)
+    0.0007814s @ D:\fpga-solver\ocl_node_router.h:865 program.build(options)
+    0.0341199s @ D:\fpga-solver\ocl_node_router.h:886 make_site_locations(dev)
+    0.0917418s @ D:\fpga-solver\ocl_node_router.h:887 make_devStrs_map(dev)
+    0.0483471s @ D:\fpga-solver\ocl_node_router.h:889 make_string_interchange(devStrs_map, devStrs, physStrs)
+    0.213929s  @ D:\fpga-solver\ocl_node_router.h:897 make_vecs(netCount, netCountAligned, ocl_counter_max, nets, physStrs, site_locations, physStrs_to_devStrs)
+    0.110378s  @ D:\fpga-solver\ocl_node_router.h:930 block_all_resources(phys.getPhysNets(), v_node_nets, physStrs_to_devStrs)
+    1.09967s   @ D:\fpga-solver\ocl_node_router.h:932 setup_buffers(context, queues, cloned_kernels, workgroup_counts, workgroup_offsets, v_host_dirty, ocl_counter_max, max_workgroup_size, v_buf_dirty, v_buf_routed_lines, v_buf_drawIndirect, v_buf_heads, v_buf_explored, v_buf_stubs, v_buf_pip_offset_count, v_buf_pip_tile_body, v_buf_node_nets, s_drawIndirect, s_heads, s_explored, s_stubs, v_node_nets )
+  1.8018s    @ D:\fpga-solver\opencl-node-router.cpp:60 OCL_Node_Router::make(dev.root, phys.root, create_nondefault_gpus_context().value())
+ocl_counter_max: 32, step 1 of 1:  201892,22631,100,0 
+  0.276842s  @ D:\fpga-solver\opencl-node-router.cpp:63 ocltr.route()
+  0.207673s  @ D:\fpga-solver\opencl-node-router.cpp:65 ocltr.make_phys(message)
+  0.202769s  @ D:\fpga-solver\opencl-node-router.cpp:66 InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(dst_phys_file, message)
+3.08598s   @ D:\fpga-solver\opencl-node-router.cpp:81 route_file(src_phys_file, dst_phys_file)
 
