@@ -69,6 +69,9 @@ public:
         uint64_t cost : 13;
     } front_info;
 
+    ::capnp::MallocMessageBuilder& message;
+    PhysicalNetlist::PhysNetlist::Builder b_phys;
+    std::vector<bool> is_routed;
     ocl::context context;
     std::vector<cl_device_id> device_ids;
     std::vector<ocl::queue> queues;
@@ -201,22 +204,32 @@ public:
         return v_T;
     }
 
-    bool make_phys(::capnp::MallocMessageBuilder &message) {
+    static PhysicalNetlist::PhysNetlist::Builder make_phys_builder(PhysicalNetlist::PhysNetlist::Reader r_phys, ::capnp::MallocMessageBuilder &message) {
+        PhysicalNetlist::PhysNetlist::Builder b_phys{ message.initRoot<PhysicalNetlist::PhysNetlist>() };
+
+        b_phys.setPart(r_phys.getPart());
+        b_phys.setPlacements(r_phys.getPlacements());
+
+        auto r_nets{ r_phys.getPhysNets() };
+        auto b_nets{ b_phys.initPhysNets(r_nets.size()) };
+
+        b_phys.setPhysCells(r_phys.getPhysCells());
+
+        b_phys.setSiteInsts(r_phys.getSiteInsts());
+        b_phys.setProperties(r_phys.getProperties());
+        b_phys.setNullNet(r_phys.getNullNet());
+        return b_phys;
+    }
+
+    bool make_phys() {
         auto physStrs{ phys.getStrList() };
 
         auto v_drawIndirect{ read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect) };
         auto v_explored{ std::span(vv_explored.front()).subspan(0, netCount)};
         v_drawIndirect.resize(netCount);
 
-        PhysicalNetlist::PhysNetlist::Builder b_phys{ message.initRoot<PhysicalNetlist::PhysNetlist>() };
-
-        b_phys.setPart(phys.getPart());
-        b_phys.setPlacements(phys.getPlacements());
-
         auto r_nets{ phys.getPhysNets() };
-        auto b_nets{ b_phys.initPhysNets(r_nets.size()) };
-
-        std::vector<bool> is_routed(r_nets.size());
+        auto b_nets{ b_phys.getPhysNets() };
 
         each(v_drawIndirect, [&](uint64_t di_index, std::array<uint32_t, 4>& di) {
             uint32_t  count{ di[0] };
@@ -383,16 +396,22 @@ public:
 
         });
 
+        return true;
+    }
+
+    bool write_phys_unrouted_nets() {
+        auto r_nets{ phys.getPhysNets() };
+        auto b_nets{ b_phys.getPhysNets() };
         each(r_nets, [&](uint64_t net_idx, net_reader r_net) {
-            if(!is_routed[net_idx]) b_nets.setWithCaveats(net_idx, r_net);
+            if (!is_routed[net_idx]) b_nets.setWithCaveats(net_idx, r_net);
         });
 
-        b_phys.setPhysCells(phys.getPhysCells());
-#if 0
-        b_phys.setStrList(phys.getStrList());
-#else
+        return true;
+    }
 
+    bool write_phys_strings() {
         auto devStrs{ dev.getStrList() };
+        auto physStrs{ phys.getStrList() };
         auto b_strs{ b_phys.initStrList(static_cast<uint32_t>(physStrs_to_devStrs.size())) };
         each(physStrs_to_devStrs, [&](uint64_t physStr_idx, uint32_t devStr_idx) {
             if (devStr_idx == UINT32_MAX) {
@@ -402,22 +421,6 @@ public:
                 b_strs.set(physStr_idx, devStrs[devStr_idx]);
             }
         });
-
-        //std::vector<uint32_t> extra_dev_strIdx;
-
-        //each(physStrs, [&](uint64_t strIdx, ::capnp::Text::Reader r_str) {
-        //    b_strs.set(strIdx, r_str);
-        //});
-
-        //each(extra_dev_strIdx, [&](uint64_t extraIdx, uint32_t dev_strIdx) {
-        //    b_strs.set(physStrs.size() + extraIdx, devStrs[dev_strIdx]);
-        //});
-#endif
-
-        b_phys.setSiteInsts(phys.getSiteInsts());
-        b_phys.setProperties(phys.getProperties());
-        b_phys.setNullNet(phys.getNullNet());
-
         return true;
     }
 
@@ -694,7 +697,6 @@ public:
         }
     }
 
-
     static void block_resources(uint32_t net_idx, PhysicalNetlist::PhysNetlist::PhysNet::Reader physNet, std::span<uint32_t> node_nets, std::span<const uint32_t> physStrs_to_devStrs) {
         for (auto&& src_branch : physNet.getSources()) {
             block_source_resource(net_idx, src_branch, node_nets, physStrs_to_devStrs);
@@ -799,6 +801,7 @@ public:
     }
 
     static OCL_Node_Router make(
+        ::capnp::MallocMessageBuilder& message,
         DeviceResources::Device::Reader dev,
         PhysicalNetlist::PhysNetlist::Reader phys,
         ocl::context context,
@@ -931,7 +934,14 @@ public:
 
         TimerVal(setup_buffers(context, queues, cloned_kernels, workgroup_counts, workgroup_offsets, v_host_dirty, ocl_counter_max, max_workgroup_size, v_buf_dirty, v_buf_routed_lines, v_buf_drawIndirect, v_buf_heads, v_buf_explored, v_buf_stubs, v_buf_pip_offset_count, v_buf_pip_tile_body, v_buf_node_nets, s_drawIndirect, s_heads, s_explored, s_stubs, v_node_nets ));
 
+        auto b_phys{ TimerVal(make_phys_builder(phys, message)) };
+
+        std::vector<bool> is_routed(phys.getPhysNets().size());
+
         return OCL_Node_Router{
+            .message{message},
+            .b_phys{b_phys},
+            .is_routed{std::move(is_routed)},
             .context{std::move(context)},
             .device_ids{std::move(device_ids)},
             .queues{std::move(queues)},

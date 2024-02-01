@@ -57,17 +57,19 @@ bool route_file(std::string src_phys_file, std::string dst_phys_file) {
 
 #ifndef USE_CPP_INSTEAD_OF_OPENCL
 
-	auto ocltr{ TimerVal(OCL_Node_Router::make(dev.root, phys.root, create_nondefault_gpus_context().value())) };
+	::capnp::MallocMessageBuilder message;
+	auto ocltr{ TimerVal(OCL_Node_Router::make(message, dev.root, phys.root, create_nondefault_gpus_context().value())) };
 #endif
 
 	TimerVal(ocltr.route()).value();
-	::capnp::MallocMessageBuilder message;
-	auto success{ TimerVal(ocltr.make_phys(message)) };
+	auto success{ TimerVal(ocltr.make_phys()) };
+	TimerVal(ocltr.write_phys_unrouted_nets());
+	TimerVal(ocltr.write_phys_strings());
 	TimerVal(InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(dst_phys_file, message));
 	return true;
 }
 
-inline static const std::string default_file{ "koios_dla_like_large" };
+inline static const std::string default_file{ "mlcad_d181_lefttwo3rds" };
 
 int main(int argc, char* argv[]) {
 	puts("");
