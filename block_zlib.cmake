@@ -5,11 +5,17 @@ block()
   add_library(ZLIB::ZLIB ALIAS zlib)
   add_library(ZLIB::zlibstatic ALIAS zlibstatic)
 
+  if(TARGET example64)
+    set_target_properties(example64 PROPERTIES EXCLUDE_FROM_ALL TRUE)
+  endif()
+
+  if(TARGET minigzip64)
+    set_target_properties(minigzip64 PROPERTIES EXCLUDE_FROM_ALL TRUE)
+  endif()
+
   set_target_properties(
     example
-    example64
     minigzip
-    minigzip64
     zlib
   PROPERTIES
     EXCLUDE_FROM_ALL TRUE
