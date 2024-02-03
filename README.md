@@ -8,3 +8,5 @@ This is super early code, please make issues
 
 Linux amd opencl drivers  
 `sudo amdgpu-install --usecase=opencl,rocm --opencl=rocr --no-dkms --no-32 --accept-eula`
+
+[![CMake on multiple platforms](https://github.com/codepilot/fpga-solver/actions/workflows/cmake-multi-platform.yml/badge.svg)](https://github.com/codepilot/fpga-solver/actions/workflows/cmake-multi-platform.yml)
