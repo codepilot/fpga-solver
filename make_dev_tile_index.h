@@ -1,12 +1,6 @@
 #pragma once
 
 #include "lib_dev_flat.h"
-#include "interchange_types.h"
-#include <fstream>
-#include <iostream>
-#include <format>
-#include "each.h"
-#include "Timer.h"
 
 template<typename T, T _size>
 class limited_index {

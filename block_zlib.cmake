@@ -7,7 +7,9 @@ block()
 
   set_target_properties(
     example
+    example64
     minigzip
+    minigzip64
     zlib
   PROPERTIES
     EXCLUDE_FROM_ALL TRUE

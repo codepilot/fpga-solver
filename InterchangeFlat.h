@@ -5,6 +5,12 @@
 #include "MemoryMappedFile.h"
 #include <iostream>
 #include <fstream>
+#include <string>
+#include "interchange_types.h"
+#include <format>
+#include "each.h"
+#include "Timer.h"
+#include <utility>
 
 template<typename T>
 class InterchangeFlat {
