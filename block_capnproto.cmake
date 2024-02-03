@@ -8,4 +8,14 @@ block()
   if(MSVC)
     target_link_libraries(kj Ws2_32)
   endif()
+
+  set_target_properties(
+    capnp-websocket
+    kj-http
+    capnp-rpc
+    kj-test
+  PROPERTIES
+    EXCLUDE_FROM_ALL TRUE
+  )
+
 endblock()

@@ -1,4 +1,5 @@
 #pragma once
+#include <type_traits>
 
 template<typename T> concept TrivialStandardLayout = std::is_trivial_v<T> && std::is_standard_layout_v<T>;
 

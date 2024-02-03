@@ -282,9 +282,9 @@ public:
       return { reinterpret_cast<T*>(reinterpret_cast<uint8_t *>(fp) + byte_offset), (fsize - byte_offset) / sizeof(T) };
   }
 
-  template<typename T>
-  inline std::span<T> get_span() const noexcept {
-      return { reinterpret_cast<T*>(fp), fsize / sizeof(T)};
+  template<typename T, size_t _Extent = std::dynamic_extent>
+  inline std::span<T, _Extent> get_span() const noexcept {
+      return std::span<T, _Extent>(reinterpret_cast<T*>(fp), fsize / sizeof(T));
   }
 
   template<typename T>

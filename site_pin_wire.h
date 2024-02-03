@@ -47,6 +47,8 @@ static_assert(std::is_trivial_v<SitePinWire>);
 static_assert(std::is_standard_layout_v<SitePinWire>);
 static_assert(alignof(SitePinWire) == sizeof(uint64_t));
 
+#include "RouteStorage.h"
+
 class Search_Site_Pin_Wire {
 public:
 

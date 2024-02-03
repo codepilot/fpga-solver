@@ -1,0 +1,7 @@
+include_guard(GLOBAL)
+block()
+  add_executable(tile-based-router)
+  target_sources(tile-based-router PRIVATE tile-based-router.cpp)
+  target_sources(tile-based-router PUBLIC tile-based-router.h)
+  target_link_libraries(tile-based-router PUBLIC lib_dev_tile_index)
+endblock()

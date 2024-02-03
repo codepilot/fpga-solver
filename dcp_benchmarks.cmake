@@ -4,7 +4,7 @@ block()
 FetchContent_MakeAvailable(benchmark-files)
 file(GLOB_RECURSE NETLIST_FILES "${benchmark-files_SOURCE_DIR}/*.netlist")
 
-add_custom_target(dcp_benchmarks)
+add_custom_target(dcp_benchmarks EXCLUDE_FROM_ALL)
 add_dependencies(dcp_benchmarks route_benchmarks)
 
 foreach(NETLIST_FILE ${NETLIST_FILES})

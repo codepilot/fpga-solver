@@ -17,8 +17,8 @@ public:
 	inline static constexpr uint64_t wire_count{ 83282368ull };
 	inline static constexpr uint64_t str_m_wire_count{ str_count * wire_count };
 
-	inline constexpr auto tile_range(uint64_t tile_strIdx) const {
-		auto ret{ std::ranges::equal_range(*this, tile_strIdx * str_m_wire_count, [&](uint64_t a, uint64_t b) { return (a / str_m_wire_count) < (b / str_m_wire_count); }) };
+	inline constexpr Inverse_Wires tile_range(uint64_t tile_strIdx) const {
+		Inverse_Wires ret{ std::ranges::equal_range(*this, tile_strIdx * str_m_wire_count, [&](uint64_t a, uint64_t b) { return (a / str_m_wire_count) < (b / str_m_wire_count); }) };
 		return ret;
 	}
 
