@@ -7,9 +7,7 @@
 #include <unistd.h>
 #else
 #include <span>
-#include <Trivial_Span.h>
 #include <Windows.h>
-#include "constexpr_intrinsics.h"
 #endif
 
 #include <cstdint>
@@ -31,12 +29,9 @@ public:
   static inline HMODULE getDllHandle(std::wstring dllName) {
     HMODULE ret{ nullptr };
     GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, dllName.c_str(), &ret);
+    if (!ret) abort();
     return ret;
   }
-
-  inline static HMODULE lib_kernelbase{ getDllHandle(L"kernelbase.dll") };
-  inline static api_MapViewOfFile3 MapViewOfFile3{ reinterpret_cast<api_MapViewOfFile3>(GetProcAddress(lib_kernelbase, "MapViewOfFile3")) };
-  inline static api_CreateFileMapping2 CreateFileMapping2{ reinterpret_cast<api_CreateFileMapping2>(GetProcAddress(lib_kernelbase, "CreateFileMapping2")) };
 
   HANDLE fh{ INVALID_HANDLE_VALUE };
 #else
@@ -114,7 +109,7 @@ public:
   return CreateFileA(
     fn.c_str(),
     GENERIC_READ,
-    or_reduce<DWORD>({FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_SHARE_DELETE}),
+    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
     nullptr,
     OPEN_EXISTING,
     FILE_ATTRIBUTE_NORMAL,
@@ -129,7 +124,7 @@ public:
   return CreateFileA(
     fn.c_str(),
     FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE,
-    or_reduce<DWORD>({FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_SHARE_DELETE}),
+    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
     nullptr,
     CREATE_ALWAYS,
     FILE_ATTRIBUTE_NORMAL,
@@ -151,6 +146,10 @@ public:
 
   inline static decltype(fm) create_readonly_file_mapping(decltype(fh) fh, decltype(fsize) fsize) {
 #ifdef _WIN32
+    static HMODULE lib_kernelbase{ getDllHandle(L"kernelbase.dll") };
+    static api_MapViewOfFile3 MapViewOfFile3{ reinterpret_cast<api_MapViewOfFile3>(GetProcAddress(lib_kernelbase, "MapViewOfFile3")) };
+    static api_CreateFileMapping2 CreateFileMapping2{ reinterpret_cast<api_CreateFileMapping2>(GetProcAddress(lib_kernelbase, "CreateFileMapping2")) };
+
     return CreateFileMapping2(fh, nullptr, FILE_MAP_READ, PAGE_READONLY, 0, 0, nullptr, nullptr, 0);
 #else
     return -1;
@@ -159,7 +158,11 @@ public:
 
   inline static decltype(fm) create_readwrite_file_mapping(decltype(fh) fh, decltype(fsize) fsize) {
 #ifdef _WIN32
-    return CreateFileMapping2(fh, nullptr, FILE_MAP_WRITE, PAGE_READWRITE, 0, fsize, nullptr, nullptr, 0);
+      static HMODULE lib_kernelbase{ getDllHandle(L"kernelbase.dll") };
+      static api_MapViewOfFile3 MapViewOfFile3{ reinterpret_cast<api_MapViewOfFile3>(GetProcAddress(lib_kernelbase, "MapViewOfFile3")) };
+      static api_CreateFileMapping2 CreateFileMapping2{ reinterpret_cast<api_CreateFileMapping2>(GetProcAddress(lib_kernelbase, "CreateFileMapping2")) };
+
+      return CreateFileMapping2(fh, nullptr, FILE_MAP_WRITE, PAGE_READWRITE, 0, fsize, nullptr, nullptr, 0);
 #else
     return -1;
 #endif
@@ -167,6 +170,9 @@ public:
 
   inline static decltype(fp) mmap_readonly(decltype(fh) fh, decltype(fsize) fsize, decltype(fm) fm) {
 #ifdef _WIN32
+      static HMODULE lib_kernelbase{ getDllHandle(L"kernelbase.dll") };
+      static api_MapViewOfFile3 MapViewOfFile3{ reinterpret_cast<api_MapViewOfFile3>(GetProcAddress(lib_kernelbase, "MapViewOfFile3")) };
+      static api_CreateFileMapping2 CreateFileMapping2{ reinterpret_cast<api_CreateFileMapping2>(GetProcAddress(lib_kernelbase, "CreateFileMapping2")) };
       auto VirtualAddress{ MapViewOfFile3(fm, GetCurrentProcess(), nullptr, 0, 0, 0, PAGE_READONLY, nullptr, 0) };
       if (VirtualAddress) {
           auto VirtualAddresses{ std::array<WIN32_MEMORY_RANGE_ENTRY, 1>{ WIN32_MEMORY_RANGE_ENTRY{.VirtualAddress{VirtualAddress}, .NumberOfBytes{fsize} } } };
@@ -183,6 +189,9 @@ public:
 
   inline static decltype(fp) mmap_readwrite(decltype(fh) fh, decltype(fsize) fsize, decltype(fm) fm) {
 #ifdef _WIN32
+    static HMODULE lib_kernelbase{ getDllHandle(L"kernelbase.dll") };
+    static api_MapViewOfFile3 MapViewOfFile3{ reinterpret_cast<api_MapViewOfFile3>(GetProcAddress(lib_kernelbase, "MapViewOfFile3")) };
+    static api_CreateFileMapping2 CreateFileMapping2{ reinterpret_cast<api_CreateFileMapping2>(GetProcAddress(lib_kernelbase, "CreateFileMapping2")) };
     return MapViewOfFile3(fm, GetCurrentProcess(), nullptr, 0, 0, 0, PAGE_READWRITE, nullptr, 0);
 #else
     return mmap(nullptr, fsize, PROT_READ | PROT_WRITE, MAP_SHARED, fh, 0);
