@@ -8,7 +8,7 @@ public:
 		std::copy_n(str, char_count, chars);
 	}
 	consteval char operator[](std::size_t n) const {
-		return data[n];
+		return chars[n];
 	}
 	consteval std::size_t size() const {
 		return char_count - 1;
