@@ -23,6 +23,7 @@ static __forceinline constexpr uint64_t rotate_left(const uint64_t word) noexcep
     }
 }
 
+#ifndef __clang__
 
 static __forceinline constexpr __m256i constexpr_mm256_xor_epi64(__m256i a, __m256i b) noexcept {
     if (std::is_constant_evaluated()) {
@@ -51,6 +52,7 @@ static __forceinline constexpr __m256i constexpr_mm256_broadcast_i64x2(__m128i a
         return _mm256_broadcast_i64x2(a);
     }
 }
+#endif
 
 #include <vector>
 template<typename T> constexpr T or_reduce(std::vector<T> v) {
