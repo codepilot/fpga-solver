@@ -13,7 +13,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <format>
-#include "Trivial_Span.h"
 #include <array>
 
 class MemoryMappedFile {
@@ -294,11 +293,6 @@ public:
   template<typename T, size_t _Extent = std::dynamic_extent>
   inline std::span<T, _Extent> get_span() const noexcept {
       return std::span<T, _Extent>(reinterpret_cast<T*>(fp), fsize / sizeof(T));
-  }
-
-  template<typename T>
-  inline Trivial_Span<T> get_trivial_span() const noexcept {
-      return Trivial_Span<T>::make( reinterpret_cast<T*>(fp), fsize / sizeof(T) );
   }
 
   inline void invalidate_file_handle() {

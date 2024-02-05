@@ -13,6 +13,10 @@ public:
     inline constexpr static Trivial_Span make(pointer data, size_t size) noexcept {
         return { .data{data}, .size{size} };
     }
+    template<typename RangeLike>
+    inline constexpr static Trivial_Span make(RangeLike rangelike) noexcept {
+        return make(rangelike.data(), rangelike.size());
+    }
     inline constexpr Trivial_Span subspan(int64_t offset, size_t size) noexcept {
         return { .data{data + offset}, .size{size} };
     }
@@ -24,6 +28,9 @@ public:
     }
     inline constexpr pointer end() noexcept {
         return data + size;
+    }
+    inline constexpr T& operator[](int64_t offset) noexcept {
+        return data[offset];
     }
 };
 
