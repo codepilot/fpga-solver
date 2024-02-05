@@ -53,7 +53,12 @@ public:
 		//return mmf_unzipped;
 		return v_unzipped;
 	}
-	InterchangeGZ_Vector() = default;
+	InterchangeGZ_Vector() = delete;
+	InterchangeGZ_Vector(InterchangeGZ_Vector& other) = delete;
+	InterchangeGZ_Vector& operator=(InterchangeGZ_Vector& other) = delete;
+	InterchangeGZ_Vector operator=(InterchangeGZ_Vector other) = delete;
+	InterchangeGZ_Vector(InterchangeGZ_Vector&& other) = delete;
+	InterchangeGZ_Vector& operator=(InterchangeGZ_Vector&& other) = delete;
 
 	InterchangeGZ_Vector(std::string fn) noexcept :
 		v_unzipped{ inflate_v(fn) },

@@ -23,13 +23,12 @@ public:
 		timer_depth--;
 		std::cout << std::format("{:{}}", "", timer_depth.load() * 2) << std::format(str.chars, finish());
 	}
-	static decltype(auto) log(auto lamda) {
+	static auto log(auto lamda)-> decltype(lamda()) {
 		auto execLambda{ Timer() };
-		decltype(auto) ret = lamda();
-		return ret;
+		return lamda();
 	}
 };
 
 #define StringOf2(arg) #arg
 #define StringOf(arg) StringOf2(arg)
-#define TimerVal(arg) Timer<("{:10} @ " __FILE__ ":" StringOf(__LINE__) " " #arg "\n")>::log([&]() { return arg; })
+#define TimerVal(arg) Timer<("{:10} @ " __FILE__ ":" StringOf(__LINE__) " " #arg "\n")>::log([&]()-> decltype(arg) { return arg; })

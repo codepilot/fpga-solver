@@ -59,17 +59,13 @@ public:
 	static MemoryMappedFile inflate_mmf(std::string fn, bool delete_temp = true) {
 		return inflate_mmf(fn, fn + ".temp", delete_temp);
 	}
-	InterchangeGZ() = default;
 
-	InterchangeGZ(InterchangeGZ&& other) noexcept:
-		mmf_unzipped{ std::move(other.mmf_unzipped) },
-		span_words{ mmf_unzipped.get_span<capnp::word>() },
-		words{ span_words.data(), span_words.size() },
-		famr{ words, {.traversalLimitInWords = UINT64_MAX, .nestingLimit = INT32_MAX} },
-		root{ famr.getRoot<T>() }
-	{
-
-	}
+	InterchangeGZ() = delete;
+	InterchangeGZ(InterchangeGZ& other) = delete;
+	InterchangeGZ& operator=(InterchangeGZ& other) = delete;
+	InterchangeGZ operator=(InterchangeGZ other) = delete;
+	InterchangeGZ(InterchangeGZ&& other) = delete;
+	InterchangeGZ& operator=(InterchangeGZ&& other) = delete;
 
 	InterchangeGZ(std::string fn, bool delete_temp = true) noexcept :
 		mmf_unzipped{ inflate_mmf(fn, delete_temp) },

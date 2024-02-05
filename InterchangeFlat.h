@@ -25,6 +25,13 @@ public:
 	capnp::FlatArrayMessageReader famr;
 	T::Reader root;
 
+	InterchangeFlat() = delete;
+	InterchangeFlat(InterchangeFlat& other) = delete;
+	InterchangeFlat& operator=(InterchangeFlat& other) = delete;
+	InterchangeFlat operator=(InterchangeFlat other) = delete;
+	InterchangeFlat(InterchangeFlat&& other) = delete;
+	InterchangeFlat& operator=(InterchangeFlat&& other) = delete;
+
 	InterchangeFlat(std::string fn) :
 		mmf_unzipped{ fn },
 		span_words{ mmf_unzipped.get_span<capnp::word>() },
