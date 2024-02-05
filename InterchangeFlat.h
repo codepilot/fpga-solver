@@ -11,6 +11,10 @@
 #include "each.h"
 #include "Timer.h"
 #include <utility>
+#include <map>
+#include <unordered_map>
+#include <set>
+#include <unordered_set>
 
 template<typename T>
 class InterchangeFlat {

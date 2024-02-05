@@ -56,6 +56,7 @@ int main(int argc, char* argv[]) {
 	std::ofstream header("lib_dev_flat.h", std::ios::binary);
 	header << std::format(R"(#pragma once
 #include "InterchangeFlat.h"
+#include "InterchangeGZ_Vector.h"
 
 namespace {} {{
 inline static constexpr decltype(auto)   gz_path{{ "{}" }};

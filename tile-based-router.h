@@ -1,25 +1,14 @@
 #pragma once
 
 #include "lib_dev_tile_index.h"
-// #include <chrono>
-// #include "constexpr_string.h"
-// #include "MemoryMappedFile.h"
-// #include "InterchangeGZ.h"
-// #include "interchange_types.h"
-// #include "inverse_wires.h"
-// #include "site_pin_to_node.h"
-// #include "wire_idx_to_node_idx.h"
-// #include "Timer.h"
-// #include <map>
-// #include <unordered_map>
-// #include "site_pin_wire.h"
+#include "lib_inverse_wires.h"
+#include "lib_site_pin_to_wire.h"
+#include "lib_site_pin_to_node.h"
 
-#if 0
+#if 1
 class Tile_Based_Router {
 public:
 	static inline const DevFlat devFlat{ TimerVal(DevFlat("_deps/device-file-build/xcvu3p.device")) };
-	static inline const MemoryMappedFile mmf_v_inverse_wires{ "Inverse_Wires.bin" };
-	static inline const Inverse_Wires inverse_wires{ mmf_v_inverse_wires.get_span<uint64_t>() };
 
 	static inline const device_reader dev{ devFlat.root };
 	static inline const tile_list_reader tiles{ dev.getTileList() };
@@ -37,8 +26,8 @@ public:
 			auto tile_str_idx{ tile.getName() };
 			auto tile_type{ tile_types[tile.getType()] };
 			auto tile_wires{ tile_type.getWires() };
-			auto tile_inverse_wires{ inverse_wires.tile_range(tile_str_idx) };
-			each(tile_wires, [&](uint64_t tile_wire_idx, uint32_t wire_str_idx) {
+			auto tile_inverse_wires{ xcvu3p::inverse_wires.tile_range(tile_str_idx) };
+			each<uint64_t, decltype(tile_wires), uint32_t>(tile_wires, [&](uint64_t tile_wire_idx, uint32_t wire_str_idx) {
 				auto v_wire_idx{ tile_inverse_wires.at(tile_str_idx, wire_str_idx) };
 				if (v_wire_idx.size() != 1) abort();
 				auto wire_idx{ v_wire_idx.front() };
@@ -51,30 +40,6 @@ public:
 	static inline const std::vector<tile_idx_tile_wire_idx> wire_idx_to_tile_idx_tile_wire_idx = make_wire_idx_to_tile_idx_tile_wire_idx();
 
 	static inline const size_t bans_per_tile{ 100ull };
-
-	static inline const Search_Site_Pin_Wire search_site_pin_wire{};
-	static inline const MemoryMappedFile mmf_v_pip_count_offset{ "pip_count_offset.bin" };
-	static inline const MemoryMappedFile mmf_v_pip_tile_body{ "pip_tile_body.bin" }; // tile0.getCol(), tile0.getRow(), node0_idx, node1_idx
-	static inline const MemoryMappedFile mmf_v_pip_body{ "pip_body.bin" }; // node0_idx, node1_idx, wire0_idx, wire1_idx
-	static inline const MemoryMappedFile mmf_v_site_pin_to_node{ "site_pin_to_node.bin" };
-	static inline const MemoryMappedFile mmf_wire_idx_to_node_idx{ "wire_idx_to_node_idx.bin" };
-
-	struct pip_count_offset { uint32_t count, offset; };
-	static inline const std::span<pip_count_offset> t_pip_count_offset{ mmf_v_pip_count_offset.get_span<pip_count_offset>() };
-
-	struct pip_tile_body { uint32_t tile_x, tile_y, node0_idx, node1_idx; };
-	static inline const std::span<pip_tile_body> t_pip_tile_body{ mmf_v_pip_tile_body.get_span<pip_tile_body>() };
-
-	struct pip_body {
-		uint32_t node0_idx : 31;
-		uint32_t is_forward : 1;
-		uint32_t node1_idx;
-		uint32_t wire0_idx;
-		uint32_t wire1_idx;
-	};
-	static inline const std::span<pip_body> t_pip_body{ mmf_v_pip_body.get_span<pip_body>() };
-	static inline const Site_Pin_to_Node site_pin_to_node{ mmf_v_site_pin_to_node.get_span<uint64_t>() };
-	static inline const Wire_Idx_to_Node_Idx wire_idx_to_node_idx{ mmf_wire_idx_to_node_idx.get_span<uint32_t>() };
 
 	class Tile_Info {
 	public:
@@ -147,7 +112,7 @@ public:
 
 		// source_site_str_idx(19 bit), ds_source_pin_str_idx(19 bit) => wire_idx(24)
 		if (is_source) {
-			auto source_node_idx{ site_pin_to_node.at(ds_source_site, ds_source_pin).front() };
+			auto source_node_idx{ xcvu3p::site_pin_to_node.at(ds_source_site, ds_source_pin).front() };
 			for (auto wire_idx : nodes[source_node_idx].getWires()) {
 				decltype(auto) tw{ wire_idx_to_tile_idx_tile_wire_idx[wire_idx] };
 				auto shader_tile_id{ tile_id_to_shader_tile_id[tw.tile_idx] };
@@ -161,8 +126,9 @@ public:
 #if 0
 		s_node_nets[source_node_idx] = net_idx;
 #else
-		auto wire_idx{ search_site_pin_wire.site_pin_to_wire(String_Index{._strIdx{ ds_source_site}}, String_Index{._strIdx{ ds_source_pin}}) };
-		decltype(auto) tw{ wire_idx_to_tile_idx_tile_wire_idx[wire_idx] };
+		auto wire_idx{ xcvu3p::site_pin_to_wire.at(ds_source_site, ds_source_pin) };
+		if (wire_idx.empty()) abort();
+		decltype(auto) tw{ wire_idx_to_tile_idx_tile_wire_idx[wire_idx.front()]};
 #ifdef _DEBUG
 		// std::cout << std::format("block_site_pin({},{},{})\n", wire_idx, tw.tile_idx, tw.tile_wire_idx);
 #endif
@@ -179,11 +145,11 @@ public:
 		auto ds_wire0{ physStrs_to_devStrs[ps_wire0] };
 		auto ds_wire1{ physStrs_to_devStrs[ps_wire1] };
 
-		auto wire0_idx{ inverse_wires.at(ds_tile, ds_wire0) };
-		auto wire1_idx{ inverse_wires.at(ds_tile, ds_wire1) };
+		auto wire0_idx{ xcvu3p::inverse_wires.at(ds_tile, ds_wire0) };
+		auto wire1_idx{ xcvu3p::inverse_wires.at(ds_tile, ds_wire1) };
 
 		if (!wire0_idx.empty()) {
-			auto node0_idx{ wire_idx_to_node_idx[wire0_idx.at(0)] };
+			auto node0_idx{ xcvu3p::wire_idx_to_node_idx[wire0_idx.at(0)] };
 #if 0
 			s_node_nets[node0_idx] = net_idx;
 #endif
@@ -192,7 +158,7 @@ public:
 			abort();
 		}
 		if (!wire1_idx.empty()) {
-			auto node1_idx{ wire_idx_to_node_idx[wire1_idx.at(0)] };
+			auto node1_idx{ xcvu3p::wire_idx_to_node_idx[wire1_idx.at(0)] };
 #if 0
 			s_node_nets[node1_idx] = net_idx;
 #endif
@@ -268,9 +234,9 @@ public:
 		auto devStrs{ dev.getStrList() };
 		devStrs_map.reserve(devStrs.size());
 
-		each(devStrs, [&](uint64_t dev_strIdx, capnp::Text::Reader dev_str) {
+		each<uint32_t, decltype(devStrs), decltype(devStrs[0])>(devStrs, [&](uint32_t dev_strIdx, capnp::Text::Reader dev_str) {
 			std::string_view str{ dev_str.cStr() };
-			devStrs_map.insert({ str, static_cast<uint32_t>(dev_strIdx) });
+			devStrs_map.insert({ str, dev_strIdx });
 			});
 		return devStrs_map;
 	}
@@ -278,13 +244,13 @@ public:
 	static std::array<std::vector<uint32_t>, 2> make_string_interchange(const std::unordered_map<std::string_view, uint32_t>& devStrs_map, ::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader devStrs, ::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader physStrs) {
 		std::vector<uint32_t> physStrs_to_devStrs(static_cast<size_t>(physStrs.size()), UINT32_MAX);
 		std::vector<uint32_t> devStrs_to_physStrs(static_cast<size_t>(devStrs.size()), UINT32_MAX);
-		each(physStrs, [&](uint64_t phys_strIdx, capnp::Text::Reader phys_str) {
+		each<uint32_t, decltype(physStrs), decltype(physStrs[0])>(physStrs, [&](uint32_t phys_strIdx, capnp::Text::Reader phys_str) {
 			std::string_view str{ phys_str.cStr() };
 			if (!devStrs_map.contains(str)) return;
 			auto dev_strIdx{ devStrs_map.at(str) };
 			physStrs_to_devStrs[phys_strIdx] = dev_strIdx;
 			devStrs_to_physStrs[dev_strIdx] = phys_strIdx;
-			});
+		});
 		return { physStrs_to_devStrs , devStrs_to_physStrs };
 	}
 

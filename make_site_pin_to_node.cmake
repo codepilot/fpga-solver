@@ -1,5 +1,0 @@
-include_guard(GLOBAL)
-block()
-  standard_executable(make_site_pin_to_node)
-  add_dependencies(make_site_pin_to_node cl_pip_files)
-endblock()

@@ -40,9 +40,9 @@ public:
 		return ret;
 	}
 
-	inline static MemoryMappedFile make(const wire_list_reader wires, const string_list_reader strList, const tile_list_reader tiles, const tile_type_list_reader tile_types) {
+	inline static MemoryMappedFile make(const std::string file_name, const wire_list_reader wires, const string_list_reader strList, const tile_list_reader tiles, const tile_type_list_reader tile_types) {
 		{
-			MemoryMappedFile mmf{ "Inverse_Wires.bin", wire_count * sizeof(uint64_t) };
+			MemoryMappedFile mmf{file_name, wire_count * sizeof(uint64_t) };
 			auto inverse_wires{ mmf.get_span<uint64_t>() }; //wire str, tile str, wire idx log2(467843 * 467843 * 83282368) < 64
 			puts("inverse_wires gather");
 			jthread_each(wires, [&](uint64_t wire_idx, wire_reader& wire) {
@@ -54,7 +54,7 @@ public:
 			std::sort(std::execution::par_unseq, inverse_wires.begin(), inverse_wires.end(), [](uint64_t a, uint64_t b) { return a < b; });
 			puts("inverse_wires sorted");
 		}
-		MemoryMappedFile mmf_v_inverse_wires{ "Inverse_Wires.bin" };
+		MemoryMappedFile mmf_v_inverse_wires{ file_name };
 		const Inverse_Wires inverse_wires{ mmf_v_inverse_wires.get_span<uint64_t>() };
 
 		for (auto&& tile : tiles) {

@@ -1,12 +1,32 @@
+#include "make_site_pin_to_node.h"
+
+int main(int argc, char* argv[]) {
+	std::vector<std::string> args;
+	for (auto&& arg : std::span<char*>(argv, static_cast<size_t>(argc))) args.emplace_back(arg);
+
+	const auto fn_bin{ (args.size() >= 2) ? args.at(1) : "lib_site_pin_to_node.bin" };
+	const auto fn_cpp{ (args.size() >= 3) ? args.at(2) : "lib_site_pin_to_node.cpp" };
+	const auto fn_h{ (args.size() >= 4) ? args.at(3) : "lib_site_pin_to_node.h" };
+
+	TimerVal(Site_Pin_to_Node::make(fn_bin, xcvu3p::root));
+
+	std::ofstream f_cpp(fn_cpp, std::ios::binary);
+	f_cpp << std::format(R"(#pragma once
+#include "{}"
+)", fn_h);
+
+
+	std::ofstream f_h(fn_h, std::ios::binary);
+	f_h << std::format(R"(#pragma once
+#include "lib_dev_flat.h"
 #include "site_pin_to_node.h"
 
-static inline const DevFlat dev{ "_deps/device-file-build/xcvu3p.device" };
-static inline const MemoryMappedFile mmf_v_inverse_wires{ "Inverse_Wires.bin" };
-static inline const Inverse_Wires inverse_wires{ mmf_v_inverse_wires.get_span<uint64_t>() };
-static inline const MemoryMappedFile mmf_wire_idx_to_node_idx{ "wire_idx_to_node_idx.bin" };
-static inline const Wire_Idx_to_Node_Idx wire_idx_to_node_idx{ mmf_wire_idx_to_node_idx.get_span<uint32_t>() };
+namespace xcvu3p {{
+static inline const MemoryMappedFile mmf_v_site_pin_to_node{{ "{}" }};
+static inline const Site_Pin_to_Node site_pin_to_node{{ mmf_v_site_pin_to_node.get_span<uint64_t>() }};
+}};
 
-int main() {
-	const auto v_inverse_wires{ TimerVal(Site_Pin_to_Node::make(dev.root, inverse_wires, wire_idx_to_node_idx)) };
+)", fn_bin);
+
 	return 0;
 }
