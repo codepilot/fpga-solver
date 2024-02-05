@@ -13,7 +13,7 @@ int main(int argc, char* argv[]) {
 	// TimerVal(make_site_index("site_info.bin"));
 	
 	std::ofstream f_cpp(fn_cpp, std::ios::binary);
-	f_cpp << std::format(R"(#pragma once
+	f_cpp << std::format(R"(
 #include "{}"
 )", fn_h);
 

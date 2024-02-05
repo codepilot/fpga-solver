@@ -11,7 +11,7 @@ int main(int argc, char* argv[]) {
 	TimerVal(Site_Pin_to_Wire::make(fn_bin, xcvu3p::root));
 
 	std::ofstream f_cpp(fn_cpp, std::ios::binary);
-	f_cpp << std::format(R"(#pragma once
+	f_cpp << std::format(R"(
 #include "{}"
 )", fn_h);
 

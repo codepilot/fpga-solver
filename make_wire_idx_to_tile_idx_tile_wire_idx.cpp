@@ -11,7 +11,7 @@ int main(int argc, char* argv[]) {
 	TimerVal(Wire_Idx_to_Tile_Idx_Tile_Wire_Idx::make(fn_bin));
 
 	std::ofstream f_cpp(fn_cpp, std::ios::binary);
-	f_cpp << std::format(R"(#pragma once
+	f_cpp << std::format(R"(
 #include "{}"
 )", fn_h);
 
