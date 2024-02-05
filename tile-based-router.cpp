@@ -9,7 +9,7 @@ int main(int argc, char* argv[]) {
 
 	auto src_phys_file{ (args.size() >= 2) ? args.at(1) : ("_deps/benchmark-files-src/" + default_file + "_unrouted.phys") };
 	auto dst_phys_file{ (args.size() >= 3) ? args.at(2) : ("_deps/benchmark-files-build/" + default_file + ".phys") };
-	auto physGZV{ (PhysGZV(src_phys_file)) };
+	PhysGZV physGZV{ src_phys_file };
 
 	auto tbr{ TimerVal(Tile_Based_Router::make(physGZV.root)) };
 	TimerVal(tbr.block_all_resources());
