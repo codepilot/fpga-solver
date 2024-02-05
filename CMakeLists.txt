@@ -23,3 +23,5 @@ include(interchange-files.cmake)
 
 include(file_user.cmake)
   file_user("tile-based-router" lib_dev_tile_index lib_inverse_wires lib_site_pin_to_wire lib_site_pin_to_node lib_wire_idx_to_tile_idx_tile_wire_idx)
+
+include(route_benchmarks.cmake)

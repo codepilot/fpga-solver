@@ -1,117 +1,19 @@
+fn:D:/fpga-solver-msvc-debug/build/_deps/device-file-build/xcvu3p.device fh:0xe8 fsize:2217456224 fp:0x22898330000
+fn:D:/fpga-solver-msvc-debug/build/lib_inverse_wires.bin fh:0xb4 fsize:666258944 fp:0x2291c5f0000
+fn:D:/fpga-solver-msvc-debug/build/lib_site_pin_to_wire.bin fh:0xf4 fsize:63412736 fp:0x22944160000
+fn:D:/fpga-solver-msvc-debug/build/lib_wire_idx_to_node_idx.bin fh:0xfc fsize:333129472 fp:0x22947de0000
+fn:D:/fpga-solver-msvc-debug/build/lib_site_pin_to_node.bin fh:0x104 fsize:63412736 fp:0x2295bba0000
+fn:D:/fpga-solver-msvc-debug/build/lib_wire_idx_to_tile_idx_tile_wire_idx.bin fh:0x10c fsize:666258944 fp:0x2295f820000
+device: xcvu3p
+fn:D:/fpga-solver-msvc-debug/build/_deps/benchmark-files-src/boom_med_pb_unrouted.phys fh:0x114 fsize:11370562 fp:0x22987390000
+init_result: 0
+inflate_result: 1
+end_result: 0
 
-  Routing /home/ubuntu/fpga-solver/build/_deps/benchmark-files-src/boom_med_pb_unrouted.phys
-  Routed  /home/ubuntu/fpga-solver/build/_deps/benchmark-files-build/boom_med_pb.phys
-  0.00179752s @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:54 DevFlat("_deps/device-file-build/xcvu3p.device")
-  0.243797s  @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:55 PhysGZ(src_phys_file)
-    0.654151s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:948 program.build(options)
-    0.070903s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:969 make_site_locations(dev)
-    0.0565724s @ /home/ubuntu/fpga-solver/ocl_node_router.h:970 make_devStrs_map(dev)
-    0.022424s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:972 make_string_interchange(devStrs_map, devStrs, physStrs)
-    0.285831s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:980 make_vecs(netCount, netCountAligned, ocl_counter_max, nets, physStrs, site_locations, physStrs_to_devStrs)
-    1.56918s   @ /home/ubuntu/fpga-solver/ocl_node_router.h:1013 block_all_resources(phys.getPhysNets(), v_node_nets, physStrs_to_devStrs)
-    16.4783s   @ /home/ubuntu/fpga-solver/ocl_node_router.h:1015 setup_buffers(context, queues, cloned_kernels, workgroup_counts, workgroup_offsets, v_host_dirty, ocl_counter_max, max_workgroup_size, v_buf_dirty, v_buf_routed_lines, v_buf_drawIndirect, v_buf_heads, v_buf_explored, v_buf_stubs, v_buf_pip_offset_count, v_buf_pip_tile_body, v_buf_node_nets, s_drawIndirect, s_heads, s_explored, s_stubs, v_node_nets )
-    0.0163645s @ /home/ubuntu/fpga-solver/ocl_node_router.h:1017 make_phys_builder(phys, message)
-  19.9602s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:61 OCL_Node_Router::make(message, dev.root, phys.root, create_nondefault_gpus_context().value())
-    ocl_counter_max: 128, step 1 of 4:  167696,56253,674,0 
-    0.558678s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:183 step_all(series_id)
-    0.219699s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:184 vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored))
-    0.0073856s @ /home/ubuntu/fpga-solver/ocl_node_router.h:185 v_drawIndirect = std::move(read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect))
-    stored_nets: 27470
-    6.00449s   @ /home/ubuntu/fpga-solver/ocl_node_router.h:186 store_possibly_routed_nets()
-    ocl_counter_max: 128, step 2 of 4:  149372,16932,1392,0 
-    0.137329s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:183 step_all(series_id)
-    0.202734s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:184 vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored))
-    0.00279936s @ /home/ubuntu/fpga-solver/ocl_node_router.h:185 v_drawIndirect = std::move(read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect))
-    stored_nets: 897
-    0.204663s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:186 store_possibly_routed_nets()
-    ocl_counter_max: 128, step 3 of 4:  143423,5189,760,0 
-    0.129835s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:183 step_all(series_id)
-    0.20233s   @ /home/ubuntu/fpga-solver/ocl_node_router.h:184 vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored))
-    0.00130754s @ /home/ubuntu/fpga-solver/ocl_node_router.h:185 v_drawIndirect = std::move(read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect))
-    stored_nets: 74
-    0.11065s   @ /home/ubuntu/fpga-solver/ocl_node_router.h:186 store_possibly_routed_nets()
-    ocl_counter_max: 128, step 4 of 4:  140867,2056,500,0 
-    0.129513s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:183 step_all(series_id)
-    0.210554s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:184 vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored))
-    0.00289794s @ /home/ubuntu/fpga-solver/ocl_node_router.h:185 v_drawIndirect = std::move(read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect))
-    stored_nets: 17
-    0.0996534s @ /home/ubuntu/fpga-solver/ocl_node_router.h:186 store_possibly_routed_nets()
-    ocl_counter_max: 128, step 1 of 4:  139781,12383,463,0 
-    0.156211s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:183 step_all(series_id)
-    0.209611s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:184 vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored))
-    0.00144295s @ /home/ubuntu/fpga-solver/ocl_node_router.h:185 v_drawIndirect = std::move(read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect))
-    stored_nets: 3892
-    0.0972696s @ /home/ubuntu/fpga-solver/ocl_node_router.h:186 store_possibly_routed_nets()
-    ocl_counter_max: 128, step 2 of 4:  131157,7637,987,0 
-    0.11359s   @ /home/ubuntu/fpga-solver/ocl_node_router.h:183 step_all(series_id)
-    0.209233s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:184 vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored))
-    0.00197378s @ /home/ubuntu/fpga-solver/ocl_node_router.h:185 v_drawIndirect = std::move(read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect))
-    stored_nets: 820
-    0.0809193s @ /home/ubuntu/fpga-solver/ocl_node_router.h:186 store_possibly_routed_nets()
-    ocl_counter_max: 128, step 3 of 4:  128146,2442,569,0 
-    0.212028s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:183 step_all(series_id)
-    0.208074s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:184 vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored))
-    0.00134972s @ /home/ubuntu/fpga-solver/ocl_node_router.h:185 v_drawIndirect = std::move(read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect))
-    stored_nets: 62
-    0.0323782s @ /home/ubuntu/fpga-solver/ocl_node_router.h:186 store_possibly_routed_nets()
-    ocl_counter_max: 128, step 4 of 4:  126880,887,379,0 
-    0.120623s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:183 step_all(series_id)
-    0.204658s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:184 vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored))
-    0.00167321s @ /home/ubuntu/fpga-solver/ocl_node_router.h:185 v_drawIndirect = std::move(read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect))
-    stored_nets: 10
-    0.0295806s @ /home/ubuntu/fpga-solver/ocl_node_router.h:186 store_possibly_routed_nets()
-    ocl_counter_max: 128, step 1 of 4:  126159,5288,419,0 
-    0.140848s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:183 step_all(series_id)
-    0.209595s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:184 vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored))
-    0.00141764s @ /home/ubuntu/fpga-solver/ocl_node_router.h:185 v_drawIndirect = std::move(read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect))
-    stored_nets: 1447
-    0.0293545s @ /home/ubuntu/fpga-solver/ocl_node_router.h:186 store_possibly_routed_nets()
-    ocl_counter_max: 128, step 2 of 4:  121811,3590,758,0 
-    0.124104s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:183 step_all(series_id)
-    0.205964s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:184 vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored))
-    0.00177789s @ /home/ubuntu/fpga-solver/ocl_node_router.h:185 v_drawIndirect = std::move(read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect))
-    stored_nets: 477
-    0.0448247s @ /home/ubuntu/fpga-solver/ocl_node_router.h:186 store_possibly_routed_nets()
-    ocl_counter_max: 128, step 3 of 4:  119993,1163,655,0 
-    0.116938s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:183 step_all(series_id)
-    0.209425s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:184 vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored))
-    0.00158014s @ /home/ubuntu/fpga-solver/ocl_node_router.h:185 v_drawIndirect = std::move(read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect))
-    stored_nets: 48
-    0.0230965s @ /home/ubuntu/fpga-solver/ocl_node_router.h:186 store_possibly_routed_nets()
-    ocl_counter_max: 128, step 4 of 4:  119193,504,296,0 
-    0.105756s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:183 step_all(series_id)
-    0.211984s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:184 vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored))
-    0.00132876s @ /home/ubuntu/fpga-solver/ocl_node_router.h:185 v_drawIndirect = std::move(read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect))
-    stored_nets: 5
-    0.0204476s @ /home/ubuntu/fpga-solver/ocl_node_router.h:186 store_possibly_routed_nets()
-    ocl_counter_max: 128, step 1 of 4:  119447,2746,403,0 
-    0.140291s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:183 step_all(series_id)
-    0.211675s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:184 vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored))
-    0.00128848s @ /home/ubuntu/fpga-solver/ocl_node_router.h:185 v_drawIndirect = std::move(read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect))
-    stored_nets: 636
-    0.0152415s @ /home/ubuntu/fpga-solver/ocl_node_router.h:186 store_possibly_routed_nets()
-    ocl_counter_max: 128, step 2 of 4:  116793,1927,727,0 
-    0.12543s   @ /home/ubuntu/fpga-solver/ocl_node_router.h:183 step_all(series_id)
-    0.224944s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:184 vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored))
-    0.00138619s @ /home/ubuntu/fpga-solver/ocl_node_router.h:185 v_drawIndirect = std::move(read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect))
-    stored_nets: 226
-    0.01614s   @ /home/ubuntu/fpga-solver/ocl_node_router.h:186 store_possibly_routed_nets()
-    ocl_counter_max: 128, step 3 of 4:  115867,558,368,0 
-    0.11803s   @ /home/ubuntu/fpga-solver/ocl_node_router.h:183 step_all(series_id)
-    0.20978s   @ /home/ubuntu/fpga-solver/ocl_node_router.h:184 vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored))
-    0.00123767s @ /home/ubuntu/fpga-solver/ocl_node_router.h:185 v_drawIndirect = std::move(read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect))
-    stored_nets: 22
-    0.0289274s @ /home/ubuntu/fpga-solver/ocl_node_router.h:186 store_possibly_routed_nets()
-    ocl_counter_max: 128, step 4 of 4:  115243,260,364,0 
-    0.131885s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:183 step_all(series_id)
-    0.207857s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:184 vv_explored.emplace_back(read_buffer_group<history_t>(queues, v_buf_explored))
-    0.00149358s @ /home/ubuntu/fpga-solver/ocl_node_router.h:185 v_drawIndirect = std::move(read_buffer_group<std::array<uint32_t, 4>>(queues, v_buf_drawIndirect))
-    stored_nets: 3
-    0.015561s  @ /home/ubuntu/fpga-solver/ocl_node_router.h:186 store_possibly_routed_nets()
-  13.5162s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:64 ocltr.route()
-    fully_routed_nets: 36106
-  0.113389s  @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:65 ocltr.write_phys_unrouted_nets()
-  0.0139081s @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:66 ocltr.write_phys_strings()
-  0.58382s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:67 InterchangeGZ<PhysicalNetlist::PhysNetlist>::write(dst_phys_file, message)
-34.7743s   @ /home/ubuntu/fpga-solver/opencl-node-router.cpp:82 route_file(src_phys_file, dst_phys_file)
-
+0.763966s  @ D:\fpga-solver-msvc-debug\tile-based-router.cpp:12 PhysGZV (src_phys_file)
+  0.471339s  @ D:\fpga-solver-msvc-debug\tile-based-router.h:358 make_site_locations(xcvu3p::root)
+  0.740275s  @ D:\fpga-solver-msvc-debug\tile-based-router.h:359 make_devStrs_map(xcvu3p::root)
+  0.185763s  @ D:\fpga-solver-msvc-debug\tile-based-router.h:362 make_string_interchange(devStrs_map, xcvu3p::strs, physStrs)
+sizeof(Tile_Based_Router::Tile_Info) 32
+4.6054s    @ D:\fpga-solver-msvc-debug\tile-based-router.cpp:14 Tile_Based_Router::make(physGZV.root)
+2.76166s   @ D:\fpga-solver-msvc-debug\tile-based-router.cpp:15 tbr.block_all_resources()
