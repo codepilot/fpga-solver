@@ -11,3 +11,5 @@ Linux amd opencl drivers
 
 [![CMake on multiple platforms](https://github.com/codepilot/fpga-solver/actions/workflows/cmake-multi-platform.yml/badge.svg)](https://github.com/codepilot/fpga-solver/actions/workflows/cmake-multi-platform.yml)
 
+Building for Windows (MSVC 2022, clang 17)  
+Building for Windows (G++ 13, clang 17)  
