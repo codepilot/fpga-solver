@@ -303,7 +303,7 @@ public:
 		return devStrs_map;
 	}
 
-	static std::array<std::vector<uint32_t>, 2> make_string_interchange(const std::unordered_map<std::string_view, uint32_t>& devStrs_map, ::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader devStrs, ::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader physStrs) {
+	static std::tuple<std::vector<uint32_t>, std::vector<uint32_t>> make_string_interchange(const std::unordered_map<std::string_view, uint32_t>& devStrs_map, ::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader devStrs, ::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::Reader physStrs) {
 		std::vector<uint32_t> physStrs_to_devStrs(static_cast<size_t>(physStrs.size()), UINT32_MAX);
 		std::vector<uint32_t> devStrs_to_physStrs(static_cast<size_t>(devStrs.size()), UINT32_MAX);
 		each<uint32_t, decltype(physStrs), decltype(physStrs[0])>(physStrs, [&](uint32_t phys_strIdx, capnp::Text::Reader phys_str) {
@@ -359,9 +359,7 @@ public:
 		const auto devStrs_map{ TimerVal(make_devStrs_map(xcvu3p::root)) };
 
 		string_list_reader physStrs{ phys.getStrList() };
-		auto string_interchange{ TimerVal(make_string_interchange(devStrs_map, xcvu3p::strs, physStrs)) };
-		auto physStrs_to_devStrs{ std::move(string_interchange.at(0)) };
-		auto devStrs_to_physStrs{ std::move(string_interchange.at(1)) };
+		auto [physStrs_to_devStrs, devStrs_to_physStrs] = TimerVal(make_string_interchange(devStrs_map, xcvu3p::strs, physStrs));
 
 		std::cout << std::format("sizeof(Tile_Based_Router::Tile_Info) {}\n", sizeof(Tile_Based_Router::Tile_Info));
 
