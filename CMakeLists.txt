@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.27.9)
 
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
+
 project(fpga-solver LANGUAGES CXX)
 
 include(repos.cmake)
