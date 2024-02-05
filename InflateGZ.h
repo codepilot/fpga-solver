@@ -24,7 +24,7 @@ public:
 			.next_in{read_span.data()},
 			.avail_in{static_cast<uint32_t>(read_span.size())},
 			.next_out{write_span.data()},
-			.avail_out{UINT32_MAX},
+			.avail_out{static_cast<uint32_t>(write_span.size())},
 		};
 
 		auto init_result{ inflateInit2(&strm, 15 + 16) };

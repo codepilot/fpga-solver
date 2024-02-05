@@ -24,7 +24,7 @@ public:
 
 	static std::vector<capnp::word> inflate_v(std::string fn) {
 		MemoryMappedFile mmf_gz{ fn };
-		auto v_unzipped{ std::vector<capnp::word>(static_cast<size_t>(get_gz_isize(mmf_gz)) / sizeof(capnp::WORDS)) };
+		auto v_unzipped{ std::vector<capnp::word>(static_cast<size_t>(get_gz_isize(mmf_gz)) / sizeof(capnp::word)) };
 		std::span<capnp::word> s_unzipped(v_unzipped);
 
 		auto read_span{ mmf_gz.get_span<Bytef>() };
@@ -33,7 +33,7 @@ public:
 			.next_in{read_span.data()},
 			.avail_in{static_cast<uint32_t>(read_span.size())},
 			.next_out{write_span.data()},
-			.avail_out{UINT32_MAX},
+			.avail_out{static_cast<uint32_t>(write_span.size())},
 		};
 
 		auto init_result{ inflateInit2(&strm, 15 + 16) };

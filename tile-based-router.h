@@ -4,31 +4,11 @@
 #include "lib_inverse_wires.h"
 #include "lib_site_pin_to_wire.h"
 #include "lib_site_pin_to_node.h"
+#include "lib_wire_idx_to_tile_idx_tile_wire_idx.h"
 
 #if 1
 class Tile_Based_Router {
 public:
-	struct tile_idx_tile_wire_idx {
-		uint32_t tile_idx, tile_wire_idx;
-	};
-	static std::vector<tile_idx_tile_wire_idx> make_wire_idx_to_tile_idx_tile_wire_idx() {
-		std::vector<tile_idx_tile_wire_idx> wire_idx_to_tile_idx_tile_wire_idx(static_cast<size_t>(xcvu3p::wires.size()), tile_idx_tile_wire_idx{ .tile_idx{UINT32_MAX}, .tile_wire_idx{UINT32_MAX} });
-		jthread_each(xcvu3p::tiles, [&](uint64_t tile_idx, tile_reader& tile) {
-			auto tile_str_idx{ tile.getName() };
-			auto tile_type{ xcvu3p::tileTypes[tile.getType()] };
-			auto tile_wires{ tile_type.getWires() };
-			auto tile_inverse_wires{ xcvu3p::inverse_wires.tile_range(tile_str_idx) };
-			each<uint64_t, decltype(tile_wires), uint32_t>(tile_wires, [&](uint64_t tile_wire_idx, uint32_t wire_str_idx) {
-				auto v_wire_idx{ tile_inverse_wires.at(tile_str_idx, wire_str_idx) };
-				if (v_wire_idx.size() != 1) abort();
-				auto wire_idx{ v_wire_idx.front() };
-				wire_idx_to_tile_idx_tile_wire_idx[wire_idx] = tile_idx_tile_wire_idx{ .tile_idx{static_cast<uint32_t>(tile_idx)}, .tile_wire_idx{static_cast<uint32_t>(tile_wire_idx)} };
-			});
-		});
-		return wire_idx_to_tile_idx_tile_wire_idx;
-	}
-
-	static inline const std::vector<tile_idx_tile_wire_idx> wire_idx_to_tile_idx_tile_wire_idx = make_wire_idx_to_tile_idx_tile_wire_idx();
 
 	static inline const size_t bans_per_tile{ 100ull };
 
@@ -105,7 +85,7 @@ public:
 		if (is_source) {
 			auto source_node_idx{ xcvu3p::site_pin_to_node.at(ds_source_site, ds_source_pin).front() };
 			for (auto wire_idx : xcvu3p::nodes[source_node_idx].getWires()) {
-				decltype(auto) tw{ wire_idx_to_tile_idx_tile_wire_idx[wire_idx] };
+				decltype(auto) tw{ xcvu3p::wire_idx_to_tile_idx_tile_wire_idx[wire_idx] };
 				auto shader_tile_id{ tile_id_to_shader_tile_id[tw.tile_idx] };
 				decltype(auto) tile_info{ tile_infos[shader_tile_id] };
 				auto stw{ std::span(tile_wires).subspan(tile_info.tile_wire_offset, tile_info.tile_wire_count) };
@@ -119,7 +99,7 @@ public:
 #else
 		auto wire_idx{ xcvu3p::site_pin_to_wire.at(ds_source_site, ds_source_pin) };
 		if (wire_idx.empty()) abort();
-		decltype(auto) tw{ wire_idx_to_tile_idx_tile_wire_idx[wire_idx.front()]};
+		decltype(auto) tw{ xcvu3p::wire_idx_to_tile_idx_tile_wire_idx[wire_idx.front()]};
 #ifdef _DEBUG
 		// std::cout << std::format("block_site_pin({},{},{})\n", wire_idx, tw.tile_idx, tw.tile_wire_idx);
 #endif
