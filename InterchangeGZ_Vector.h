@@ -11,7 +11,7 @@ class InterchangeGZ_Vector {
 public:
 	std::vector<capnp::word> v_unzipped;
 	kj::ArrayPtr<capnp::word> words;
-	capnp::FlatArrayMessageReader famr{ kj::ArrayPtr<const capnp::word>{} };
+	capnp::FlatArrayMessageReader famr;
 	T::Reader root;
 
 	static uint32_t get_gz_isize(MemoryMappedFile& mmf_gz) {

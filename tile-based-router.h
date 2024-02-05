@@ -225,7 +225,7 @@ public:
 		return { physStrs_to_devStrs , devStrs_to_physStrs };
 	}
 
-	static Tile_Based_Router make(phys_reader phys) {
+	static Tile_Based_Router make(phys_reader &phys) {
 		std::atomic<uint32_t> needed_tiles, needed_tile_wires, needed_inbox_items, needed_bans;
 		jthread_each(xcvu3p::tiles, [&](uint64_t tile_idx, tile_reader& tile) {
 			auto tile_type{ xcvu3p::tileTypes[tile.getType()] };
