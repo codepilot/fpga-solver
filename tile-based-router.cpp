@@ -3,7 +3,7 @@
 // inline static const std::string default_file{ "logicnets_jscl" };
 
 int main(int argc, char* argv[]) {
-	std::cout << xcvu3p::name;
+	std::cout << std::format("device: {}\n", xcvu3p::name);
 	// std::vector<std::string> args;
 	// for (auto&& arg : std::span<char*>(argv, static_cast<size_t>(argc))) args.emplace_back(arg);
 
