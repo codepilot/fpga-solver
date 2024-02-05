@@ -8,23 +8,14 @@
 #if 1
 class Tile_Based_Router {
 public:
-	static inline const DevFlat devFlat{ TimerVal(DevFlat("_deps/device-file-build/xcvu3p.device")) };
-
-	static inline const device_reader dev{ devFlat.root };
-	static inline const tile_list_reader tiles{ dev.getTileList() };
-	static inline const tile_type_list_reader tile_types{ dev.getTileTypeList() };
-	static inline const wire_list_reader wires{ dev.getWires() };
-	static inline const node_list_reader nodes{ dev.getNodes() };
-	static inline const string_list_reader devStrs{ dev.getStrList() };
-
 	struct tile_idx_tile_wire_idx {
 		uint32_t tile_idx, tile_wire_idx;
 	};
 	static std::vector<tile_idx_tile_wire_idx> make_wire_idx_to_tile_idx_tile_wire_idx() {
-		std::vector<tile_idx_tile_wire_idx> wire_idx_to_tile_idx_tile_wire_idx(static_cast<size_t>(wires.size()), tile_idx_tile_wire_idx{ .tile_idx{UINT32_MAX}, .tile_wire_idx{UINT32_MAX} });
-		jthread_each(tiles, [&](uint64_t tile_idx, tile_reader& tile) {
+		std::vector<tile_idx_tile_wire_idx> wire_idx_to_tile_idx_tile_wire_idx(static_cast<size_t>(xcvu3p::wires.size()), tile_idx_tile_wire_idx{ .tile_idx{UINT32_MAX}, .tile_wire_idx{UINT32_MAX} });
+		jthread_each(xcvu3p::tiles, [&](uint64_t tile_idx, tile_reader& tile) {
 			auto tile_str_idx{ tile.getName() };
-			auto tile_type{ tile_types[tile.getType()] };
+			auto tile_type{ xcvu3p::tileTypes[tile.getType()] };
 			auto tile_wires{ tile_type.getWires() };
 			auto tile_inverse_wires{ xcvu3p::inverse_wires.tile_range(tile_str_idx) };
 			each<uint64_t, decltype(tile_wires), uint32_t>(tile_wires, [&](uint64_t tile_wire_idx, uint32_t wire_str_idx) {
@@ -113,7 +104,7 @@ public:
 		// source_site_str_idx(19 bit), ds_source_pin_str_idx(19 bit) => wire_idx(24)
 		if (is_source) {
 			auto source_node_idx{ xcvu3p::site_pin_to_node.at(ds_source_site, ds_source_pin).front() };
-			for (auto wire_idx : nodes[source_node_idx].getWires()) {
+			for (auto wire_idx : xcvu3p::nodes[source_node_idx].getWires()) {
 				decltype(auto) tw{ wire_idx_to_tile_idx_tile_wire_idx[wire_idx] };
 				auto shader_tile_id{ tile_id_to_shader_tile_id[tw.tile_idx] };
 				decltype(auto) tile_info{ tile_infos[shader_tile_id] };
@@ -256,8 +247,8 @@ public:
 
 	static Tile_Based_Router make(phys_reader phys) {
 		std::atomic<uint32_t> needed_tiles, needed_tile_wires, needed_inbox_items, needed_bans;
-		jthread_each(tiles, [&](uint64_t tile_idx, tile_reader& tile) {
-			auto tile_type{ tile_types[tile.getType()] };
+		jthread_each(xcvu3p::tiles, [&](uint64_t tile_idx, tile_reader& tile) {
+			auto tile_type{ xcvu3p::tileTypes[tile.getType()] };
 			auto tile_wires{ tile_type.getWires() };
 			auto tile_pips{ tile_type.getPips() };
 			if (!tile_pips.size()) return;
@@ -272,11 +263,11 @@ public:
 		auto inbox_items{ std::vector<Inbox_Item>(static_cast<size_t>(needed_inbox_items.load()), Inbox_Item{}) };
 		auto bans{ std::vector<Ban>(static_cast<size_t>(needed_bans.load()), Ban{}) };
 
-		std::vector<uint32_t> tile_id_to_shader_tile_id(static_cast<size_t>(tiles.size()), UINT32_MAX);
+		std::vector<uint32_t> tile_id_to_shader_tile_id(static_cast<size_t>(xcvu3p::tiles.size()), UINT32_MAX);
 
 		std::atomic<uint32_t> offset_tiles, offset_tile_wires, offset_inbox_items, offset_bans;
-		jthread_each(tiles, [&](uint64_t tile_idx, tile_reader& tile) {
-			auto tile_type{ tile_types[tile.getType()] };
+		jthread_each(xcvu3p::tiles, [&](uint64_t tile_idx, tile_reader& tile) {
+			auto tile_type{ xcvu3p::tileTypes[tile.getType()] };
 			auto tile_wires{ tile_type.getWires() };
 			auto tile_pips{ tile_type.getPips() };
 			if (!tile_pips.size()) return;
@@ -293,11 +284,11 @@ public:
 			tile_id_to_shader_tile_id[tile_idx] = tile_offset;
 		});
 
-		auto site_locations{ TimerVal(make_site_locations(dev)) };
-		const auto devStrs_map{ TimerVal(make_devStrs_map(dev)) };
+		auto site_locations{ TimerVal(make_site_locations(xcvu3p::root)) };
+		const auto devStrs_map{ TimerVal(make_devStrs_map(xcvu3p::root)) };
 
 		string_list_reader physStrs{ phys.getStrList() };
-		auto string_interchange{ TimerVal(make_string_interchange(devStrs_map, devStrs, physStrs)) };
+		auto string_interchange{ TimerVal(make_string_interchange(devStrs_map, xcvu3p::strs, physStrs)) };
 		auto physStrs_to_devStrs{ std::move(string_interchange.at(0)) };
 		auto devStrs_to_physStrs{ std::move(string_interchange.at(1)) };
 
