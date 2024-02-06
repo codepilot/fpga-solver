@@ -1,19 +1,8 @@
-fn:D:/fpga-solver-msvc-debug/build/_deps/device-file-build/xcvu3p.device fh:0xf0 fsize:2217456224 fp:0x1da31e30000
-fn:D:/fpga-solver-msvc-debug/build/lib_inverse_wires.bin fh:0xb4 fsize:666258944 fp:0x1da00000000
-fn:D:/fpga-solver-msvc-debug/build/lib_site_pin_to_wire.bin fh:0xb8 fsize:63412736 fp:0x1da27b70000
-fn:D:/fpga-solver-msvc-debug/build/lib_wire_idx_to_node_idx.bin fh:0xfc fsize:333129472 fp:0x1dab60f0000
-fn:D:/fpga-solver-msvc-debug/build/lib_site_pin_to_node.bin fh:0x104 fsize:63412736 fp:0x1dac9eb0000
-fn:D:/fpga-solver-msvc-debug/build/lib_wire_idx_to_tile_idx_tile_wire_idx.bin fh:0x10c fsize:666258944 fp:0x1dacdb30000
 device: xcvu3p
-fn:D:/fpga-solver-msvc-debug/build/_deps/benchmark-files-src/finn_radioml_unrouted.phys fh:0x114 fsize:21826738 fp:0x1daf56a0000
-init_result: 0
-inflate_result: 1
-end_result: 0
-
-1.32888s   @ D:\fpga-solver-msvc-debug\tile-based-router.cpp:12 PhysGZV (src_phys_file)
-  0.42214s   @ D:\fpga-solver-msvc-debug\tile-based-router.h:358 make_site_locations(xcvu3p::root)
-  0.792436s  @ D:\fpga-solver-msvc-debug\tile-based-router.h:359 make_devStrs_map(xcvu3p::root)
-  0.474604s  @ D:\fpga-solver-msvc-debug\tile-based-router.h:362 make_string_interchange(devStrs_map, xcvu3p::strs, physStrs)
+0.444505s  @ D:\fpga-solver-msvc-release\tile-based-router.cpp:12 PhysGZV (src_phys_file)
+  0.0395145s @ D:\fpga-solver-msvc-release\tile-based-router.h:358 make_site_locations(xcvu3p::root)
+  0.105123s  @ D:\fpga-solver-msvc-release\tile-based-router.h:359 make_devStrs_map(xcvu3p::root)
+  0.128601s  @ D:\fpga-solver-msvc-release\tile-based-router.h:362 make_string_interchange(devStrs_map, xcvu3p::strs, physStrs)
 sizeof(Tile_Based_Router::Tile_Info) 32
-4.84972s   @ D:\fpga-solver-msvc-debug\tile-based-router.cpp:14 Tile_Based_Router::make(physGZV.root)
-7.57066s   @ D:\fpga-solver-msvc-debug\tile-based-router.cpp:15 tbr.block_all_resources()
+1.04525s   @ D:\fpga-solver-msvc-release\tile-based-router.cpp:14 Tile_Based_Router::make(physGZV.root)
+0.478361s  @ D:\fpga-solver-msvc-release\tile-based-router.cpp:15 tbr.block_all_resources()

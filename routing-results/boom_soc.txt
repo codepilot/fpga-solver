@@ -1,19 +1,8 @@
-fn:D:/fpga-solver-msvc-debug/build/_deps/device-file-build/xcvu3p.device fh:0x100 fsize:2217456224 fp:0x291636b0000
-fn:D:/fpga-solver-msvc-debug/build/lib_inverse_wires.bin fh:0xac fsize:666258944 fp:0x29100000000
-fn:D:/fpga-solver-msvc-debug/build/lib_site_pin_to_wire.bin fh:0xb4 fsize:63412736 fp:0x29127b70000
-fn:D:/fpga-solver-msvc-debug/build/lib_wire_idx_to_node_idx.bin fh:0xc4 fsize:333129472 fp:0x2912b7f0000
-fn:D:/fpga-solver-msvc-debug/build/lib_site_pin_to_node.bin fh:0xcc fsize:63412736 fp:0x2913f5b0000
-fn:D:/fpga-solver-msvc-debug/build/lib_wire_idx_to_tile_idx_tile_wire_idx.bin fh:0x10c fsize:666258944 fp:0x291e7970000
 device: xcvu3p
-fn:D:/fpga-solver-msvc-debug/build/_deps/benchmark-files-src/boom_soc_unrouted.phys fh:0x114 fsize:58312082 fp:0x2920f4e0000
-init_result: 0
-inflate_result: 1
-end_result: 0
-
-3.3307s    @ D:\fpga-solver-msvc-debug\tile-based-router.cpp:12 PhysGZV (src_phys_file)
-  0.420763s  @ D:\fpga-solver-msvc-debug\tile-based-router.h:358 make_site_locations(xcvu3p::root)
-  0.794604s  @ D:\fpga-solver-msvc-debug\tile-based-router.h:359 make_devStrs_map(xcvu3p::root)
-  1.40098s   @ D:\fpga-solver-msvc-debug\tile-based-router.h:362 make_string_interchange(devStrs_map, xcvu3p::strs, physStrs)
+1.45383s   @ D:\fpga-solver-msvc-release\tile-based-router.cpp:12 PhysGZV (src_phys_file)
+  0.0367818s @ D:\fpga-solver-msvc-release\tile-based-router.h:358 make_site_locations(xcvu3p::root)
+  0.107213s  @ D:\fpga-solver-msvc-release\tile-based-router.h:359 make_devStrs_map(xcvu3p::root)
+  0.340685s  @ D:\fpga-solver-msvc-release\tile-based-router.h:362 make_string_interchange(devStrs_map, xcvu3p::strs, physStrs)
 sizeof(Tile_Based_Router::Tile_Info) 32
-6.31662s   @ D:\fpga-solver-msvc-debug\tile-based-router.cpp:14 Tile_Based_Router::make(physGZV.root)
-15.0527s   @ D:\fpga-solver-msvc-debug\tile-based-router.cpp:15 tbr.block_all_resources()
+1.40288s   @ D:\fpga-solver-msvc-release\tile-based-router.cpp:14 Tile_Based_Router::make(physGZV.root)
+1.48968s   @ D:\fpga-solver-msvc-release\tile-based-router.cpp:15 tbr.block_all_resources()
