@@ -33,14 +33,14 @@ public:
 		std::vector<uint32_t> ret;
 		ret.reserve(found.size());
 		for (auto&& found_item : found) {
-			ret.emplace_back(found_item % wire_count);
+			ret.emplace_back(static_cast<uint32_t>(found_item % wire_count));
 		}
 		return ret;
 	}
 
 	static uint64_t count_site_pins(const tile_list_reader tiles, const tile_type_list_reader tile_types) {
 		std::atomic<uint64_t> ret{};
-		jthread_each(tiles, [&](uint64_t tile_index, tile_reader & tile) {
+		jthread_each<uint32_t>(tiles, [&](uint32_t tile_index, tile_reader tile) {
 			auto tile_str_idx{ tile.getName() };
 			auto tileType{ tile_types[tile.getType()] };
 			auto tileTypeSiteTypes{ tileType.getSiteTypes() };
@@ -78,7 +78,7 @@ public:
 					auto siteType{ site_types[siteTypeInTile.getPrimaryType()] };
 					auto tile_wires{ siteTypeInTile.getPrimaryPinsToTileWires() };
 					auto pins{ siteType.getPins() };
-					each<uint32_t, decltype(pins), decltype(pins[0])>(pins, [&](uint32_t pin_index, ::DeviceResources::Device::SitePin::Reader pin) {
+					each<uint32_t>(pins, [&](uint32_t pin_index, ::DeviceResources::Device::SitePin::Reader pin) {
 						auto pin_name{ pin.getName() };
 						auto wire_str_idx{ tile_wires[pin_index] };
 						auto wire_idx{ xcvu3p::inverse_wires.at(tile_str_idx, wire_str_idx) };
@@ -124,7 +124,7 @@ public:
 				auto site_pins{ siteType.getPins() };
 				if (!site_pins.size()) continue;
 				Site_Pin_to_Wire pin_to_wire{ site_pin_to_wire.site_range(site_name) };
-				each<uint32_t, decltype(site_pins), decltype(site_pins[0])>(site_pins, [&](uint32_t pin_index, ::DeviceResources::Device::SitePin::Reader pin) {
+				each<uint32_t>(site_pins, [&](uint32_t pin_index, ::DeviceResources::Device::SitePin::Reader pin) {
 					auto pin_name{ pin.getName() };
 					auto wire_str_idx{ tile_wires[pin_index] };
 					auto v_wire_idx{ xcvu3p::inverse_wires.at(tile_str_idx, wire_str_idx) };

@@ -35,7 +35,7 @@ public:
 		std::vector<uint32_t> ret;
 		ret.reserve(found.size());
 		for (auto&& found_item : found) {
-			ret.emplace_back(found_item % wire_count);
+			ret.emplace_back(static_cast<uint32_t>(found_item % wire_count));
 		}
 		return ret;
 	}
@@ -45,7 +45,7 @@ public:
 			MemoryMappedFile mmf{file_name, wire_count * sizeof(uint64_t) };
 			auto inverse_wires{ mmf.get_span<uint64_t>() }; //wire str, tile str, wire idx log2(467843 * 467843 * 83282368) < 64
 			puts("inverse_wires gather");
-			jthread_each(wires, [&](uint64_t wire_idx, wire_reader& wire) {
+			jthread_each<uint64_t>(wires, [&](uint64_t wire_idx, wire_reader wire) {
 				uint64_t tile_strIdx{ wire.getTile() };
 				uint64_t wire_strIdx{ wire.getWire() };
 				inverse_wires[wire_idx] = (tile_strIdx * str_count + wire_strIdx) * wire_count + wire_idx;

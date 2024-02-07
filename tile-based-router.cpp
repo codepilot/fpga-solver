@@ -11,8 +11,10 @@ int main(int argc, char* argv[]) {
 	auto dst_phys_file{ (args.size() >= 3) ? args.at(2) : ("_deps/benchmark-files-build/" + default_file + ".phys") };
 	auto physGZV{ TimerVal(PhysGZV (src_phys_file)) };
 
-	auto tbr{ TimerVal(Tile_Based_Router::make(physGZV.root)) };
-	TimerVal(tbr.block_all_resources());
+	Tile_Based_Router tbr{ physGZV.root };
+	// auto tbr{ TimerVal(Tile_Based_Router::make(physGZV.root)) };
+	// TimerVal(tbr.block_all_resources());
+	// TimerVal(tbr.route_step());
 
 	return 0;
 }

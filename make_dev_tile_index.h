@@ -31,7 +31,7 @@ namespace xcvu3p {
 	using wireType_index = limited_index<uint32_t, ::xcvu3p::wireType_count>;
 	using pipTiming_index = limited_index<uint32_t, ::xcvu3p::pipTiming_count>;
 	using nodeTiming_index = limited_index<uint32_t, ::xcvu3p::nodeTiming_count>;
-	constexpr auto each_tile{ each<tile_index, tile_list_reader, tile_reader> };
+	constexpr auto each_tile{ each<tile_index, tile_list_reader> };
 };
 
 struct site_info {

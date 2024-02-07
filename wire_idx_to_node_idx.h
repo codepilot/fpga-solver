@@ -17,16 +17,16 @@ public:
         std::ranges::fill(s_wire_idx_to_node_idx, UINT32_MAX);
 
         std::cout << "make\n";
-        jthread_each(nodes, [&](uint64_t node_idx, node_reader node) {
+        jthread_each<uint32_t>(nodes, [&](uint32_t node_idx, node_reader node) {
             for (auto wire_idx : node.getWires()) {
-                s_wire_idx_to_node_idx[wire_idx] = static_cast<uint32_t>(node_idx);
+                s_wire_idx_to_node_idx[wire_idx] = node_idx;
             }
         });
 
         std::cout << "test\n";
-        jthread_each(nodes, [&](uint64_t node_idx, node_reader node) {
+        jthread_each<uint32_t>(nodes, [&](uint32_t node_idx, node_reader node) {
             for (auto wire_idx : node.getWires()) {
-                if (s_wire_idx_to_node_idx[wire_idx] != static_cast<uint32_t>(node_idx)) abort();
+                if (s_wire_idx_to_node_idx[wire_idx] != node_idx) abort();
             }
         });
 
