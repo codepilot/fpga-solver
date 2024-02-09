@@ -6,6 +6,7 @@
 #include "lib_site_pin_to_node.h"
 #include "lib_wire_idx_to_tile_idx_tile_wire_idx.h"
 #include <cstdlib>
+#include <cmath>
 
 template<class _Ty, size_t _Size>
 class alignas(__m512i) aligned_array : public std::array<_Ty, _Size> { };
@@ -76,7 +77,7 @@ namespace xcvu3p {
 
 	inline static constexpr size_t max_tile_wire_count{ 25285ull };
 	inline static constexpr size_t max_intra_tile_path_count{ 25000000ull };
-	DECLSPEC_NOINLINE static auto make_pip_paths() {
+	static auto make_pip_paths() {
 		static std::bitset<max_tile_wire_count> inbound_wires;
 		static std::bitset<max_tile_wire_count> outbound_wires;
 		static std::bitset<max_tile_wire_count> valid_wires;
