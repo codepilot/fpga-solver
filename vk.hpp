@@ -91,6 +91,15 @@ public:
 		void copy(const VkCopyBufferInfo2* pCopyBufferInfo) noexcept {
 			vkCmdCopyBuffer2(commandBuffer, pCopyBufferInfo);
 		}
+		void compute_to_transfer_barrier() noexcept {
+			vkCmdPipelineBarrier(
+				commandBuffer,
+				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+				VK_PIPELINE_STAGE_TRANSFER_BIT,
+				VK_DEPENDENCY_DEVICE_GROUP_BIT,
+				0, nullptr, 0, nullptr, 0, nullptr
+			);
+		}
 	};
 
 	class CommandPool {
@@ -995,6 +1004,9 @@ public:
 			command_buffers.at(0).writeComputeTimestamp(query_pool.queryPool, 0);
 			command_buffers.at(0).dispatch();
 			command_buffers.at(0).writeComputeTimestamp(query_pool.queryPool, 1);
+
+			command_buffers.at(0).compute_to_transfer_barrier();
+
 			std::array<VkBufferCopy2, 1> a_regions{{{
 				.sType{VK_STRUCTURE_TYPE_BUFFER_COPY_2},
 				.srcOffset{0},
