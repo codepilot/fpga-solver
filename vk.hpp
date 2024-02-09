@@ -581,12 +581,25 @@ public:
 			return pProperties;
 		}
 
-		VkPhysicalDeviceFeatures2 get_features() const noexcept {
-			VkPhysicalDeviceFeatures2 pFeatures{
-				.sType{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2},
-			};
-			vkGetPhysicalDeviceFeatures2(physicalDevice, &pFeatures);
-			return pFeatures;
+		class PhysicalDeviceFeatures {
+		public:
+			VkPhysicalDeviceVulkan13Features vulkan13Features;
+			VkPhysicalDeviceFeatures2 features2;
+			PhysicalDeviceFeatures() :
+				vulkan13Features{ .sType{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES}, .synchronization2{true} },
+				features2{ .sType{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2}, .pNext{&vulkan13Features} }
+			{
+
+			}
+			operator VkPhysicalDeviceFeatures2* () noexcept {
+				return &features2;
+			}
+		};
+
+		PhysicalDeviceFeatures get_features() const noexcept {
+			PhysicalDeviceFeatures features;
+			vkGetPhysicalDeviceFeatures2(physicalDevice, features);
+			return features;
 		}
 
 		uint32_t count_queue_families() const noexcept {
@@ -764,7 +777,8 @@ public:
 			std::cout << std::format("deviceName {}\n", physical_device_properties.deviceName);
 
 			auto features{ physical_device.get_features() };
-			std::cout << std::format("features.features.multiViewport: {}\n", features.features.multiViewport);
+			std::cout << std::format("multiViewport: {}\n", features.features2.features.multiViewport);
+			std::cout << std::format("synchronization2: {}\n", features.vulkan13Features.synchronization2);
 
 			auto memory_properties{ physical_device.get_memory_properties() };
 			std::cout << std::format("heaps: {}\n", memory_properties.memoryHeaps.size());
@@ -853,7 +867,7 @@ public:
 			}
 
 
-			MemoryMappedFile mmf_spirv{ "D:/MinimalVulkanCompute/foo.spirv" };
+			MemoryMappedFile mmf_spirv{ "simple.comp.glsl.spv" };
 			auto s_spirv{ mmf_spirv.get_span<uint32_t>() };
 			VkShaderModuleCreateInfo shaderModuleCreateInfo{
 				.sType{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO},
@@ -905,7 +919,7 @@ public:
 				.sType{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO},
 				.stage{VK_SHADER_STAGE_COMPUTE_BIT},
 				.module{shaderModule.shaderModule},
-				.pName{"foo"},
+				.pName{"main"},
 			};
 			std::array<VkComputePipelineCreateInfo, 1> computePipelineCreateInfos{{{
 				.sType{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO},
