@@ -22,6 +22,11 @@ include(interchange-files.cmake)
     file_maker("wire_idx_to_tile_idx_tile_wire_idx" lib_inverse_wires)
 
 include(file_user.cmake)
-  file_user("tile-based-router" lib_dev_tile_index lib_inverse_wires lib_site_pin_to_wire lib_site_pin_to_node lib_wire_idx_to_tile_idx_tile_wire_idx)
+block()
+  find_package(VulkanHeaders)
+  find_package(vulkan)
+  file_user("tile-based-router" Vulkan::Headers vulkan lib_dev_tile_index lib_inverse_wires lib_site_pin_to_wire lib_site_pin_to_node lib_wire_idx_to_tile_idx_tile_wire_idx)
+  add_custom_command(TARGET tile-based-router PRE_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:vulkan> $<TARGET_FILE_DIR:tile-based-router>)
+endblock()
 
 include(route_benchmarks.cmake)

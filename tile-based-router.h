@@ -172,19 +172,24 @@ namespace xcvu3p {
 				uint64_t parent;
 				std::bitset<max_tile_wire_count> all_reachable_wires;
 				std::bitset<max_tile_wire_count> head_reachable_wires;
+				// std::vector<uint32_t> children;
 				// std::set<uint16_t> all_reachable_wires;
 				// std::set<uint16_t> head_reachable_wires;
 			};
 
+#if 0
 			struct wire_pip_end {
 				uint64_t wire_id;
 				uint64_t parent;
 			};
+#endif
+
+			const auto intra_tile_path_offset_start{ intra_tile_path_offset.load() };
 
 			jthread_each<uint64_t>(tile_type_wires, [&](uint64_t oi, uint32_t tile_type_wire_name) {
 				if (!outbound_only_wires.test(oi)) return;
 				std::vector<wire_pip_node> wpn;
-				std::vector<wire_pip_end> wpn_ends;
+//				std::vector<wire_pip_end> wpn_ends;
 
 				{
 					std::bitset<max_tile_wire_count> init_reachable_wires;
@@ -210,10 +215,13 @@ namespace xcvu3p {
 				size_t depth{};
 				// std::set<std::set<uint64_t>> all_paths;
 				std::map<uint16_t, std::unordered_set<std::bitset<max_tile_wire_count>>> map_all_paths;
-				// std::vector<uint64_t> ends;
+				std::vector<uint64_t> ends;
 				std::bitset<max_tile_wire_count> reachable_wires;
 				for (size_t cn{}; cn < wpn.size(); cn++) {
 					const wire_pip_node c_wpn{ wpn[cn] };
+					if (inbound_only_wires.test(c_wpn.wire_id)) {
+						continue;
+					}
 					// std::cout << std::format("{} ", c_wpn.wire_id);
 					std::bitset<max_tile_wire_count> touched_wires;
 					for (auto pt{ cn }; pt != UINT64_MAX; pt = wpn[pt].parent) {
@@ -236,9 +244,6 @@ namespace xcvu3p {
 					}
 #endif
 
-					if (inbound_only_wires.test(c_wpn.wire_id)) {
-						abort();
-					}
 					// all_paths.insert(touched_wires);
 					found_paths.insert(touched_wires);
 
@@ -257,10 +262,13 @@ namespace xcvu3p {
 						// std::cout << std::format("  {}_{}_{}_{}_{}\n", depth, cn, wpn.size(), reachable_wires.size(), c_wpn.head_reachable_wires.size());
 					}
 
-					// if (touched_wires.size() >= 15) continue;
+					// if (touched_wires.count() >= 15) continue;
+
 					for (uint16_t head_reachable_wire{}; head_reachable_wire < c_wpn.head_reachable_wires.size(); head_reachable_wire++) {
 						if (!c_wpn.head_reachable_wires.test(head_reachable_wire)) continue;
-						if (outbound_only_wires.test(head_reachable_wire)) abort();
+						if (outbound_only_wires.test(head_reachable_wire)) {
+							abort();
+						}
 						if (touched_wires.test(head_reachable_wire)) continue;
 
 						if (inbound_only_wires.test(head_reachable_wire)) {
@@ -270,10 +278,11 @@ namespace xcvu3p {
 							//}
 							// all_paths.insert(touched_wires);
 							// found_paths.insert(touched_wires);
-							// ends.emplace_back(cn);
+							ends.emplace_back(cn);
 							reachable_wires.set(head_reachable_wire);
 
-							wpn_ends.emplace_back(wire_pip_end{
+							// wpn[cn].children.emplace_back(static_cast<uint32_t>(wpn.size()));
+							wpn.emplace_back(wire_pip_node{
 								.wire_id{ head_reachable_wire },
 								.parent{ static_cast<uint64_t>(cn) },
 							});
@@ -307,6 +316,8 @@ namespace xcvu3p {
 							continue;
 						}
 
+						// wpn[cn].children.emplace_back(static_cast<uint32_t>(wpn.size()));
+
 						wpn.emplace_back(wire_pip_node{
 							.wire_id{ head_reachable_wire },
 							.parent{ static_cast<uint64_t>( cn ) },
@@ -315,22 +326,74 @@ namespace xcvu3p {
 						});
 					}
 				}
-				auto my_total_ends{ total_ends.fetch_add(wpn_ends.size()) };
+				auto my_total_ends{ total_ends.fetch_add(ends.size()) };
 				if(depth > 10)
 				std::cout << std::format("total_ends:{:6.2f}M {} bidi:{} depth:{} wpn:{} ends:{} reachable:{}\n",
 					std::scalbln(static_cast<double>(my_total_ends), -20), strs[tile_type_wires[oi]].cStr(),
 					bidirectional_wire_count,
-					depth, wpn.size(), wpn_ends.size(), reachable_wires.count());
+					depth, wpn.size(), ends.size(), reachable_wires.count()
+				);
 
+				for (uint64_t end_idx: ends) {
+					std::array<uint16_t, 31> wire_path;
+					wire_path.fill(UINT16_MAX);
+					size_t wire_path_offset{};
+					for (auto pt{ end_idx }; pt != UINT64_MAX; pt = wpn[pt].parent) {
+						if (wire_path_offset >= wire_path.size()) {
+							abort();
+						}
+						wire_path[wire_path_offset] = wpn[pt].wire_id;
+						++wire_path_offset;
+					}
+					std::span<uint16_t> s_wire_path{ std::span(wire_path).first(wire_path_offset) };
+					auto last_wire_idx{ s_wire_path.back() };
+					auto first_wire_idx{ s_wire_path.front() };
+					std::span<uint16_t> s_wire_path_skip_last{ s_wire_path.subspan(1, s_wire_path.size() - 2) };
+					std::vector<uint16_t> v_intra_tile_path;
+					v_intra_tile_path.reserve(32);
+					v_intra_tile_path.emplace_back(last_wire_idx);
+					v_intra_tile_path.emplace_back(first_wire_idx);
+					v_intra_tile_path.emplace_back(static_cast<uint16_t>(s_wire_path_skip_last.size()));
+					std::copy(s_wire_path_skip_last.rbegin(), s_wire_path_skip_last.rend(), std::back_inserter(v_intra_tile_path));
+					v_intra_tile_path.resize(32, UINT16_MAX);
+					intra_tile_path a_path;
+					std::ranges::copy(v_intra_tile_path, a_path.begin());
+					v_intra_tile_paths[intra_tile_path_offset++] = a_path;
+					//std::for_each(wire_path.rbegin(), wire_path.rend(), [](uint16_t wire_idx) {
+					//	std::cout << std::format("{} ", wire_idx);
+					//});
+					//std::cout << "\n";
+				}
 				// total_ends += wpn_ends.size();
 //				std::cout << "\n\n";
 			});
+
+			const auto intra_tile_path_offset_count{ intra_tile_path_offset.load() - intra_tile_path_offset_start };
+			std::span<intra_tile_path> tile_paths{ std::span(v_intra_tile_paths).subspan(intra_tile_path_offset_start, intra_tile_path_offset_count) };
+			std::cout << std::format("sorting {} paths... ", tile_paths.size());
+			std::sort(std::execution::par_unseq, tile_paths.begin(), tile_paths.end());
+			std::cout << "done\n";
+
 			std::cout << std::format("\n\n");
 		});
+
 		std::cout << std::format("\n\ntotal_ends: {}, max_depth: {}\n", total_ends.load(), max_depth.load());
+		auto s_intra_tile_paths{ std::span(v_intra_tile_paths).first(intra_tile_path_offset.load()) };
+		std::cout << "writing file... ";
+		{
+			MemoryMappedFile mmf_intra_tile_paths{ "intra_tile_paths.bin", s_intra_tile_paths.size_bytes() };
+			auto s_mmf_intra_tile_paths{ mmf_intra_tile_paths.get_span<intra_tile_path>() };
+			std::ranges::copy(s_intra_tile_paths, s_mmf_intra_tile_paths.begin());
+		}
+		std::cout << "done\n";
+#if 0
+		for (auto& intra_tile_path : std::span(v_intra_tile_paths).first(intra_tile_path_offset.load())) {
+			std::cout << std::format("front:{} back:{} size:{}\n", intra_tile_path[0], intra_tile_path[1], intra_tile_path[2]);
+		}
+#endif
 		return true;
 	}
-	inline static const decltype(make_pip_paths()) a_pip_paths{ make_pip_paths() };
+	// inline static const decltype(make_pip_paths()) a_pip_paths{ make_pip_paths() };
 
 };
 
