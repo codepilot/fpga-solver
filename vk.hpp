@@ -23,6 +23,8 @@ namespace vk_route {
 		vk::UniqueShaderModule simple_comp;
 		vk::UniqueDescriptorSetLayout descriptorSetLayout;
 		vk::UniquePipelineLayout pipelineLayout;
+		vk::UniquePipelineCache pipelineCache;
+		std::vector<vk::UniquePipeline> computePipelines;
 
 		static std::vector<uint32_t> make_v_queue_family(std::span<vk::QueueFamilyProperties2> queue_families) noexcept {
 			std::vector<uint32_t> queueFamilyIndices;
@@ -276,6 +278,21 @@ namespace vk_route {
 
 		}
 
+		static auto make_compute_pipelines(vk::UniqueDevice& device, vk::UniqueShaderModule &simple_comp, vk::UniquePipelineLayout &pipelineLayout, vk::UniquePipelineCache &pipelineCache) noexcept {
+			vk::PipelineShaderStageCreateInfo pipelineShaderStageCreateInfo{
+				.stage{vk::ShaderStageFlagBits::eCompute},
+				.module{simple_comp.get()},
+				.pName{"main"},
+			};
+
+			std::array<vk::ComputePipelineCreateInfo, 1> computePipelineCreateInfos{ {{
+				.stage{pipelineShaderStageCreateInfo},
+				.layout{pipelineLayout.get()},
+			}} };
+
+			return device->createComputePipelinesUnique(pipelineCache.get(), computePipelineCreateInfos).value;
+		}
+
 		static inline constexpr size_t binding_count{ 2ull };
 
 		SingleDevice(vk::PhysicalDevice physical_device) noexcept :
@@ -291,7 +308,9 @@ namespace vk_route {
 			bounce_out{ make_buffer_bounce_out(device, queueFamilyIndices, memory_types) },
 			simple_comp{make_shader_module(device, "simple.comp.glsl.spv")},
 			descriptorSetLayout{make_descriptor_set_layout<binding_count>(device) },
-			pipelineLayout{make_pipeline_layout(device, descriptorSetLayout)}
+			pipelineLayout{make_pipeline_layout(device, descriptorSetLayout)},
+			pipelineCache{ device->createPipelineCacheUnique(vk::PipelineCacheCreateInfo{}).value },
+			computePipelines{make_compute_pipelines(device, simple_comp, pipelineLayout, pipelineCache) }
 		{
 			show_features();
 
@@ -305,19 +324,6 @@ namespace vk_route {
 
 
 
-			vk::PipelineShaderStageCreateInfo pipelineShaderStageCreateInfo{
-				.stage{vk::ShaderStageFlagBits::eCompute},
-				.module{simple_comp.get()},
-				.pName{"main"},
-			};
-
-			std::array<vk::ComputePipelineCreateInfo, 1> computePipelineCreateInfos{ {{
-				.stage{pipelineShaderStageCreateInfo},
-				.layout{pipelineLayout.get()},
-			}} };
-
-			auto pipeline_cache{ device->createPipelineCacheUnique(vk::PipelineCacheCreateInfo{}).value };
-			auto compute_pipelines{ device->createComputePipelinesUnique(pipeline_cache.get(), computePipelineCreateInfos).value };
 
 
 			std::array<vk::DescriptorPoolSize, 1> descriptorPoolSize{ {{
@@ -432,7 +438,7 @@ namespace vk_route {
 			}
 
 
-			command_buffers.at(0)->bindPipeline(vk::PipelineBindPoint::eCompute, compute_pipelines.at(0).get());
+			command_buffers.at(0)->bindPipeline(vk::PipelineBindPoint::eCompute, computePipelines.at(0).get());
 
 			// std::vector<vk::DescriptorSet> v_descriptor_set;
 			// v_descriptor_set.reserve(descriptor_sets.size());
