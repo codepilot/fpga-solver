@@ -109,11 +109,13 @@ namespace vk_route {
 				});
 				queueFamilyIndices.emplace_back(queue_family_idx);
 			});
-			vk::DeviceCreateInfo pCreateInfo{
-				.queueCreateInfoCount{static_cast<uint32_t>(v_queue_create_info.size())},
-				.pQueueCreateInfos{v_queue_create_info.data()},
-			};
-			auto device{ physical_device.createDeviceUnique(pCreateInfo).value };
+
+			vk::StructureChain<vk::DeviceCreateInfo, vk::PhysicalDeviceVulkan13Features> deviceCreateInfo;
+			deviceCreateInfo.get<vk::DeviceCreateInfo>().setQueueCreateInfoCount(static_cast<uint32_t>(v_queue_create_info.size()));
+			deviceCreateInfo.get<vk::DeviceCreateInfo>().setQueueCreateInfos(v_queue_create_info);
+			deviceCreateInfo.get<vk::PhysicalDeviceVulkan13Features>().setSynchronization2(true);
+
+			auto device{ physical_device.createDeviceUnique(deviceCreateInfo.get<vk::DeviceCreateInfo>()).value };
 
 			std::cout << std::format("device: 0x{:x}\n", std::bit_cast<uintptr_t>(device.get()));
 
@@ -134,22 +136,51 @@ namespace vk_route {
 				.pQueueFamilyIndices{queueFamilyIndices.data()},
 			};
 
+			vk::BufferCreateInfo bounce_in_bci{
+				.size{1024ull * 1024ull},
+				.usage{vk::BufferUsageFlagBits::eTransferSrc},
+				.sharingMode{vk::SharingMode::eExclusive},
+				.queueFamilyIndexCount{static_cast<uint32_t>(queueFamilyIndices.size())},
+				.pQueueFamilyIndices{queueFamilyIndices.data()},
+			};
+
+			vk::BufferCreateInfo bounce_out_bci{
+				.size{1024ull * 1024ull},
+				.usage{vk::BufferUsageFlagBits::eTransferDst},
+				.sharingMode{vk::SharingMode::eExclusive},
+				.queueFamilyIndexCount{static_cast<uint32_t>(queueFamilyIndices.size())},
+				.pQueueFamilyIndices{queueFamilyIndices.data()},
+			};
+
 			auto binding0_mem_requirements{ device->getBufferMemoryRequirements(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&binding0_bci}}) };
 			auto binding1_mem_requirements{ device->getBufferMemoryRequirements(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&binding1_bci}}) };
+			auto bounce_in_mem_requirements{ device->getBufferMemoryRequirements(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&bounce_in_bci}}) };
+			auto bounce_out_mem_requirements{ device->getBufferMemoryRequirements(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&bounce_out_bci}}) };
 
 			std::cout << std::format("binding0_mem_requirements: {}\n", binding0_mem_requirements.memoryRequirements.size);
 			std::cout << std::format("binding1_mem_requirements: {}\n", binding1_mem_requirements.memoryRequirements.size);
+			std::cout << std::format("bounce_in_mem_requirements:   {}\n", bounce_in_mem_requirements.memoryRequirements.size);
+			std::cout << std::format("bounce_out_mem_requirements:   {}\n", bounce_out_mem_requirements.memoryRequirements.size);
 
 			auto binding0_buffer{ device->createBufferUnique(binding0_bci).value };
 			auto binding1_buffer{ device->createBufferUnique(binding1_bci).value };
-			VkMemoryPropertyFlags binding0_needed_flags{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
+			auto bounce_in_buffer{ device->createBufferUnique(bounce_in_bci).value };
+			auto bounce_out_buffer{ device->createBufferUnique(bounce_out_bci).value };
+
+			VkMemoryPropertyFlags binding0_needed_flags{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT };
 			VkMemoryPropertyFlags binding1_needed_flags{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT };
+			VkMemoryPropertyFlags bounce_in_needed_flags{ VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT};
+			VkMemoryPropertyFlags bounce_out_needed_flags{ VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT };
 
 			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> binding0_ai;
 			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> binding1_ai;
+			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> bounce_in_ai;
+			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> bounce_out_ai;
 
 			binding0_ai.get<vk::MemoryAllocateInfo>().allocationSize = binding0_mem_requirements.memoryRequirements.size;
 			binding1_ai.get<vk::MemoryAllocateInfo>().allocationSize = binding1_mem_requirements.memoryRequirements.size;
+			bounce_in_ai.get<vk::MemoryAllocateInfo>().allocationSize = bounce_in_mem_requirements.memoryRequirements.size;
+			bounce_out_ai.get<vk::MemoryAllocateInfo>().allocationSize = bounce_out_mem_requirements.memoryRequirements.size;
 
 			binding0_ai.get<vk::MemoryAllocateInfo>().memoryTypeIndex = static_cast<uint32_t>(
 				std::distance(
@@ -171,30 +202,56 @@ namespace vk_route {
 				)
 			);
 
+			bounce_in_ai.get<vk::MemoryAllocateInfo>().memoryTypeIndex = static_cast<uint32_t>(
+				std::distance(
+					memory_types.begin(),
+					std::ranges::find_if(
+						memory_types,
+						[&](const VkMemoryType& memoryType)-> bool { return (memoryType.propertyFlags & bounce_in_needed_flags) == bounce_in_needed_flags; }
+					)
+				)
+			);
+
+			bounce_out_ai.get<vk::MemoryAllocateInfo>().memoryTypeIndex = static_cast<uint32_t>(
+				std::distance(
+					memory_types.begin(),
+					std::ranges::find_if(
+						memory_types,
+						[&](const VkMemoryType& memoryType)-> bool { return (memoryType.propertyFlags & bounce_out_needed_flags) == bounce_out_needed_flags; }
+					)
+				)
+			);
 
 			binding0_ai.get<vk::MemoryDedicatedAllocateInfo>().buffer = binding0_buffer.get();
 			binding1_ai.get<vk::MemoryDedicatedAllocateInfo>().buffer = binding1_buffer.get();
+			bounce_in_ai.get<vk::MemoryDedicatedAllocateInfo>().buffer = bounce_in_buffer.get();
+			bounce_out_ai.get<vk::MemoryDedicatedAllocateInfo>().buffer = bounce_out_buffer.get();
 
 			auto binding0_memory{ device->allocateMemoryUnique(binding0_ai.get<vk::MemoryAllocateInfo>()).value };
 			auto binding1_memory{ device->allocateMemoryUnique(binding1_ai.get<vk::MemoryAllocateInfo>()).value };
+			auto bounce_in_memory{ device->allocateMemoryUnique(bounce_in_ai.get<vk::MemoryAllocateInfo>()).value };
+			auto bounce_out_memory{ device->allocateMemoryUnique(bounce_out_ai.get<vk::MemoryAllocateInfo>()).value };
+
 			device->bindBufferMemory(binding0_buffer.get(), binding0_memory.get(), 0ull);
 			device->bindBufferMemory(binding1_buffer.get(), binding1_memory.get(), 0ull);
-			
+			device->bindBufferMemory(bounce_in_buffer.get(), bounce_in_memory.get(), 0ull);
+			device->bindBufferMemory(bounce_out_buffer.get(), bounce_out_memory.get(), 0ull);
+
 			{
-				auto binding0_mapped_ptr{ device->mapMemory(binding0_memory.get(), 0ull, VK_WHOLE_SIZE).value };
-				std::span<uint8_t> binding0_mapped(reinterpret_cast<uint8_t *>(binding0_mapped_ptr), binding0_ai.get<vk::MemoryAllocateInfo>().allocationSize);
-				std::cout << std::format("binding0_mapped<T> count: {}, bytes: {}\n", binding0_mapped.size(), binding0_mapped.size_bytes());
-				std::ranges::fill(binding0_mapped, 0x55);
+				auto bounce_in_mapped_ptr{ device->mapMemory(bounce_in_memory.get(), 0ull, VK_WHOLE_SIZE).value };
+				std::span<uint8_t> bounce_in_mapped(reinterpret_cast<uint8_t *>(bounce_in_mapped_ptr), bounce_in_ai.get<vk::MemoryAllocateInfo>().allocationSize);
+				std::cout << std::format("bounce_in_mapped<T> count: {}, bytes: {}\n", bounce_in_mapped.size(), bounce_in_mapped.size_bytes());
+				std::ranges::fill(bounce_in_mapped, 0x55);
 				device->flushMappedMemoryRanges({
 					{
 						vk::MappedMemoryRange{
-							.memory{binding0_memory.get()},
-							.offset{static_cast<uint64_t>(std::distance(reinterpret_cast<uint8_t*>(binding0_mapped_ptr), binding0_mapped.data()))},
-							.size{binding0_mapped.size_bytes()},
+							.memory{bounce_in_memory.get()},
+							.offset{static_cast<uint64_t>(std::distance(reinterpret_cast<uint8_t*>(bounce_in_mapped_ptr), bounce_in_mapped.data()))},
+							.size{bounce_in_mapped.size_bytes()},
 						}
 					}
 				});
-				device->unmapMemory(binding0_memory.get());
+				device->unmapMemory(bounce_in_memory.get());
 			}
 
 			MemoryMappedFile mmf_spirv{ "simple.comp.glsl.spv" };
@@ -221,16 +278,19 @@ namespace vk_route {
 					},
 				}
 			};
+
 			const vk::DescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{
 				.bindingCount{descriptorSetLayoutBindings.size()},
 				.pBindings{descriptorSetLayoutBindings.data()},
 			};
+
 			auto descriptorSetLayout{ device->createDescriptorSetLayoutUnique(descriptorSetLayoutCreateInfo).value };
 			std::array<vk::DescriptorSetLayout, 1> descriptorSetLayouts{
 				{
 					descriptorSetLayout.get()
 				}
 			};
+
 			const std::array<vk::PushConstantRange, 1> pushConstantRange{ {{
 				.stageFlags{vk::ShaderStageFlagBits::eCompute},
 				.offset{0},
@@ -251,6 +311,7 @@ namespace vk_route {
 				.module{shaderModule.get()},
 				.pName{"main"},
 			};
+
 			std::array<vk::ComputePipelineCreateInfo, 1> computePipelineCreateInfos{{{
 				.stage{pipelineShaderStageCreateInfo},
 				.layout{pipelineLayout.get()},
@@ -264,6 +325,7 @@ namespace vk_route {
 				.type{vk::DescriptorType::eStorageBuffer},
 				.descriptorCount{descriptorSetLayoutBindings.size()},
 			}} };
+
 			vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo{
 				.maxSets{descriptorPoolSize.size()},
 				.poolSizeCount{descriptorPoolSize.size()},
@@ -281,7 +343,7 @@ namespace vk_route {
 			auto descriptor_sets{ device->allocateDescriptorSets(descriptorSetAllocateInfo).value };
 
 
-			std::array<vk::DescriptorBufferInfo, 1> binding0_bufferInfos{ {{.buffer{binding0_buffer.get()}, .offset{}, .range{VK_WHOLE_SIZE}}}};
+			std::array<vk::DescriptorBufferInfo, 1> binding0_bufferInfos{ {{.buffer{binding0_buffer.get()}, .offset{}, .range{VK_WHOLE_SIZE}}} };
 			std::array<vk::DescriptorBufferInfo, 1> binding1_bufferInfos{ {{.buffer{binding1_buffer.get()}, .offset{}, .range{VK_WHOLE_SIZE}}} };
 
 			device->updateDescriptorSets(std::array<vk::WriteDescriptorSet, 2>{
@@ -330,6 +392,41 @@ namespace vk_route {
 				.flags{vk::CommandBufferUsageFlagBits::eOneTimeSubmit},
 			};
 			command_buffers.at(0)->begin(commandBufferBeginInfo);
+
+			{
+				std::array<vk::BufferCopy2, 1> a_regions{ {{
+					.srcOffset{0},
+					.dstOffset{0},
+					.size{binding0_mem_requirements.memoryRequirements.size},
+				}} };
+				const vk::CopyBufferInfo2 pCopyBufferInfo{
+					.srcBuffer{bounce_in_buffer.get()},
+					.dstBuffer{binding0_buffer.get()},
+					.regionCount{a_regions.size()},
+					.pRegions{a_regions.data()},
+				};
+				command_buffers.at(0)->copyBuffer2(pCopyBufferInfo);
+
+				std::array<vk::BufferMemoryBarrier2, 1> a_bufferMemoryBarrier{ {{
+					.srcStageMask{vk::PipelineStageFlagBits2::eTransfer},
+					.srcAccessMask{vk::AccessFlagBits2::eTransferWrite},
+					.dstStageMask{vk::PipelineStageFlagBits2::eComputeShader},
+					.dstAccessMask{vk::AccessFlagBits2::eShaderStorageRead},
+					.srcQueueFamilyIndex{},
+					.dstQueueFamilyIndex{},
+					.buffer{binding0_buffer.get()},
+					.offset{0},
+					.size{VK_WHOLE_SIZE},
+				}} };
+				command_buffers.at(0)->pipelineBarrier2({
+					.dependencyFlags{vk::DependencyFlagBits::eDeviceGroup},
+					.bufferMemoryBarrierCount{a_bufferMemoryBarrier.size()},
+					.pBufferMemoryBarriers{a_bufferMemoryBarrier.data()},
+				});
+
+			}
+
+
 			command_buffers.at(0)->bindPipeline(vk::PipelineBindPoint::eCompute, compute_pipelines.at(0).get());
 
 			// std::vector<vk::DescriptorSet> v_descriptor_set;
@@ -344,25 +441,38 @@ namespace vk_route {
 			command_buffers.at(0)->dispatch(1,1,1);
 			command_buffers.at(0)->writeTimestamp(vk::PipelineStageFlagBits::eComputeShader, query_pool.get(), 1);
 
-			command_buffers.at(0)->pipelineBarrier(
-				vk::PipelineStageFlagBits::eComputeShader,
-				vk::PipelineStageFlagBits::eTransfer,
-				vk::DependencyFlagBits::eDeviceGroup,
-				{}, {}, {}
-			);
+			{
+				std::array<vk::BufferMemoryBarrier2, 1> a_bufferMemoryBarrier{ {{
+					.srcStageMask{vk::PipelineStageFlagBits2::eComputeShader},
+					.srcAccessMask{vk::AccessFlagBits2::eShaderStorageWrite},
+					.dstStageMask{vk::PipelineStageFlagBits2::eTransfer},
+					.dstAccessMask{vk::AccessFlagBits2::eTransferRead},
+					.srcQueueFamilyIndex{},
+					.dstQueueFamilyIndex{},
+					.buffer{binding1_buffer.get()},
+					.offset{0},
+					.size{VK_WHOLE_SIZE},
+				}}};
+				command_buffers.at(0)->pipelineBarrier2({
+					.dependencyFlags{vk::DependencyFlagBits::eDeviceGroup},
+					.bufferMemoryBarrierCount{a_bufferMemoryBarrier.size()},
+					.pBufferMemoryBarriers{a_bufferMemoryBarrier.data()},
+				});
 
-			std::array<vk::BufferCopy2, 1> a_regions{ {{
-				.srcOffset{0},
-				.dstOffset{0},
-				.size{binding0_mem_requirements.memoryRequirements.size},
-			}} };
-			const vk::CopyBufferInfo2 pCopyBufferInfo{
-				.srcBuffer{binding1_buffer.get()},
-				.dstBuffer{binding0_buffer.get()},
-				.regionCount{a_regions.size()},
-				.pRegions{a_regions.data()},
-			};
-			command_buffers.at(0)->copyBuffer2(pCopyBufferInfo);
+				std::array<vk::BufferCopy2, 1> a_regions{ {{
+					.srcOffset{0},
+					.dstOffset{0},
+					.size{binding0_mem_requirements.memoryRequirements.size},
+				}} };
+				const vk::CopyBufferInfo2 pCopyBufferInfo{
+					.srcBuffer{binding1_buffer.get()},
+					.dstBuffer{bounce_out_buffer.get()},
+					.regionCount{a_regions.size()},
+					.pRegions{a_regions.data()},
+				};
+				command_buffers.at(0)->copyBuffer2(pCopyBufferInfo);
+			}
+
 			command_buffers.at(0)->end();
 
 			vk::DeviceQueueInfo2 queueInfo{
@@ -383,15 +493,15 @@ namespace vk_route {
 			queue.waitIdle();
 
 			{
-				auto binding0_mapped_ptr{ device->mapMemory(binding0_memory.get(), 0ull, VK_WHOLE_SIZE).value };
-				std::span<uint32_t> binding0_mapped(reinterpret_cast<uint32_t*>(binding0_mapped_ptr), binding0_ai.get<vk::MemoryAllocateInfo>().allocationSize / sizeof(uint32_t));
-				std::cout << std::format("binding0_mapped<T> count: {}, bytes: {}\n", binding0_mapped.size(), binding0_mapped.size_bytes());
-				for (auto b : binding0_mapped.first(256)) {
+				auto bounce_out_mapped_ptr{ device->mapMemory(bounce_out_memory.get(), 0ull, VK_WHOLE_SIZE).value };
+				std::span<uint32_t> bounce_out_mapped(reinterpret_cast<uint32_t*>(bounce_out_mapped_ptr), bounce_out_ai.get<vk::MemoryAllocateInfo>().allocationSize / sizeof(uint32_t));
+				std::cout << std::format("bounce_out_mapped<T> count: {}, bytes: {}\n", bounce_out_mapped.size(), bounce_out_mapped.size_bytes());
+				for (auto b : bounce_out_mapped.first(256)) {
 					std::cout << std::format("{:08x} ", b);
 				}
 				std::cout << "\n";
 
-				device->unmapMemory(binding0_memory.get());
+				device->unmapMemory(bounce_out_memory.get());
 			}
 			auto query_results{ device->getQueryPoolResults<uint64_t>(query_pool.get(), 0, 2, sizeof(std::array<uint64_t, 2>), sizeof(uint64_t), vk::QueryResultFlagBits::e64 | vk::QueryResultFlagBits::eWait).value };
 
