@@ -6,7 +6,7 @@ inline static const std::string default_file{ "logicnets_jscl" };
 
 int main(int argc, char* argv[]) {
 
-	vk::init();
+	vk_route::init();
 
 #if 0
 	std::cout << std::format("device: {}\n", xcvu3p::name);
