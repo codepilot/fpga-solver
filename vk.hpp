@@ -419,7 +419,7 @@ namespace vk_route {
 					.size{VK_WHOLE_SIZE},
 				}} };
 				command_buffers.at(0)->pipelineBarrier2({
-					.dependencyFlags{vk::DependencyFlagBits::eDeviceGroup},
+					.dependencyFlags{},
 					.bufferMemoryBarrierCount{a_bufferMemoryBarrier.size()},
 					.pBufferMemoryBarriers{a_bufferMemoryBarrier.data()},
 				});
@@ -454,7 +454,7 @@ namespace vk_route {
 					.size{VK_WHOLE_SIZE},
 				}}};
 				command_buffers.at(0)->pipelineBarrier2({
-					.dependencyFlags{vk::DependencyFlagBits::eDeviceGroup},
+					.dependencyFlags{},
 					.bufferMemoryBarrierCount{a_bufferMemoryBarrier.size()},
 					.pBufferMemoryBarriers{a_bufferMemoryBarrier.data()},
 				});
