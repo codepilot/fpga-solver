@@ -676,6 +676,35 @@ namespace vk_route {
 		std::cout << std::format("instance: 0x{:x}\n", std::bit_cast<uintptr_t>(instance.get()));
 #endif
 
+#ifdef _DEBUG
+		auto messenger{ instance->createDebugUtilsMessengerEXTUnique(vk::DebugUtilsMessengerCreateInfoEXT{
+			.flags{},
+			.messageSeverity{
+				vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose |
+				vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo |
+				vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning |
+				vk::DebugUtilsMessageSeverityFlagBitsEXT::eError
+			},
+			.messageType{
+				vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
+				vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
+				vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance |
+				vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding
+			},
+			.pfnUserCallback{
+				[](
+					VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+					VkDebugUtilsMessageTypeFlagsEXT messageTypes,
+					const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+					void* pUserData
+				)->VkBool32 {
+					std::cout << std::format("{}\n", pCallbackData->pMessage);
+					return false;
+				}},
+			.pUserData{},
+		}).value };
+#endif
+
 		auto physical_devices{ instance->enumeratePhysicalDevices().value };
 
 #ifdef _DEBUG
