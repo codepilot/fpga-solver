@@ -34,7 +34,7 @@ namespace vk_route {
 		std::vector<vk::UniqueCommandBuffer> commandBuffers;
 		vk::Queue queue;
 
-		static std::vector<uint32_t> make_v_queue_family(std::span<vk::QueueFamilyProperties2> queue_families) noexcept {
+		inline static std::vector<uint32_t> make_v_queue_family(std::span<vk::QueueFamilyProperties2> queue_families) noexcept {
 			std::vector<uint32_t> queueFamilyIndices;
 			each<uint32_t>(queue_families, [&](uint32_t queue_family_idx, VkQueueFamilyProperties2& queue_familiy_properties) noexcept {
 				if ((queue_familiy_properties.queueFamilyProperties.queueFlags & VkQueueFlagBits::VK_QUEUE_COMPUTE_BIT) != VK_QUEUE_COMPUTE_BIT) {
@@ -45,7 +45,7 @@ namespace vk_route {
 			return queueFamilyIndices;
 		}
 
-		static vk::UniqueDevice create_device(vk::PhysicalDevice physical_device, std::span<vk::QueueFamilyProperties2> queue_families) {
+		inline static vk::UniqueDevice create_device(vk::PhysicalDevice physical_device, std::span<vk::QueueFamilyProperties2> queue_families) {
 			std::vector<vk::DeviceQueueCreateInfo> v_queue_create_info;
 			std::vector<std::vector<float>> all_queue_priorities;
 			all_queue_priorities.reserve(queue_families.size());
@@ -70,7 +70,7 @@ namespace vk_route {
 			return physical_device.createDeviceUnique(deviceCreateInfo.get<vk::DeviceCreateInfo>()).value;
 		}
 
-		static UniqueDedicatedMemoryBuffer make_buffer_binding0(vk::UniqueDevice &device, std::span<uint32_t> queueFamilyIndices, std::span<vk::MemoryType> memory_types) {
+		inline static UniqueDedicatedMemoryBuffer make_buffer_binding0(vk::UniqueDevice &device, std::span<uint32_t> queueFamilyIndices, std::span<vk::MemoryType> memory_types) {
 			vk::BufferCreateInfo binding0_bci{
 				.size{1024ull * 1024ull},
 				.usage{vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst},
@@ -112,7 +112,7 @@ namespace vk_route {
 			);
 		}
 
-		static UniqueDedicatedMemoryBuffer make_buffer_binding1(vk::UniqueDevice& device, std::span<uint32_t> queueFamilyIndices, std::span<vk::MemoryType> memory_types) {
+		inline static UniqueDedicatedMemoryBuffer make_buffer_binding1(vk::UniqueDevice& device, std::span<uint32_t> queueFamilyIndices, std::span<vk::MemoryType> memory_types) {
 			vk::BufferCreateInfo binding1_bci{
 				.size{1024ull * 1024ull},
 				.usage{vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc},
@@ -150,7 +150,7 @@ namespace vk_route {
 
 		}
 
-		static UniqueDedicatedMemoryBuffer make_buffer_bounce_in(vk::UniqueDevice& device, std::span<uint32_t> queueFamilyIndices, std::span<vk::MemoryType> memory_types) {
+		inline static UniqueDedicatedMemoryBuffer make_buffer_bounce_in(vk::UniqueDevice& device, std::span<uint32_t> queueFamilyIndices, std::span<vk::MemoryType> memory_types) {
 			vk::BufferCreateInfo bounce_in_bci{
 				.size{1024ull * 1024ull},
 				.usage{vk::BufferUsageFlagBits::eTransferSrc},
@@ -186,7 +186,7 @@ namespace vk_route {
 
 		}
 
-		static UniqueDedicatedMemoryBuffer make_buffer_bounce_out(vk::UniqueDevice& device, std::span<uint32_t> queueFamilyIndices, std::span<vk::MemoryType> memory_types) {
+		inline static UniqueDedicatedMemoryBuffer make_buffer_bounce_out(vk::UniqueDevice& device, std::span<uint32_t> queueFamilyIndices, std::span<vk::MemoryType> memory_types) {
 			vk::BufferCreateInfo bounce_out_bci{
 				.size{1024ull * 1024ull},
 				.usage{vk::BufferUsageFlagBits::eTransferDst},
@@ -222,7 +222,7 @@ namespace vk_route {
 
 		}
 
-		static vk::UniqueShaderModule make_shader_module(vk::UniqueDevice& device, std::string spv_path) noexcept {
+		inline static vk::UniqueShaderModule make_shader_module(vk::UniqueDevice& device, std::string spv_path) noexcept {
 			MemoryMappedFile mmf_spirv{ spv_path };
 			auto s_spirv{ mmf_spirv.get_span<uint32_t>() };
 			return device->createShaderModuleUnique({
@@ -231,7 +231,7 @@ namespace vk_route {
 			}).value;
 		}
 
-		static void setup_bounce_in(vk::UniqueDevice& device, UniqueDedicatedMemoryBuffer &bounce_in) noexcept {
+		inline static void setup_bounce_in(vk::UniqueDevice& device, UniqueDedicatedMemoryBuffer &bounce_in) noexcept {
 			auto bounce_in_mapped_ptr{ device->mapMemory(std::get<1>(bounce_in).get(), 0ull, VK_WHOLE_SIZE).value };
 			std::span<uint8_t> bounce_in_mapped(reinterpret_cast<uint8_t*>(bounce_in_mapped_ptr), std::get<2>(bounce_in).memoryRequirements.size);
 #ifdef _DEBUG
@@ -251,7 +251,7 @@ namespace vk_route {
 
 		}
 
-		static void check_bounce_out(vk::UniqueDevice& device, UniqueDedicatedMemoryBuffer& bounce_out) {
+		inline static void check_bounce_out(vk::UniqueDevice& device, UniqueDedicatedMemoryBuffer& bounce_out) {
 			auto bounce_out_mapped_ptr{ device->mapMemory(std::get<1>(bounce_out).get(), 0ull, VK_WHOLE_SIZE).value };
 			std::span<uint32_t> bounce_out_mapped(reinterpret_cast<uint32_t*>(bounce_out_mapped_ptr), std::get<2>(bounce_out).memoryRequirements.size / sizeof(uint32_t));
 #ifdef _DEBUG
@@ -270,7 +270,7 @@ namespace vk_route {
 		}
 
 		template<std::size_t binding_count>
-		static vk::UniqueDescriptorSetLayout make_descriptor_set_layout(vk::UniqueDevice& device) noexcept {
+		inline static vk::UniqueDescriptorSetLayout make_descriptor_set_layout(vk::UniqueDevice& device) noexcept {
 
 			std::array<vk::DescriptorSetLayoutBinding, binding_count> descriptorSetLayoutBindings;
 			each<uint32_t>(descriptorSetLayoutBindings, [](uint32_t descriptorSetLayoutBindingIndex, vk::DescriptorSetLayoutBinding &descriptorSetLayoutBinding) {
@@ -288,7 +288,7 @@ namespace vk_route {
 			}).value;
 		}
 
-		static vk::UniquePipelineLayout make_pipeline_layout(vk::UniqueDevice& device, vk::UniqueDescriptorSetLayout &descriptorSetLayout) noexcept {
+		inline static vk::UniquePipelineLayout make_pipeline_layout(vk::UniqueDevice& device, vk::UniqueDescriptorSetLayout &descriptorSetLayout) noexcept {
 			const std::array<vk::PushConstantRange, 1> pushConstantRange{ {{
 				.stageFlags{vk::ShaderStageFlagBits::eCompute},
 				.offset{0},
@@ -310,7 +310,7 @@ namespace vk_route {
 
 		}
 
-		static std::vector<vk::UniquePipeline> make_compute_pipelines(vk::UniqueDevice& device, vk::UniqueShaderModule &simple_comp, vk::UniquePipelineLayout &pipelineLayout, vk::UniquePipelineCache &pipelineCache) noexcept {
+		inline static std::vector<vk::UniquePipeline> make_compute_pipelines(vk::UniqueDevice& device, vk::UniqueShaderModule &simple_comp, vk::UniquePipelineLayout &pipelineLayout, vk::UniquePipelineCache &pipelineCache) noexcept {
 			return device->createComputePipelinesUnique(pipelineCache.get(), { {{
 				.stage{
 					.stage{vk::ShaderStageFlagBits::eCompute},
@@ -321,7 +321,7 @@ namespace vk_route {
 			}} }).value;
 		}
 
-		static vk::UniqueDescriptorPool make_descriptor_pool(vk::UniqueDevice& device) noexcept {
+		inline static vk::UniqueDescriptorPool make_descriptor_pool(vk::UniqueDevice& device) noexcept {
 
 			std::array<vk::DescriptorPoolSize, 1> descriptorPoolSize{ {{
 				.type{vk::DescriptorType::eStorageBuffer},
@@ -335,7 +335,7 @@ namespace vk_route {
 			}).value;
 		}
 
-		static std::vector<vk::DescriptorSet> make_descriptor_sets(vk::UniqueDevice& device, vk::UniqueDescriptorSetLayout& descriptorSetLayout, vk::UniqueDescriptorPool &descriptorPool) noexcept {
+		inline static std::vector<vk::DescriptorSet> make_descriptor_sets(vk::UniqueDevice& device, vk::UniqueDescriptorSetLayout& descriptorSetLayout, vk::UniqueDescriptorPool &descriptorPool) noexcept {
 			std::array<vk::DescriptorSetLayout, 1> descriptorSetLayouts{
 				{
 					descriptorSetLayout.get()
@@ -349,26 +349,26 @@ namespace vk_route {
 			}).value;
 		}
 
-		static vk::UniqueQueryPool make_query_pool(vk::UniqueDevice& device) noexcept {
+		inline static vk::UniqueQueryPool make_query_pool(vk::UniqueDevice& device) noexcept {
 			return device->createQueryPoolUnique({
 				.queryType{vk::QueryType::eTimestamp},
 				.queryCount{2},
 			}).value;
 		}
 
-		static uint32_t selectQueueFamilyIndex(std::span<vk::QueueFamilyProperties2> queue_families) {
+		inline static uint32_t selectQueueFamilyIndex(std::span<vk::QueueFamilyProperties2> queue_families) {
 			return static_cast<uint32_t>(std::distance(queue_families.begin(), std::ranges::find(queue_families, VK_QUEUE_COMPUTE_BIT, [](VkQueueFamilyProperties2& props)-> VkQueueFlagBits {
 				return std::bit_cast<VkQueueFlagBits>(props.queueFamilyProperties.queueFlags & VK_QUEUE_COMPUTE_BIT);
 			})));
 		}
 
-		static vk::UniqueCommandPool make_command_pool(vk::UniqueDevice& device, std::span<vk::QueueFamilyProperties2> queue_families) noexcept {
+		inline static vk::UniqueCommandPool make_command_pool(vk::UniqueDevice& device, std::span<vk::QueueFamilyProperties2> queue_families) noexcept {
 			return device->createCommandPoolUnique({ .queueFamilyIndex{selectQueueFamilyIndex(queue_families)} }).value;
 		}
 
-		static inline constexpr std::size_t binding_count{ 2ull };
+		inline static constexpr std::size_t binding_count{ 2ull };
 
-		void updateDescriptorSets() {
+		inline void updateDescriptorSets() {
 			std::array<vk::DescriptorBufferInfo, 1> binding0_bufferInfos{ {{.buffer{std::get<0>(binding0).get()}, .offset{}, .range{VK_WHOLE_SIZE}}} };
 			std::array<vk::DescriptorBufferInfo, 1> binding1_bufferInfos{ {{.buffer{std::get<0>(binding1).get()}, .offset{}, .range{VK_WHOLE_SIZE}}} };
 
@@ -394,7 +394,7 @@ namespace vk_route {
 			}, {});
 		}
 
-		static auto make_command_buffers(vk::UniqueDevice& device, vk::UniqueCommandPool &commandPool) noexcept {
+		inline static auto make_command_buffers(vk::UniqueDevice& device, vk::UniqueCommandPool &commandPool) noexcept {
 			return device->allocateCommandBuffersUnique({
 				.commandPool{commandPool.get()},
 				.level{vk::CommandBufferLevel::ePrimary},
@@ -402,7 +402,7 @@ namespace vk_route {
 			}).value;
 		}
 
-		void record_command_buffer() noexcept {
+		inline void record_command_buffer() noexcept {
 			commandBuffers.at(0)->begin({ .flags{} });
 
 			{
@@ -485,7 +485,7 @@ namespace vk_route {
 			commandBuffers.at(0)->end();
 		}
 
-		void submit() noexcept {
+		inline void submit() noexcept {
 			std::vector<vk::CommandBuffer> v_command_buffers;
 			v_command_buffers.reserve(commandBuffers.size());
 			std::ranges::transform(commandBuffers, std::back_inserter(v_command_buffers), [](vk::UniqueCommandBuffer& commandBuffer)-> vk::CommandBuffer { return commandBuffer.get(); });
@@ -496,27 +496,27 @@ namespace vk_route {
 			}} });
 		}
 
-		static vk::Queue make_queue(vk::UniqueDevice& device, std::span<vk::QueueFamilyProperties2> queue_families) noexcept {
+		inline static vk::Queue make_queue(vk::UniqueDevice& device, std::span<vk::QueueFamilyProperties2> queue_families) noexcept {
 			return device->getQueue2({
 				.queueFamilyIndex{selectQueueFamilyIndex(queue_families)},
 				.queueIndex{0},
 			});
 		}
 
-		void waitIdle() noexcept {
+		inline void waitIdle() noexcept {
 			queue.waitIdle();
 		}
 
-		std::vector<uint64_t> get_queries_results() noexcept {
+		inline std::vector<uint64_t> get_queries_results() noexcept {
 			return device->getQueryPoolResults<uint64_t>(queryPool.get(), 0, 2, sizeof(std::array<uint64_t, 2>), sizeof(uint64_t), vk::QueryResultFlagBits::e64 | vk::QueryResultFlagBits::eWait).value;
 		}
 
-		std::chrono::nanoseconds get_run_time() noexcept {
+		inline std::chrono::nanoseconds get_run_time() noexcept {
 			auto query_results{ get_queries_results() };
 			return static_cast<std::chrono::nanoseconds>(static_cast<int64_t>(static_cast<double>(query_results[1] - query_results[0]) * static_cast<double>(physical_device_properties.limits.timestampPeriod)));
 		}
 
-		void show_features() const noexcept {
+		inline void show_features() const noexcept {
 			std::cout << std::format("deviceName {}\n", static_cast<std::string_view>(physical_device_properties.deviceName));
 #ifdef _DEBUG
 			std::cout << std::format("synchronization2: {}\n", physical_device_features.get<vk::PhysicalDeviceVulkan13Features>().synchronization2);
@@ -527,7 +527,7 @@ namespace vk_route {
 #endif
 		}
 
-		SingleDevice(vk::PhysicalDevice physical_device) noexcept :
+		inline SingleDevice(vk::PhysicalDevice physical_device) noexcept :
 			physical_device{ physical_device },
 			physical_device_properties{ physical_device.getProperties() },
 			physical_device_features{ physical_device.getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan12Features, vk::PhysicalDeviceVulkan13Features>() },
@@ -561,7 +561,7 @@ namespace vk_route {
 
 		}
 
-		std::chrono::nanoseconds do_steps() {
+		inline std::chrono::nanoseconds do_steps() {
 			setup_bounce_in(device, bounce_in);
 
 			submit();
