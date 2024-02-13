@@ -80,7 +80,9 @@ namespace vk_route {
 			};
 
 			auto binding0_mem_requirements{ device->getBufferMemoryRequirements(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&binding0_bci}}) };
+#ifdef _DEBUG
 			std::cout << std::format("binding0_mem_requirements: {}\n", binding0_mem_requirements.memoryRequirements.size);
+#endif
 			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> binding0_ai;
 
 			binding0_ai.get<vk::MemoryAllocateInfo>().allocationSize = binding0_mem_requirements.memoryRequirements.size;
@@ -120,7 +122,9 @@ namespace vk_route {
 			};
 
 			auto binding1_mem_requirements{ device->getBufferMemoryRequirements(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&binding1_bci}}) };
+#ifdef _DEBUG
 			std::cout << std::format("binding1_mem_requirements: {}\n", binding1_mem_requirements.memoryRequirements.size);
+#endif
 			auto binding1_buffer{ device->createBufferUnique(binding1_bci).value };
 			VkMemoryPropertyFlags binding1_needed_flags{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT };
 			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> binding1_ai;
@@ -155,7 +159,9 @@ namespace vk_route {
 				.pQueueFamilyIndices{queueFamilyIndices.data()},
 			};
 			auto bounce_in_mem_requirements{ device->getBufferMemoryRequirements(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&bounce_in_bci}}) };
+#ifdef _DEBUG
 			std::cout << std::format("bounce_in_mem_requirements:   {}\n", bounce_in_mem_requirements.memoryRequirements.size);
+#endif
 			auto bounce_in_buffer{ device->createBufferUnique(bounce_in_bci).value };
 			VkMemoryPropertyFlags bounce_in_needed_flags{ VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT };
 			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> bounce_in_ai;
@@ -189,7 +195,9 @@ namespace vk_route {
 				.pQueueFamilyIndices{queueFamilyIndices.data()},
 			};
 			auto bounce_out_mem_requirements{ device->getBufferMemoryRequirements(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&bounce_out_bci}}) };
+#ifdef _DEBUG
 			std::cout << std::format("bounce_out_mem_requirements:   {}\n", bounce_out_mem_requirements.memoryRequirements.size);
+#endif
 			auto bounce_out_buffer{ device->createBufferUnique(bounce_out_bci).value };
 			VkMemoryPropertyFlags bounce_out_needed_flags{ VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT };
 			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> bounce_out_ai;
@@ -226,7 +234,9 @@ namespace vk_route {
 		static void setup_bounce_in(vk::UniqueDevice& device, UniqueDedicatedMemoryBuffer &bounce_in) noexcept {
 			auto bounce_in_mapped_ptr{ device->mapMemory(std::get<1>(bounce_in).get(), 0ull, VK_WHOLE_SIZE).value };
 			std::span<uint8_t> bounce_in_mapped(reinterpret_cast<uint8_t*>(bounce_in_mapped_ptr), std::get<2>(bounce_in).memoryRequirements.size);
+#ifdef _DEBUG
 			std::cout << std::format("bounce_in_mapped<T> count: {}, bytes: {}\n", bounce_in_mapped.size(), bounce_in_mapped.size_bytes());
+#endif
 			std::ranges::fill(bounce_in_mapped, 0x55);
 			device->flushMappedMemoryRanges({
 				{
@@ -244,7 +254,9 @@ namespace vk_route {
 		static void check_bounce_out(vk::UniqueDevice& device, UniqueDedicatedMemoryBuffer& bounce_out) {
 			auto bounce_out_mapped_ptr{ device->mapMemory(std::get<1>(bounce_out).get(), 0ull, VK_WHOLE_SIZE).value };
 			std::span<uint32_t> bounce_out_mapped(reinterpret_cast<uint32_t*>(bounce_out_mapped_ptr), std::get<2>(bounce_out).memoryRequirements.size / sizeof(uint32_t));
+#ifdef _DEBUG
 			std::cout << std::format("bounce_out_mapped<T> count: {}, bytes: {}\n", bounce_out_mapped.size(), bounce_out_mapped.size_bytes());
+#endif
 			bool is_unexpected{ false };
 			for (auto b : bounce_out_mapped.first(256)) {
 				if (b != 0xaaffffab) {
@@ -506,11 +518,13 @@ namespace vk_route {
 
 		void show_features() const noexcept {
 			std::cout << std::format("deviceName {}\n", static_cast<std::string_view>(physical_device_properties.deviceName));
+#ifdef _DEBUG
 			std::cout << std::format("synchronization2: {}\n", physical_device_features.get<vk::PhysicalDeviceVulkan13Features>().synchronization2);
 			std::cout << std::format("heaps: {}\n", memory_properties.memoryProperties.memoryHeapCount);
 			std::cout << std::format("types: {}\n", memory_properties.memoryProperties.memoryTypeCount);
 			std::cout << std::format("queue_families: {}\n", queue_families.size());
 			std::cout << std::format("device: 0x{:x}\n", std::bit_cast<uintptr_t>(device.get()));
+#endif
 		}
 
 		SingleDevice(vk::PhysicalDevice physical_device) noexcept :
@@ -568,13 +582,19 @@ namespace vk_route {
 	};
 	void init() noexcept {
 		auto instance_version{ vk::enumerateInstanceVersion() };
+#ifdef _DEBUG
 		std::cout << std::format("instance_version: 0x{:08x}\n", instance_version.value);
+#endif
 
 		auto instance_layer_properties{ vk::enumerateInstanceLayerProperties().value };
+#ifdef _DEBUG
 		std::cout << std::format("Instance::count_layers().value(): {}\n", instance_layer_properties.size());
+#endif
 
 		auto instance_extensions{ vk::enumerateInstanceExtensionProperties().value };
+#ifdef _DEBUG
 		std::cout << std::format("instance_extensions: {}\n", instance_extensions.size() );
+#endif
 
 		vk::ApplicationInfo applicationInfo{
 			.pApplicationName{__FILE__},
@@ -584,11 +604,15 @@ namespace vk_route {
 			.pApplicationInfo{&applicationInfo},
 		}).value };
 
+#ifdef _DEBUG
 		std::cout << std::format("instance: 0x{:x}\n", std::bit_cast<uintptr_t>(instance.get()));
+#endif
 
 		auto physical_devices{ instance->enumeratePhysicalDevices().value };
 
+#ifdef _DEBUG
 		std::cout << std::format("physical_devices.size(): {}\n", physical_devices.size());
+#endif
 		std::ranges::for_each(physical_devices, SingleDevice::use_physical_device);
 	}
 };
