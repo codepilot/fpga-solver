@@ -2,15 +2,18 @@
 
 #define VULKAN_HPP_NO_EXCEPTIONS
 #define VULKAN_HPP_NO_CONSTRUCTORS
+#define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
 
 #include <vulkan/vulkan.hpp>
 #include <expected>
+
+VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
 namespace vk_route {
 	class SingleDevice {
 	public:
 		vk::PhysicalDevice physical_device;
-		vk::PhysicalDeviceProperties physical_device_properties;
+		vk::StructureChain<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceExternalMemoryHostPropertiesEXT> physical_device_properties;
 		vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan12Features, vk::PhysicalDeviceVulkan13Features> physical_device_features;
 		vk::PhysicalDeviceMemoryProperties2 memory_properties;
 		std::span<vk::MemoryType> memory_types;
@@ -18,9 +21,10 @@ namespace vk_route {
 		std::vector<uint32_t> queueFamilyIndices;
 		vk::UniqueDevice device;
 		using UniqueDedicatedMemoryBuffer = std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory, vk::MemoryRequirements2>;
+		using UniqueHostMemoryBuffer = std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory, vk::MemoryRequirements2, void *>;
 		UniqueDedicatedMemoryBuffer binding0;
 		UniqueDedicatedMemoryBuffer binding1;
-		UniqueDedicatedMemoryBuffer bounce_in;
+		UniqueHostMemoryBuffer bounce_in;
 		UniqueDedicatedMemoryBuffer bounce_out;
 		vk::UniqueShaderModule simple_comp;
 		vk::UniqueDescriptorSetLayout descriptorSetLayout;
@@ -66,8 +70,12 @@ namespace vk_route {
 			deviceCreateInfo.get<vk::DeviceCreateInfo>().setQueueCreateInfoCount(static_cast<uint32_t>(v_queue_create_info.size()));
 			deviceCreateInfo.get<vk::DeviceCreateInfo>().setQueueCreateInfos(v_queue_create_info);
 			deviceCreateInfo.get<vk::PhysicalDeviceVulkan13Features>().setSynchronization2(true);
+			std::array<const char* const, 1> enabled_extensions{ "VK_EXT_external_memory_host" };
+			deviceCreateInfo.get<vk::DeviceCreateInfo>().setPEnabledExtensionNames(enabled_extensions);
 
-			return physical_device.createDeviceUnique(deviceCreateInfo.get<vk::DeviceCreateInfo>()).value;
+			auto device{ physical_device.createDeviceUnique(deviceCreateInfo.get<vk::DeviceCreateInfo>()).value };
+			VULKAN_HPP_DEFAULT_DISPATCHER.init(device.get());
+			return device;
 		}
 
 		inline static UniqueDedicatedMemoryBuffer make_buffer_binding0(vk::UniqueDevice &device, std::span<uint32_t> queueFamilyIndices, std::span<vk::MemoryType> memory_types) {
@@ -150,38 +158,47 @@ namespace vk_route {
 
 		}
 
-		inline static UniqueDedicatedMemoryBuffer make_buffer_bounce_in(vk::UniqueDevice& device, std::span<uint32_t> queueFamilyIndices, std::span<vk::MemoryType> memory_types) {
-			vk::BufferCreateInfo bounce_in_bci{
-				.size{1024ull * 1024ull},
-				.usage{vk::BufferUsageFlagBits::eTransferSrc},
-				.sharingMode{vk::SharingMode::eExclusive},
-				.queueFamilyIndexCount{static_cast<uint32_t>(queueFamilyIndices.size())},
-				.pQueueFamilyIndices{queueFamilyIndices.data()},
-			};
-			auto bounce_in_mem_requirements{ device->getBufferMemoryRequirements(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&bounce_in_bci}}) };
+		inline static UniqueHostMemoryBuffer make_buffer_bounce_in(vk::UniqueDevice& device, std::span<uint32_t> queueFamilyIndices, std::span<vk::MemoryType> memory_types, vk::StructureChain<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceExternalMemoryHostPropertiesEXT> &physical_device_properties) {
+
+			vk::StructureChain<vk::BufferCreateInfo, vk::ExternalMemoryBufferCreateInfo> bounce_in_bci;
+			bounce_in_bci.get<vk::BufferCreateInfo>().setSize(1024ull * 1024ull);
+			bounce_in_bci.get<vk::BufferCreateInfo>().setUsage(vk::BufferUsageFlagBits::eTransferSrc);
+			bounce_in_bci.get<vk::BufferCreateInfo>().setSharingMode(vk::SharingMode::eExclusive);
+			bounce_in_bci.get<vk::BufferCreateInfo>().setQueueFamilyIndices(queueFamilyIndices);
+			bounce_in_bci.get<vk::ExternalMemoryBufferCreateInfo>().setHandleTypes(vk::ExternalMemoryHandleTypeFlagBits::eHostAllocationEXT);
+			auto bounce_in_mem_requirements{ device->getBufferMemoryRequirements(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&bounce_in_bci.get<vk::BufferCreateInfo>()}})};
 #ifdef _DEBUG
 			std::cout << std::format("bounce_in_mem_requirements:   {}\n", bounce_in_mem_requirements.memoryRequirements.size);
 #endif
-			auto bounce_in_buffer{ device->createBufferUnique(bounce_in_bci).value };
-			VkMemoryPropertyFlags bounce_in_needed_flags{ VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT };
-			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> bounce_in_ai;
+			auto bounce_in_buffer{ device->createBufferUnique(bounce_in_bci.get<vk::BufferCreateInfo>()).value };
+			vk::StructureChain<vk::MemoryAllocateInfo, vk::ImportMemoryHostPointerInfoEXT> bounce_in_ai;
 			bounce_in_ai.get<vk::MemoryAllocateInfo>().allocationSize = bounce_in_mem_requirements.memoryRequirements.size;
+#ifdef _MSC_VER
+			auto host_pointer{ _aligned_malloc(bounce_in_mem_requirements.memoryRequirements.size, physical_device_properties.get<vk::PhysicalDeviceExternalMemoryHostPropertiesEXT>().minImportedHostPointerAlignment ) };
+#else
+			auto host_pointer{ std::aligned_alloc(physical_device_properties.get<vk::PhysicalDeviceExternalMemoryHostPropertiesEXT>().minImportedHostPointerAlignment, bounce_in_mem_requirements.memoryRequirements.size) };
+#endif
+			auto hostPointerProperties{ device->getMemoryHostPointerPropertiesEXT(vk::ExternalMemoryHandleTypeFlagBits::eHostAllocationEXT, host_pointer).value };
 			bounce_in_ai.get<vk::MemoryAllocateInfo>().memoryTypeIndex = static_cast<uint32_t>(
 				std::distance(
 					memory_types.begin(),
 					std::ranges::find_if(
 						memory_types,
-						[&](const VkMemoryType& memoryType)-> bool { return (memoryType.propertyFlags & bounce_in_needed_flags) == bounce_in_needed_flags; }
+						[&](const VkMemoryType& memoryType)-> bool { return (memoryType.propertyFlags & hostPointerProperties.memoryTypeBits) == hostPointerProperties.memoryTypeBits; }
 					)
 				)
 			);
-			bounce_in_ai.get<vk::MemoryDedicatedAllocateInfo>().buffer = bounce_in_buffer.get();
+			bounce_in_ai.get<vk::ImportMemoryHostPointerInfoEXT>().setHandleType(vk::ExternalMemoryHandleTypeFlagBits::eHostAllocationEXT);
+
+			bounce_in_ai.get<vk::ImportMemoryHostPointerInfoEXT>().setPHostPointer(host_pointer);
+
 			auto bounce_in_memory{ device->allocateMemoryUnique(bounce_in_ai.get<vk::MemoryAllocateInfo>()).value };
 			device->bindBufferMemory(bounce_in_buffer.get(), bounce_in_memory.get(), 0ull);
 			return std::make_tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory, vk::MemoryRequirements2>(
 				std::move(bounce_in_buffer),
 				std::move(bounce_in_memory),
-				std::move(bounce_in_mem_requirements)
+				std::move(bounce_in_mem_requirements),
+				host_pointer
 			);
 
 		}
@@ -231,23 +248,12 @@ namespace vk_route {
 			}).value;
 		}
 
-		inline static void setup_bounce_in(vk::UniqueDevice& device, UniqueDedicatedMemoryBuffer &bounce_in) noexcept {
-			auto bounce_in_mapped_ptr{ device->mapMemory(std::get<1>(bounce_in).get(), 0ull, VK_WHOLE_SIZE).value };
-			std::span<uint8_t> bounce_in_mapped(reinterpret_cast<uint8_t*>(bounce_in_mapped_ptr), std::get<2>(bounce_in).memoryRequirements.size);
+		inline static void setup_bounce_in(vk::UniqueDevice& device, UniqueHostMemoryBuffer &bounce_in) noexcept {
+			std::span<uint8_t> bounce_in_mapped(reinterpret_cast<uint8_t*>(std::get<3>(bounce_in)), std::get<2>(bounce_in).memoryRequirements.size);
 #ifdef _DEBUG
 			std::cout << std::format("bounce_in_mapped<T> count: {}, bytes: {}\n", bounce_in_mapped.size(), bounce_in_mapped.size_bytes());
 #endif
 			std::ranges::fill(bounce_in_mapped, 0x55);
-			device->flushMappedMemoryRanges({
-				{
-					vk::MappedMemoryRange{
-						.memory{std::get<1>(bounce_in).get()},
-						.offset{static_cast<uint64_t>(std::distance(reinterpret_cast<uint8_t*>(bounce_in_mapped_ptr), bounce_in_mapped.data()))},
-						.size{bounce_in_mapped.size_bytes()},
-					}
-				}
-				});
-			device->unmapMemory(std::get<1>(bounce_in).get());
 
 		}
 
@@ -513,11 +519,11 @@ namespace vk_route {
 
 		inline std::chrono::nanoseconds get_run_time() noexcept {
 			auto query_results{ get_queries_results() };
-			return static_cast<std::chrono::nanoseconds>(static_cast<int64_t>(static_cast<double>(query_results[1] - query_results[0]) * static_cast<double>(physical_device_properties.limits.timestampPeriod)));
+			return static_cast<std::chrono::nanoseconds>(static_cast<int64_t>(static_cast<double>(query_results[1] - query_results[0]) * static_cast<double>(physical_device_properties.get<vk::PhysicalDeviceProperties2>().properties.limits.timestampPeriod)));
 		}
 
 		inline void show_features() const noexcept {
-			std::cout << std::format("deviceName {}\n", static_cast<std::string_view>(physical_device_properties.deviceName));
+			std::cout << std::format("deviceName {}\n", static_cast<std::string_view>(physical_device_properties.get<vk::PhysicalDeviceProperties2>().properties.deviceName));
 #ifdef _DEBUG
 			std::cout << std::format("synchronization2: {}\n", physical_device_features.get<vk::PhysicalDeviceVulkan13Features>().synchronization2);
 			std::cout << std::format("heaps: {}\n", memory_properties.memoryProperties.memoryHeapCount);
@@ -529,7 +535,7 @@ namespace vk_route {
 
 		inline SingleDevice(vk::PhysicalDevice physical_device) noexcept :
 			physical_device{ physical_device },
-			physical_device_properties{ physical_device.getProperties() },
+			physical_device_properties{ physical_device.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceExternalMemoryHostPropertiesEXT>() },
 			physical_device_features{ physical_device.getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan12Features, vk::PhysicalDeviceVulkan13Features>() },
 			memory_properties{ physical_device.getMemoryProperties2() },
 			memory_types{ std::span(memory_properties.memoryProperties.memoryTypes).first(memory_properties.memoryProperties.memoryTypeCount) },
@@ -538,7 +544,7 @@ namespace vk_route {
 			device{ create_device(physical_device, queue_families) },
 			binding0{ make_buffer_binding0(device, queueFamilyIndices, memory_types) },
 			binding1{ make_buffer_binding1(device, queueFamilyIndices, memory_types) },
-			bounce_in{ make_buffer_bounce_in(device, queueFamilyIndices, memory_types) },
+			bounce_in{ make_buffer_bounce_in(device, queueFamilyIndices, memory_types, physical_device_properties) },
 			bounce_out{ make_buffer_bounce_out(device, queueFamilyIndices, memory_types) },
 			simple_comp{make_shader_module(device, "simple.comp.glsl.spv")},
 			descriptorSetLayout{make_descriptor_set_layout<binding_count>(device) },
@@ -581,6 +587,8 @@ namespace vk_route {
 		}
 	};
 	void init() noexcept {
+		VULKAN_HPP_DEFAULT_DISPATCHER.init();
+
 		auto instance_version{ vk::enumerateInstanceVersion() };
 #ifdef _DEBUG
 		std::cout << std::format("instance_version: 0x{:08x}\n", instance_version.value);
@@ -604,6 +612,7 @@ namespace vk_route {
 			.pApplicationInfo{&applicationInfo},
 		}).value };
 
+		VULKAN_HPP_DEFAULT_DISPATCHER.init(instance.get());
 #ifdef _DEBUG
 		std::cout << std::format("instance: 0x{:x}\n", std::bit_cast<uintptr_t>(instance.get()));
 #endif
