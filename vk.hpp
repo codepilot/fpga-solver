@@ -128,7 +128,11 @@ namespace vk_route {
 			
 			auto binding0_memory{ label(device, "binding0", device->allocateMemoryUnique(binding0_ai.get<vk::MemoryAllocateInfo>()).value) };
 
-			device->bindBufferMemory(binding0_buffer.get(), binding0_memory.get(), 0ull);
+			device->bindBufferMemory2({ {
+				.buffer{binding0_buffer.get()},
+				.memory{binding0_memory.get()},
+				.memoryOffset{0ull},
+			} });
 
 			return std::make_tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory, vk::MemoryRequirements2>(
 				std::move(binding0_buffer),
@@ -165,7 +169,11 @@ namespace vk_route {
 			);
 			binding1_ai.get<vk::MemoryDedicatedAllocateInfo>().buffer = binding1_buffer.get();
 			auto binding1_memory{ label(device, "binding1", device->allocateMemoryUnique(binding1_ai.get<vk::MemoryAllocateInfo>()).value) };
-			device->bindBufferMemory(binding1_buffer.get(), binding1_memory.get(), 0ull);
+			device->bindBufferMemory2({ {
+				.buffer{binding1_buffer.get()},
+				.memory{binding1_memory.get()},
+				.memoryOffset{0ull},
+			} });
 
 			return std::make_tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory, vk::MemoryRequirements2>(
 				std::move(binding1_buffer),
@@ -211,7 +219,12 @@ namespace vk_route {
 
 			auto bounce_in_memory{ label(device, "bounce_in", device->allocateMemoryUnique(bounce_in_ai.get<vk::MemoryAllocateInfo>()).value) };
 
-			device->bindBufferMemory(bounce_in_buffer.get(), bounce_in_memory.get(), 0ull);
+			device->bindBufferMemory2({ {
+				.buffer{bounce_in_buffer.get()},
+				.memory{bounce_in_memory.get()},
+				.memoryOffset{0ull},
+			} });
+
 			return std::make_tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory, vk::MemoryRequirements2>(
 				std::move(bounce_in_buffer),
 				std::move(bounce_in_memory),
@@ -249,7 +262,12 @@ namespace vk_route {
 			bounce_out_ai.get<vk::MemoryDedicatedAllocateInfo>().buffer = bounce_out_buffer.get();
 			auto bounce_out_memory{ label(device, "bounce_out", device->allocateMemoryUnique(bounce_out_ai.get<vk::MemoryAllocateInfo>()).value) };
 
-			device->bindBufferMemory(bounce_out_buffer.get(), bounce_out_memory.get(), 0ull);
+			device->bindBufferMemory2({ {
+				.buffer{bounce_out_buffer.get()},
+				.memory{bounce_out_memory.get()},
+				.memoryOffset{0ull},
+			} });
+
 			return std::make_tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory, vk::MemoryRequirements2>(
 				std::move(bounce_out_buffer),
 				std::move(bounce_out_memory),
