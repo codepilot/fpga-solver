@@ -566,6 +566,15 @@ namespace vk_route {
 			record_command_buffer();
 
 		}
+		inline ~SingleDevice() {
+			if (std::get<3>(bounce_in)) {
+#ifdef _MSC_VER
+				_aligned_free(std::get<3>(bounce_in));
+#else
+				std::free(bounce_in);
+#endif
+			}
+		}
 
 		inline std::chrono::nanoseconds do_steps() {
 			setup_bounce_in(device, bounce_in);
