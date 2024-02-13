@@ -22,6 +22,7 @@ namespace vk_route {
 		UniqueDedicatedMemoryBuffer bounce_out;
 		vk::UniqueShaderModule simple_comp;
 		vk::UniqueDescriptorSetLayout descriptorSetLayout;
+		vk::UniquePipelineLayout pipelineLayout;
 
 		static std::vector<uint32_t> make_v_queue_family(std::span<vk::QueueFamilyProperties2> queue_families) noexcept {
 			std::vector<uint32_t> queueFamilyIndices;
@@ -252,32 +253,7 @@ namespace vk_route {
 			return device->createDescriptorSetLayoutUnique(descriptorSetLayoutCreateInfo).value;
 		}
 
-		static inline constexpr size_t binding_count{ 2ull };
-
-		SingleDevice(vk::PhysicalDevice physical_device) noexcept :
-			physical_device{ physical_device },
-			memory_properties{ physical_device.getMemoryProperties2() },
-			memory_types{ std::span(memory_properties.memoryProperties.memoryTypes).first(memory_properties.memoryProperties.memoryTypeCount) },
-			queue_families{ physical_device.getQueueFamilyProperties2() },
-			queueFamilyIndices{ make_v_queue_family(queue_families) },
-			device{ create_device(physical_device, queue_families) },
-			binding0{ make_buffer_binding0(device, queueFamilyIndices, memory_types) },
-			binding1{ make_buffer_binding1(device, queueFamilyIndices, memory_types) },
-			bounce_in{ make_buffer_bounce_in(device, queueFamilyIndices, memory_types) },
-			bounce_out{ make_buffer_bounce_out(device, queueFamilyIndices, memory_types) },
-			simple_comp{make_shader_module(device, "simple.comp.glsl.spv")},
-			descriptorSetLayout{make_descriptor_set_layout<binding_count>(device) }
-		{
-			show_features();
-
-			std::cout << std::format("heaps: {}\n", memory_properties.memoryProperties.memoryHeapCount);
-			std::cout << std::format("types: {}\n", memory_properties.memoryProperties.memoryTypeCount);
-			std::cout << std::format("queue_families: {}\n", queue_families.size());
-			std::cout << std::format("device: 0x{:x}\n", std::bit_cast<uintptr_t>(device.get()));
-
-			setup_bounce_in(device, bounce_in);
-
-
+		static vk::UniquePipelineLayout make_pipeline_layout(vk::UniqueDevice& device, vk::UniqueDescriptorSetLayout &descriptorSetLayout) noexcept {
 			const std::array<vk::PushConstantRange, 1> pushConstantRange{ {{
 				.stageFlags{vk::ShaderStageFlagBits::eCompute},
 				.offset{0},
@@ -296,7 +272,37 @@ namespace vk_route {
 				.pushConstantRangeCount{pushConstantRange.size()},
 				.pPushConstantRanges{pushConstantRange.data()},
 			};
-			auto pipelineLayout{ device->createPipelineLayoutUnique(pipelineLayoutCreateInfo).value };
+			return device->createPipelineLayoutUnique(pipelineLayoutCreateInfo).value;
+
+		}
+
+		static inline constexpr size_t binding_count{ 2ull };
+
+		SingleDevice(vk::PhysicalDevice physical_device) noexcept :
+			physical_device{ physical_device },
+			memory_properties{ physical_device.getMemoryProperties2() },
+			memory_types{ std::span(memory_properties.memoryProperties.memoryTypes).first(memory_properties.memoryProperties.memoryTypeCount) },
+			queue_families{ physical_device.getQueueFamilyProperties2() },
+			queueFamilyIndices{ make_v_queue_family(queue_families) },
+			device{ create_device(physical_device, queue_families) },
+			binding0{ make_buffer_binding0(device, queueFamilyIndices, memory_types) },
+			binding1{ make_buffer_binding1(device, queueFamilyIndices, memory_types) },
+			bounce_in{ make_buffer_bounce_in(device, queueFamilyIndices, memory_types) },
+			bounce_out{ make_buffer_bounce_out(device, queueFamilyIndices, memory_types) },
+			simple_comp{make_shader_module(device, "simple.comp.glsl.spv")},
+			descriptorSetLayout{make_descriptor_set_layout<binding_count>(device) },
+			pipelineLayout{make_pipeline_layout(device, descriptorSetLayout)}
+		{
+			show_features();
+
+			std::cout << std::format("heaps: {}\n", memory_properties.memoryProperties.memoryHeapCount);
+			std::cout << std::format("types: {}\n", memory_properties.memoryProperties.memoryTypeCount);
+			std::cout << std::format("queue_families: {}\n", queue_families.size());
+			std::cout << std::format("device: 0x{:x}\n", std::bit_cast<uintptr_t>(device.get()));
+
+			setup_bounce_in(device, bounce_in);
+
+
 
 
 			vk::PipelineShaderStageCreateInfo pipelineShaderStageCreateInfo{
@@ -326,6 +332,12 @@ namespace vk_route {
 			};
 
 			auto descriptor_pool{ device->createDescriptorPoolUnique(descriptorPoolCreateInfo).value };
+
+			std::array<vk::DescriptorSetLayout, 1> descriptorSetLayouts{
+				{
+					descriptorSetLayout.get()
+				}
+			};
 
 			vk::DescriptorSetAllocateInfo descriptorSetAllocateInfo{
 				.descriptorPool{descriptor_pool.get()},
