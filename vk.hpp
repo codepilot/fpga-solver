@@ -24,6 +24,7 @@ namespace vk_route {
 		using UniqueHostMemoryBuffer = std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory, vk::MemoryRequirements2, void *>;
 		UniqueDedicatedMemoryBuffer binding0;
 		UniqueDedicatedMemoryBuffer binding1;
+		MemoryMappedFile mmf_bounce_in;
 		UniqueHostMemoryBuffer bounce_in;
 		UniqueDedicatedMemoryBuffer bounce_out;
 		vk::UniqueShaderModule simple_comp;
@@ -248,13 +249,12 @@ namespace vk_route {
 			}).value;
 		}
 
-		inline static void setup_bounce_in(vk::UniqueDevice& device, UniqueHostMemoryBuffer &bounce_in) noexcept {
+		inline static void setup_bounce_in(vk::UniqueDevice& device, UniqueHostMemoryBuffer &bounce_in, MemoryMappedFile &mmf_bounce_in) noexcept {
 			std::span<uint8_t> bounce_in_mapped(reinterpret_cast<uint8_t*>(std::get<3>(bounce_in)), std::get<2>(bounce_in).memoryRequirements.size);
 #ifdef _DEBUG
 			std::cout << std::format("bounce_in_mapped<T> count: {}, bytes: {}\n", bounce_in_mapped.size(), bounce_in_mapped.size_bytes());
 #endif
-			std::ranges::fill(bounce_in_mapped, 0x55);
-
+			std::ranges::copy(mmf_bounce_in.get_span<uint8_t>(), bounce_in_mapped.begin());
 		}
 
 		inline static void check_bounce_out(vk::UniqueDevice& device, UniqueDedicatedMemoryBuffer& bounce_out) {
@@ -544,6 +544,7 @@ namespace vk_route {
 			device{ create_device(physical_device, queue_families) },
 			binding0{ make_buffer_binding0(device, queueFamilyIndices, memory_types) },
 			binding1{ make_buffer_binding1(device, queueFamilyIndices, memory_types) },
+			mmf_bounce_in{ "bounce_in.bin" },
 			bounce_in{ make_buffer_bounce_in(device, queueFamilyIndices, memory_types, physical_device_properties) },
 			bounce_out{ make_buffer_bounce_out(device, queueFamilyIndices, memory_types) },
 			simple_comp{make_shader_module(device, "simple.comp.glsl.spv")},
@@ -577,7 +578,7 @@ namespace vk_route {
 		}
 
 		inline std::chrono::nanoseconds do_steps() {
-			setup_bounce_in(device, bounce_in);
+			setup_bounce_in(device, bounce_in, mmf_bounce_in);
 
 			submit();
 
@@ -597,6 +598,11 @@ namespace vk_route {
 	};
 	void init() noexcept {
 		VULKAN_HPP_DEFAULT_DISPATCHER.init();
+		{
+			MemoryMappedFile mmf_bounce_in{ "bounce_in.bin", 1024ull * 1024ull };
+			auto s_bounce_in{ mmf_bounce_in.get_span<uint8_t>() };
+			std::ranges::fill(s_bounce_in, 0x55);
+		}
 
 		auto instance_version{ vk::enumerateInstanceVersion() };
 #ifdef _DEBUG
