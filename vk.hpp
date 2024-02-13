@@ -245,10 +245,14 @@ namespace vk_route {
 			auto bounce_out_mapped_ptr{ device->mapMemory(std::get<1>(bounce_out).get(), 0ull, VK_WHOLE_SIZE).value };
 			std::span<uint32_t> bounce_out_mapped(reinterpret_cast<uint32_t*>(bounce_out_mapped_ptr), std::get<2>(bounce_out).memoryRequirements.size / sizeof(uint32_t));
 			std::cout << std::format("bounce_out_mapped<T> count: {}, bytes: {}\n", bounce_out_mapped.size(), bounce_out_mapped.size_bytes());
+			bool is_unexpected{ false };
 			for (auto b : bounce_out_mapped.first(256)) {
-				std::cout << std::format("{:08x} ", b);
+				if (b != 0xaaffffab) {
+					std::cout << std::format("{:08x} ", b);
+					is_unexpected = true;
+				}
 			}
-			std::cout << "\n";
+			if(is_unexpected) std::cout << "\n";
 
 			device->unmapMemory(std::get<1>(bounce_out).get());
 		}
