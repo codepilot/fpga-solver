@@ -571,7 +571,7 @@ namespace vk_route {
 #ifdef _MSC_VER
 				_aligned_free(std::get<3>(bounce_in));
 #else
-				std::free(bounce_in);
+				std::free(std::get<3>(bounce_in));
 #endif
 			}
 		}
