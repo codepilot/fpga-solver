@@ -265,7 +265,7 @@ namespace vk_route {
 #endif
 			bool is_unexpected{ false };
 			for (auto b : bounce_out_mapped.first(256)) {
-				if (b != 0xaaffffab) {
+				if (b != 0xaaffffac) {
 					std::cout << std::format("{:08x} ", b);
 					is_unexpected = true;
 				}
@@ -317,11 +317,22 @@ namespace vk_route {
 		}
 
 		inline static std::vector<vk::UniquePipeline> make_compute_pipelines(vk::UniqueDevice& device, vk::UniqueShaderModule &simple_comp, vk::UniquePipelineLayout &pipelineLayout, vk::UniquePipelineCache &pipelineCache) noexcept {
+			std::array<vk::SpecializationMapEntry, 1> specializationMapEntries{ {{
+					.constantID{0},
+					.offset{0},
+					.size{sizeof(uint32_t)},
+				}} };
+			std::array<uint32_t, 1> specializationData{ 1 };
+			vk::SpecializationInfo specializationInfo;
+			specializationInfo.setData<uint32_t>(specializationData);
+			specializationInfo.setMapEntries(specializationMapEntries);
+
 			return device->createComputePipelinesUnique(pipelineCache.get(), { {{
 				.stage{
 					.stage{vk::ShaderStageFlagBits::eCompute},
 					.module{simple_comp.get()},
 					.pName{"main"},
+					.pSpecializationInfo{&specializationInfo},
 				},
 				.layout{pipelineLayout.get()},
 			}} }).value;

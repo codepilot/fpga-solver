@@ -24,10 +24,12 @@ layout(push_constant) uniform pc_args {
 #define WORD_GROUP_SIZE_Z 1
 #endif
 
+layout (constant_id = 0) const uint OFFSET = 0;
+
 layout (local_size_x = WORD_GROUP_SIZE_X, local_size_y = WORD_GROUP_SIZE_Y, local_size_z = WORD_GROUP_SIZE_Z) in;
 
 void main() 
 {
    uint index = gl_GlobalInvocationID.x;  
-   destination[index] = source[index] * multiplicand;
+   destination[index] = source[index] * multiplicand + OFFSET;
 }
