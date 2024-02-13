@@ -20,6 +20,8 @@ namespace vk_route {
 		UniqueDedicatedMemoryBuffer binding1;
 		UniqueDedicatedMemoryBuffer bounce_in;
 		UniqueDedicatedMemoryBuffer bounce_out;
+		vk::UniqueShaderModule simple_comp;
+		vk::UniqueDescriptorSetLayout descriptorSetLayout;
 
 		static std::vector<uint32_t> make_v_queue_family(std::span<vk::QueueFamilyProperties2> queue_families) noexcept {
 			std::vector<uint32_t> queueFamilyIndices;
@@ -201,6 +203,57 @@ namespace vk_route {
 
 		}
 
+		static vk::UniqueShaderModule make_shader_module(vk::UniqueDevice& device, std::string spv_path) noexcept {
+			MemoryMappedFile mmf_spirv{ spv_path };
+			auto s_spirv{ mmf_spirv.get_span<uint32_t>() };
+			vk::ShaderModuleCreateInfo shaderModuleCreateInfo{
+				.codeSize{s_spirv.size_bytes()}, //byte size
+				.pCode{s_spirv.data()},
+			};
+			return device->createShaderModuleUnique(shaderModuleCreateInfo).value;
+		}
+
+		static void setup_bounce_in(vk::UniqueDevice& device, UniqueDedicatedMemoryBuffer &bounce_in) noexcept {
+			auto bounce_in_mapped_ptr{ device->mapMemory(std::get<1>(bounce_in).get(), 0ull, VK_WHOLE_SIZE).value };
+			std::span<uint8_t> bounce_in_mapped(reinterpret_cast<uint8_t*>(bounce_in_mapped_ptr), std::get<2>(bounce_in).memoryRequirements.size);
+			std::cout << std::format("bounce_in_mapped<T> count: {}, bytes: {}\n", bounce_in_mapped.size(), bounce_in_mapped.size_bytes());
+			std::ranges::fill(bounce_in_mapped, 0x55);
+			device->flushMappedMemoryRanges({
+				{
+					vk::MappedMemoryRange{
+						.memory{std::get<1>(bounce_in).get()},
+						.offset{static_cast<uint64_t>(std::distance(reinterpret_cast<uint8_t*>(bounce_in_mapped_ptr), bounce_in_mapped.data()))},
+						.size{bounce_in_mapped.size_bytes()},
+					}
+				}
+				});
+			device->unmapMemory(std::get<1>(bounce_in).get());
+
+		}
+
+		template<size_t binding_count>
+		static vk::UniqueDescriptorSetLayout make_descriptor_set_layout(vk::UniqueDevice& device) noexcept {
+
+			std::array<vk::DescriptorSetLayoutBinding, binding_count> descriptorSetLayoutBindings;
+			each<uint32_t>(descriptorSetLayoutBindings, [](uint32_t descriptorSetLayoutBindingIndex, vk::DescriptorSetLayoutBinding &descriptorSetLayoutBinding) {
+				descriptorSetLayoutBinding = {
+					.binding{descriptorSetLayoutBindingIndex},
+					.descriptorType{vk::DescriptorType::eStorageBuffer},
+					.descriptorCount{1},
+					.stageFlags{vk::ShaderStageFlagBits::eCompute},
+				};
+			});
+
+			const vk::DescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{
+				.bindingCount{descriptorSetLayoutBindings.size()},
+				.pBindings{descriptorSetLayoutBindings.data()},
+			};
+
+			return device->createDescriptorSetLayoutUnique(descriptorSetLayoutCreateInfo).value;
+		}
+
+		static inline constexpr size_t binding_count{ 2ull };
+
 		SingleDevice(vk::PhysicalDevice physical_device) noexcept :
 			physical_device{ physical_device },
 			memory_properties{ physical_device.getMemoryProperties2() },
@@ -211,7 +264,9 @@ namespace vk_route {
 			binding0{ make_buffer_binding0(device, queueFamilyIndices, memory_types) },
 			binding1{ make_buffer_binding1(device, queueFamilyIndices, memory_types) },
 			bounce_in{ make_buffer_bounce_in(device, queueFamilyIndices, memory_types) },
-			bounce_out{ make_buffer_bounce_out(device, queueFamilyIndices, memory_types) }
+			bounce_out{ make_buffer_bounce_out(device, queueFamilyIndices, memory_types) },
+			simple_comp{make_shader_module(device, "simple.comp.glsl.spv")},
+			descriptorSetLayout{make_descriptor_set_layout<binding_count>(device) }
 		{
 			show_features();
 
@@ -220,65 +275,20 @@ namespace vk_route {
 			std::cout << std::format("queue_families: {}\n", queue_families.size());
 			std::cout << std::format("device: 0x{:x}\n", std::bit_cast<uintptr_t>(device.get()));
 
-			{
-				auto bounce_in_mapped_ptr{ device->mapMemory(std::get<1>(bounce_in).get(), 0ull, VK_WHOLE_SIZE).value };
-				std::span<uint8_t> bounce_in_mapped(reinterpret_cast<uint8_t*>(bounce_in_mapped_ptr), std::get<2>(bounce_in).memoryRequirements.size);
-				std::cout << std::format("bounce_in_mapped<T> count: {}, bytes: {}\n", bounce_in_mapped.size(), bounce_in_mapped.size_bytes());
-				std::ranges::fill(bounce_in_mapped, 0x55);
-				device->flushMappedMemoryRanges({
-					{
-						vk::MappedMemoryRange{
-							.memory{std::get<1>(bounce_in).get()},
-							.offset{static_cast<uint64_t>(std::distance(reinterpret_cast<uint8_t*>(bounce_in_mapped_ptr), bounce_in_mapped.data()))},
-							.size{bounce_in_mapped.size_bytes()},
-						}
-					}
-					});
-				device->unmapMemory(std::get<1>(bounce_in).get());
-			}
+			setup_bounce_in(device, bounce_in);
 
-			MemoryMappedFile mmf_spirv{ "simple.comp.glsl.spv" };
-			auto s_spirv{ mmf_spirv.get_span<uint32_t>() };
-			vk::ShaderModuleCreateInfo shaderModuleCreateInfo{
-				.codeSize{s_spirv.size_bytes()}, //byte size
-				.pCode{s_spirv.data()},
-			};
-			auto shaderModule{ device->createShaderModuleUnique(shaderModuleCreateInfo).value };
-
-			std::array<vk::DescriptorSetLayoutBinding, 2> descriptorSetLayoutBindings{
-				{
-					{
-						.binding{0},
-						.descriptorType{vk::DescriptorType::eStorageBuffer},
-						.descriptorCount{1},
-						.stageFlags{vk::ShaderStageFlagBits::eCompute},
-					},
-					{
-						.binding{1},
-						.descriptorType{vk::DescriptorType::eStorageBuffer},
-						.descriptorCount{1},
-						.stageFlags{vk::ShaderStageFlagBits::eCompute},
-					},
-				}
-			};
-
-			const vk::DescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{
-				.bindingCount{descriptorSetLayoutBindings.size()},
-				.pBindings{descriptorSetLayoutBindings.data()},
-			};
-
-			auto descriptorSetLayout{ device->createDescriptorSetLayoutUnique(descriptorSetLayoutCreateInfo).value };
-			std::array<vk::DescriptorSetLayout, 1> descriptorSetLayouts{
-				{
-					descriptorSetLayout.get()
-				}
-			};
 
 			const std::array<vk::PushConstantRange, 1> pushConstantRange{ {{
 				.stageFlags{vk::ShaderStageFlagBits::eCompute},
 				.offset{0},
 				.size{sizeof(uint32_t)},
 			}} };
+
+			std::array<vk::DescriptorSetLayout, 1> descriptorSetLayouts{
+				{
+					descriptorSetLayout.get()
+				}
+			};
 
 			const vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo{
 				.setLayoutCount{descriptorSetLayouts.size()},
@@ -291,7 +301,7 @@ namespace vk_route {
 
 			vk::PipelineShaderStageCreateInfo pipelineShaderStageCreateInfo{
 				.stage{vk::ShaderStageFlagBits::eCompute},
-				.module{shaderModule.get()},
+				.module{simple_comp.get()},
 				.pName{"main"},
 			};
 
@@ -306,7 +316,7 @@ namespace vk_route {
 
 			std::array<vk::DescriptorPoolSize, 1> descriptorPoolSize{ {{
 				.type{vk::DescriptorType::eStorageBuffer},
-				.descriptorCount{descriptorSetLayoutBindings.size()},
+				.descriptorCount{binding_count},
 			}} };
 
 			vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo{
@@ -329,15 +339,15 @@ namespace vk_route {
 			std::array<vk::DescriptorBufferInfo, 1> binding0_bufferInfos{ {{.buffer{std::get<0>(binding0).get()}, .offset{}, .range{VK_WHOLE_SIZE}}} };
 			std::array<vk::DescriptorBufferInfo, 1> binding1_bufferInfos{ {{.buffer{std::get<0>(binding1).get()}, .offset{}, .range{VK_WHOLE_SIZE}}} };
 
-			device->updateDescriptorSets(std::array<vk::WriteDescriptorSet, 2>{
+			device->updateDescriptorSets(std::array<vk::WriteDescriptorSet, binding_count>{
 				{
 					{
 						.dstSet{ descriptor_sets.at(0) },
-							.dstBinding{ 0 },
-							.dstArrayElement{ 0 },
-							.descriptorCount{ binding0_bufferInfos.size() },
-							.descriptorType{ vk::DescriptorType::eStorageBuffer },
-							.pBufferInfo{ binding0_bufferInfos.data() },
+						.dstBinding{ 0 },
+						.dstArrayElement{ 0 },
+						.descriptorCount{ binding0_bufferInfos.size() },
+						.descriptorType{ vk::DescriptorType::eStorageBuffer },
+						.pBufferInfo{ binding0_bufferInfos.data() },
 					},
 				{
 					.dstSet{descriptor_sets.at(0)},
