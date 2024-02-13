@@ -182,7 +182,7 @@ public:
       }
       return VirtualAddress;
 #else
-    return mmap(nullptr, fsize, PROT_READ, MAP_PRIVATE, fh, 0);
+    return mmap(nullptr, fsize, PROT_READ, MAP_PRIVATE | MAP_POPULATE, fh, 0);
 #endif
   }
 
@@ -193,7 +193,7 @@ public:
     static api_CreateFileMapping2 CreateFileMapping2{ reinterpret_cast<api_CreateFileMapping2>(GetProcAddress(lib_kernelbase, "CreateFileMapping2")) };
     return MapViewOfFile3(fm, GetCurrentProcess(), nullptr, 0, 0, 0, PAGE_READWRITE, nullptr, 0);
 #else
-    return mmap(nullptr, fsize, PROT_READ | PROT_WRITE, MAP_SHARED, fh, 0);
+    return mmap(nullptr, fsize, PROT_READ | PROT_WRITE | MAP_POPULATE, MAP_SHARED, fh, 0);
 #endif
   }
 
