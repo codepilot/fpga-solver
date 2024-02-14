@@ -300,7 +300,7 @@ namespace vk_route {
 			std::cout << std::format("bounce_out_mapped<T> count: {}, bytes: {}\n", bounce_out_mapped.size(), bounce_out_mapped.size_bytes());
 #endif
 			bool is_unexpected{ false };
-			for (auto b : bounce_out_mapped.first(256)) {
+			for (auto b : bounce_out_mapped.first(512).last(256)) {
 				if (b != 0xaaffffac) {
 					std::cout << std::format("{:08x} ", b);
 					is_unexpected = true;
@@ -368,6 +368,7 @@ namespace vk_route {
 			specializationInfo.setMapEntries(specializationMapEntries);
 
 			auto computePipelines{ labels(device, "computePipelines", device->createComputePipelinesUnique(pipelineCache.get(), {{{
+				.flags{vk::PipelineCreateFlagBits::eDispatchBase},
 				.stage{
 					.stage{vk::ShaderStageFlagBits::eCompute},
 					.module{simple_comp.get()},
@@ -462,8 +463,8 @@ namespace vk_route {
 			}).value);
 		}
 
-		inline void record_command_buffer() noexcept {
-			commandBuffers.at(0)->begin({ .flags{} });
+		inline void record_command_buffer(vk::UniqueCommandBuffer &commandBuffer) noexcept {
+			commandBuffer->begin({ .flags{} });
 
 			{
 				std::array<vk::BufferCopy2, 1> a_regions{ {{
@@ -472,7 +473,7 @@ namespace vk_route {
 					.size{std::get<2>(binding0).memoryRequirements.size},
 				}} };
 
-				commandBuffers.at(0)->copyBuffer2({
+				commandBuffer->copyBuffer2({
 					.srcBuffer{std::get<0>(bounce_in).get()},
 					.dstBuffer{std::get<0>(binding0).get()},
 					.regionCount{a_regions.size()},
@@ -491,7 +492,7 @@ namespace vk_route {
 					.size{VK_WHOLE_SIZE},
 				}} };
 
-				commandBuffers.at(0)->pipelineBarrier2({
+				commandBuffer->pipelineBarrier2({
 					.dependencyFlags{},
 					.bufferMemoryBarrierCount{a_bufferMemoryBarrier.size()},
 					.pBufferMemoryBarriers{a_bufferMemoryBarrier.data()},
@@ -499,19 +500,19 @@ namespace vk_route {
 
 			}
 
-			commandBuffers.at(0)->bindPipeline(vk::PipelineBindPoint::eCompute, computePipelines.at(0).get());
+			commandBuffer->bindPipeline(vk::PipelineBindPoint::eCompute, computePipelines.at(0).get());
 
 			std::vector<vk::DescriptorSet> v_descriptorSets;
 			v_descriptorSets.reserve(descriptorSets.size());
 			std::ranges::transform(descriptorSets, std::back_inserter(v_descriptorSets), [](vk::UniqueDescriptorSet& uds)->vk::DescriptorSet { return uds.get(); });
 
-			commandBuffers.at(0)->bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipelineLayout.get(), 0, v_descriptorSets, {});
+			commandBuffer->bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipelineLayout.get(), 0, v_descriptorSets, {});
 			std::array<uint32_t, 1> mask{ 0xff0000ffu };
-			commandBuffers.at(0)->pushConstants(pipelineLayout.get(), vk::ShaderStageFlagBits::eCompute, 0, sizeof(mask), mask.data());
-			commandBuffers.at(0)->resetQueryPool(queryPool.get(), 0, 2);
-			commandBuffers.at(0)->writeTimestamp(vk::PipelineStageFlagBits::eComputeShader, queryPool.get(), 0);
-			commandBuffers.at(0)->dispatch(1, 1, 1);
-			commandBuffers.at(0)->writeTimestamp(vk::PipelineStageFlagBits::eComputeShader, queryPool.get(), 1);
+			commandBuffer->pushConstants(pipelineLayout.get(), vk::ShaderStageFlagBits::eCompute, 0, sizeof(mask), mask.data());
+			commandBuffer->resetQueryPool(queryPool.get(), 0, 2);
+			commandBuffer->writeTimestamp2(vk::PipelineStageFlagBits2::eComputeShader, queryPool.get(), 0);
+			commandBuffer->dispatchBase(1, 0, 0, 1, 1, 1);
+			commandBuffer->writeTimestamp2(vk::PipelineStageFlagBits2::eComputeShader, queryPool.get(), 1);
 
 			{
 				std::array<vk::BufferMemoryBarrier2, 1> a_bufferMemoryBarrier{ {{
@@ -526,7 +527,7 @@ namespace vk_route {
 					.size{VK_WHOLE_SIZE},
 				}} };
 
-				commandBuffers.at(0)->pipelineBarrier2({
+				commandBuffer->pipelineBarrier2({
 					.dependencyFlags{},
 					.bufferMemoryBarrierCount{a_bufferMemoryBarrier.size()},
 					.pBufferMemoryBarriers{a_bufferMemoryBarrier.data()},
@@ -538,7 +539,7 @@ namespace vk_route {
 					.size{std::get<2>(binding0).memoryRequirements.size},
 				}} };
 
-				commandBuffers.at(0)->copyBuffer2({
+				commandBuffer->copyBuffer2({
 					.srcBuffer{std::get<0>(binding1).get()},
 					.dstBuffer{std::get<0>(bounce_out).get()},
 					.regionCount{a_regions.size()},
@@ -546,7 +547,7 @@ namespace vk_route {
 				});
 			}
 
-			commandBuffers.at(0)->end();
+			commandBuffer->end();
 		}
 
 		inline void submit() noexcept {
@@ -622,7 +623,7 @@ namespace vk_route {
 
 			updateDescriptorSets();
 
-			record_command_buffer();
+			record_command_buffer(commandBuffers.at(0));
 
 		}
 
