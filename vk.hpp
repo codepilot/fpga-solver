@@ -14,8 +14,8 @@ namespace vk_route {
 		std::vector<vk::QueueFamilyProperties2> queue_families;
 		std::vector<uint32_t> queueFamilyIndices;
 		vk::UniqueDevice device;
-		UniqueDedicatedMemoryBuffer binding0;
-		UniqueDedicatedMemoryBuffer binding1;
+		DeviceMemoryBuffer binding0;
+		DeviceMemoryBuffer binding1;
 		MemoryMappedFile mmf_bounce_in;
 		HostMemoryBuffer bounce_in;
 		HostMemoryBuffer bounce_out;
@@ -32,10 +32,11 @@ namespace vk_route {
 		vk::Queue queue;
 
 		inline static constexpr std::size_t binding_count{ 2ull };
+		inline static constexpr std::size_t general_buffer_size{ 1073741820ull };
 
 		inline void updateDescriptorSets() {
-			std::array<vk::DescriptorBufferInfo, 1> binding0_bufferInfos{ {{.buffer{std::get<0>(binding0).get()}, .offset{}, .range{VK_WHOLE_SIZE}}} };
-			std::array<vk::DescriptorBufferInfo, 1> binding1_bufferInfos{ {{.buffer{std::get<0>(binding1).get()}, .offset{}, .range{VK_WHOLE_SIZE}}} };
+			std::array<vk::DescriptorBufferInfo, 1> binding0_bufferInfos{ {{.buffer{binding0.buffer.get()}, .offset{}, .range{VK_WHOLE_SIZE}}} };
+			std::array<vk::DescriptorBufferInfo, 1> binding1_bufferInfos{ {{.buffer{binding1.buffer.get()}, .offset{}, .range{VK_WHOLE_SIZE}}} };
 
 			device->updateDescriptorSets(std::array<vk::WriteDescriptorSet, binding_count>{
 				{
@@ -66,12 +67,12 @@ namespace vk_route {
 				std::array<vk::BufferCopy2, 1> a_regions{ {{
 					.srcOffset{0},
 					.dstOffset{0},
-					.size{std::get<2>(binding0).memoryRequirements.size},
+					.size{binding0.bci.get<vk::BufferCreateInfo>().size},
 				}} };
 
 				commandBuffer->copyBuffer2({
 					.srcBuffer{bounce_in.buffer.get()},
-					.dstBuffer{std::get<0>(binding0).get()},
+					.dstBuffer{binding0.buffer.get()},
 					.regionCount{a_regions.size()},
 					.pRegions{a_regions.data()},
 				});
@@ -83,7 +84,7 @@ namespace vk_route {
 					.dstAccessMask{vk::AccessFlagBits2::eShaderStorageRead},
 					.srcQueueFamilyIndex{},
 					.dstQueueFamilyIndex{},
-					.buffer{std::get<0>(binding0).get()},
+					.buffer{binding0.buffer.get()},
 					.offset{0},
 					.size{VK_WHOLE_SIZE},
 				}} };
@@ -118,7 +119,7 @@ namespace vk_route {
 					.dstAccessMask{vk::AccessFlagBits2::eTransferRead},
 					.srcQueueFamilyIndex{},
 					.dstQueueFamilyIndex{},
-					.buffer{std::get<0>(binding1).get()},
+					.buffer{binding1.buffer.get()},
 					.offset{0},
 					.size{VK_WHOLE_SIZE},
 				}} };
@@ -132,11 +133,11 @@ namespace vk_route {
 				std::array<vk::BufferCopy2, 1> a_regions{ {{
 					.srcOffset{0},
 					.dstOffset{0},
-					.size{std::get<2>(binding0).memoryRequirements.size},
+					.size{binding0.bci.get<vk::BufferCreateInfo>().size},
 				}} };
 
 				commandBuffer->copyBuffer2({
-					.srcBuffer{std::get<0>(binding1).get()},
+					.srcBuffer{binding1.buffer.get()},
 					.dstBuffer{bounce_out.buffer.get()},
 					.regionCount{a_regions.size()},
 					.pRegions{a_regions.data()},
@@ -208,11 +209,11 @@ namespace vk_route {
 			queue_families{ physical_device.getQueueFamilyProperties2() },
 			queueFamilyIndices{ vu::make_v_queue_family(queue_families) },
 			device{ vu::create_device(physical_device, queue_families) },
-			binding0{ vu::make_binding_buffer(device, queueFamilyIndices, memory_types, 1024ull * 1024ull, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst, "binding0") },
-			binding1{ vu::make_binding_buffer(device, queueFamilyIndices, memory_types, 1024ull * 1024ull, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc, "binding1") },
+			binding0{ device, queueFamilyIndices, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst, "binding0" },
+			binding1{ device, queueFamilyIndices, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc, "binding1" },
 			mmf_bounce_in{ "bounce_in.bin" },
-			bounce_in{ device, queueFamilyIndices, memory_types, physical_device_properties, 1024ull * 1024ull, vk::BufferUsageFlagBits::eTransferSrc, "bounce_in" },
-			bounce_out{ device, queueFamilyIndices, memory_types, physical_device_properties, 1024ull * 1024ull, vk::BufferUsageFlagBits::eTransferDst, "bounce_out" },
+			bounce_in{ device, queueFamilyIndices, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eTransferSrc, "bounce_in" },
+			bounce_out{ device, queueFamilyIndices, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eTransferDst, "bounce_out" },
 			simple_comp{ vu::make_shader_module(device, "simple.comp.glsl.spv")},
 			descriptorSetLayout{ vu::make_descriptor_set_layout<binding_count>(device) },
 			pipelineLayout{ vu::make_pipeline_layout(device, descriptorSetLayout)},
@@ -311,7 +312,7 @@ namespace vk_route {
 	void init() noexcept {
 		VULKAN_HPP_DEFAULT_DISPATCHER.init();
 		{
-			MemoryMappedFile mmf_bounce_in{ "bounce_in.bin", 1024ull * 1024ull };
+			MemoryMappedFile mmf_bounce_in{ "bounce_in.bin", SingleDevice::general_buffer_size };
 			auto s_bounce_in{ mmf_bounce_in.get_span<uint8_t>() };
 			std::ranges::fill(s_bounce_in, 0x55);
 		}

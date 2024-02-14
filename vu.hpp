@@ -10,8 +10,6 @@
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
 namespace vk_route {
-	using UniqueDedicatedMemoryBuffer = std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory, vk::MemoryRequirements2>;
-
 	template<typename T> inline static T label(vk::UniqueDevice& device, std::string str, T item) noexcept {
 		device->setDebugUtilsObjectNameEXT({ .objectType{item.get().objectType}, .objectHandle{std::bit_cast<uint64_t>(item.get())}, .pObjectName{str.c_str()} });
 		return item;
@@ -73,6 +71,73 @@ namespace vk_route {
 #endif
 			}
 
+		}
+	};
+
+	class DeviceMemoryBuffer {
+	public:
+		vk::StructureChain<vk::BufferCreateInfo> bci;
+		vk::StructureChain<vk::MemoryRequirements2, vk::MemoryDedicatedRequirements> requirements;
+		vk::UniqueBuffer buffer;
+		vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> allocateInfo;
+		vk::UniqueDeviceMemory memory;
+
+		static vk::StructureChain<vk::BufferCreateInfo> make_bci(std::span<uint32_t> queueFamilyIndices, vk::DeviceSize bufferSize, vk::BufferUsageFlags bufferUsage) noexcept {
+			vk::StructureChain<vk::BufferCreateInfo> bci;
+			bci.get<vk::BufferCreateInfo>().setSize(bufferSize);
+			bci.get<vk::BufferCreateInfo>().setUsage(bufferUsage);
+			bci.get<vk::BufferCreateInfo>().setSharingMode(vk::SharingMode::eExclusive);
+			bci.get<vk::BufferCreateInfo>().setQueueFamilyIndices(queueFamilyIndices);
+			return bci;
+		}
+
+		static vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> make_allocate_info(
+			vk::UniqueDevice& device,
+			std::span<vk::MemoryType> memory_types,
+			vk::StructureChain<vk::MemoryRequirements2, vk::MemoryDedicatedRequirements>& requirements,
+			vk::UniqueBuffer &buffer
+		) noexcept {
+
+			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> allocateInfo;
+			allocateInfo.get<vk::MemoryAllocateInfo>().setAllocationSize(requirements.get<vk::MemoryRequirements2>().memoryRequirements.size);
+			VkMemoryPropertyFlags needed_flags{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT };
+			allocateInfo.get<vk::MemoryAllocateInfo>().memoryTypeIndex = static_cast<uint32_t>(
+				std::distance(
+					memory_types.begin(),
+					std::ranges::find_if(
+						memory_types,
+						[&](const VkMemoryType& memoryType)-> bool { return (memoryType.propertyFlags & needed_flags) == needed_flags; }
+					)
+				)
+			);
+			allocateInfo.get<vk::MemoryDedicatedAllocateInfo>().setBuffer(buffer.get());
+			return allocateInfo;
+		}
+
+		DeviceMemoryBuffer(
+			vk::UniqueDevice& device,
+			std::span<uint32_t> queueFamilyIndices,
+			std::span<vk::MemoryType> memory_types,
+			vk::StructureChain<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceExternalMemoryHostPropertiesEXT>& physical_device_properties,
+			vk::DeviceSize bufferSize,
+			vk::BufferUsageFlags bufferUsage,
+			std::string bufferLabel
+		) noexcept :
+			bci{ make_bci(queueFamilyIndices, bufferSize, bufferUsage) },
+			requirements{ device->getBufferMemoryRequirements<vk::MemoryRequirements2, vk::MemoryDedicatedRequirements>(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&bci.get<vk::BufferCreateInfo>()} }) },
+			buffer{ label(device, bufferLabel, device->createBufferUnique(bci.get<vk::BufferCreateInfo>()).value) },
+			allocateInfo{ make_allocate_info(device, memory_types, requirements, buffer) },
+			memory{ label(device, bufferLabel, device->allocateMemoryUnique(allocateInfo.get<vk::MemoryAllocateInfo>()).value) }
+		{
+#ifdef _DEBUG
+			std::cout << std::format("{} mem_requirements: {}\n", bufferLabel, requirements.get<vk::MemoryRequirements2>().memoryRequirements.size);
+#endif
+
+			device->bindBufferMemory2({ {
+				.buffer{buffer.get()},
+				.memory{memory.get()},
+				.memoryOffset{0ull},
+			} });
 		}
 	};
 
@@ -193,56 +258,6 @@ namespace vk_route {
 			device->setDebugUtilsObjectNameEXT({ .objectType{vk::ObjectType::eDevice}, .objectHandle{std::bit_cast<uint64_t>(device.get())}, .pObjectName{"Device"} });
 
 			return device;
-		}
-
-		inline static UniqueDedicatedMemoryBuffer make_binding_buffer(vk::UniqueDevice& device, std::span<uint32_t> queueFamilyIndices, std::span<vk::MemoryType> memory_types, vk::DeviceSize bufferSize, vk::BufferUsageFlags bufferUsage, std::string bufferLabel) {
-			vk::BufferCreateInfo bci{
-				.size{bufferSize},
-				.usage{bufferUsage},
-				.sharingMode{vk::SharingMode::eExclusive},
-				.queueFamilyIndexCount{static_cast<uint32_t>(queueFamilyIndices.size())},
-				.pQueueFamilyIndices{queueFamilyIndices.data()},
-			};
-
-
-			auto mem_requirements{ device->getBufferMemoryRequirements(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&bci}}) };
-
-#ifdef _DEBUG
-			std::cout << std::format("{} mem_requirements: {}\n", bufferLabel, mem_requirements.memoryRequirements.size);
-#endif
-
-			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> allocateInfo;
-
-			allocateInfo.get<vk::MemoryAllocateInfo>().allocationSize = mem_requirements.memoryRequirements.size;
-
-			VkMemoryPropertyFlags needed_flags{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT };
-			allocateInfo.get<vk::MemoryAllocateInfo>().memoryTypeIndex = static_cast<uint32_t>(
-				std::distance(
-					memory_types.begin(),
-					std::ranges::find_if(
-						memory_types,
-						[&](const VkMemoryType& memoryType)-> bool { return (memoryType.propertyFlags & needed_flags) == needed_flags; }
-					)
-				)
-				);
-
-			auto buffer{ label(device, bufferLabel, device->createBufferUnique(bci).value) };
-			allocateInfo.get<vk::MemoryDedicatedAllocateInfo>().setBuffer(buffer.get());
-
-			auto memory{ label(device, bufferLabel, device->allocateMemoryUnique(allocateInfo.get<vk::MemoryAllocateInfo>()).value) };
-
-			device->bindBufferMemory2({ {
-				.buffer{buffer.get()},
-				.memory{memory.get()},
-				.memoryOffset{0ull},
-			} });
-
-			return std::make_tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory, vk::MemoryRequirements2>(
-				std::move(buffer),
-				std::move(memory),
-				std::move(mem_requirements)
-			);
-
 		}
 
 		inline static vk::UniqueShaderModule make_shader_module(vk::UniqueDevice& device, std::string spv_path) noexcept {
