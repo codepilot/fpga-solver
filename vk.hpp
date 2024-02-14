@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vu.hpp"
+#include "each.h"
 
 namespace vk_route {
 	class SingleDevice {
@@ -8,7 +9,7 @@ namespace vk_route {
 		vk::PhysicalDevice physical_device;
 		vk::StructureChain<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceExternalMemoryHostPropertiesEXT> physical_device_properties;
 		vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan12Features, vk::PhysicalDeviceVulkan13Features> physical_device_features;
-		vk::PhysicalDeviceMemoryProperties2 memory_properties;
+		vk::StructureChain<vk::PhysicalDeviceMemoryProperties2, vk::PhysicalDeviceMemoryBudgetPropertiesEXT> memory_properties;
 		std::span<vk::MemoryType> memory_types;
 		std::vector<vk::QueueFamilyProperties2> queue_families;
 		std::vector<uint32_t> queueFamilyIndices;
@@ -173,8 +174,24 @@ namespace vk_route {
 			std::cout << std::format("deviceName {}\n", static_cast<std::string_view>(physical_device_properties.get<vk::PhysicalDeviceProperties2>().properties.deviceName));
 #ifdef _DEBUG
 			std::cout << std::format("synchronization2: {}\n", physical_device_features.get<vk::PhysicalDeviceVulkan13Features>().synchronization2);
-			std::cout << std::format("heaps: {}\n", memory_properties.memoryProperties.memoryHeapCount);
-			std::cout << std::format("types: {}\n", memory_properties.memoryProperties.memoryTypeCount);
+			auto heaps{ std::span(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryHeaps).first(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryHeapCount) };
+			auto types{ std::span(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryTypes).first(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryTypeCount) };
+			auto budgets{ std::span(memory_properties.get<vk::PhysicalDeviceMemoryBudgetPropertiesEXT>().heapBudget).first(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryHeapCount) };
+			auto usages{ std::span(memory_properties.get<vk::PhysicalDeviceMemoryBudgetPropertiesEXT>().heapUsage).first(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryHeapCount) };
+			each<uint32_t>(types, [&](uint32_t type_index, const vk::MemoryType& type) {
+				decltype(auto) heap{ heaps[type.heapIndex] };
+				std::cout << std::format("heap[{}]: size: {:.3f} GiB, budget: {:.3f} GiB, usage: {:.3f} GiB, heapFlags: {}, type[{}]: typeFlags: {} \n",
+					type.heapIndex,
+					std::scalbln(static_cast<double>(heap.size), -30l),
+					std::scalbln(static_cast<double>(budgets[type.heapIndex]), -30l),
+					std::scalbln(static_cast<double>(usages[type.heapIndex]), -30l),
+					vk::to_string(heap.flags),
+					type_index,
+					vk::to_string(type.propertyFlags)
+				);
+			});
+			std::cout << std::format("heaps: {}\n", memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryHeapCount);
+			std::cout << std::format("types: {}\n", memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryTypeCount);
 			std::cout << std::format("queue_families: {}\n", queue_families.size());
 			std::cout << std::format("device: 0x{:x}\n", std::bit_cast<uintptr_t>(device.get()));
 #endif
@@ -184,8 +201,8 @@ namespace vk_route {
 			physical_device{ physical_device },
 			physical_device_properties{ physical_device.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceExternalMemoryHostPropertiesEXT>() },
 			physical_device_features{ physical_device.getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan12Features, vk::PhysicalDeviceVulkan13Features>() },
-			memory_properties{ physical_device.getMemoryProperties2() },
-			memory_types{ std::span(memory_properties.memoryProperties.memoryTypes).first(memory_properties.memoryProperties.memoryTypeCount) },
+			memory_properties{ physical_device.getMemoryProperties2<vk::PhysicalDeviceMemoryProperties2, vk::PhysicalDeviceMemoryBudgetPropertiesEXT>() },
+			memory_types{ std::span(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryTypes).first(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryTypeCount) },
 			queue_families{ physical_device.getQueueFamilyProperties2() },
 			queueFamilyIndices{ vu::make_v_queue_family(queue_families) },
 			device{ vu::create_device(physical_device, queue_families) },
