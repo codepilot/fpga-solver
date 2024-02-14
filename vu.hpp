@@ -79,8 +79,10 @@ namespace vk_route {
 		vk::StructureChain<vk::BufferCreateInfo> bci;
 		vk::StructureChain<vk::MemoryRequirements2, vk::MemoryDedicatedRequirements> requirements;
 		vk::UniqueBuffer buffer;
-		vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> allocateInfo;
+		vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo, vk::MemoryAllocateFlagsInfo> allocateInfo;
 		vk::UniqueDeviceMemory memory;
+		vk::Result bindResult;
+		vk::DeviceAddress address;
 
 		static vk::StructureChain<vk::BufferCreateInfo> make_bci(std::span<uint32_t> queueFamilyIndices, vk::DeviceSize bufferSize, vk::BufferUsageFlags bufferUsage) noexcept {
 			vk::StructureChain<vk::BufferCreateInfo> bci;
@@ -91,14 +93,14 @@ namespace vk_route {
 			return bci;
 		}
 
-		static vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> make_allocate_info(
+		static vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo, vk::MemoryAllocateFlagsInfo> make_allocate_info(
 			vk::UniqueDevice& device,
 			std::span<vk::MemoryType> memory_types,
 			vk::StructureChain<vk::MemoryRequirements2, vk::MemoryDedicatedRequirements>& requirements,
 			vk::UniqueBuffer &buffer
 		) noexcept {
 
-			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> allocateInfo;
+			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo, vk::MemoryAllocateFlagsInfo> allocateInfo;
 			allocateInfo.get<vk::MemoryAllocateInfo>().setAllocationSize(requirements.get<vk::MemoryRequirements2>().memoryRequirements.size);
 			VkMemoryPropertyFlags needed_flags{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT };
 			allocateInfo.get<vk::MemoryAllocateInfo>().memoryTypeIndex = static_cast<uint32_t>(
@@ -110,6 +112,8 @@ namespace vk_route {
 					)
 				)
 			);
+
+			allocateInfo.get<vk::MemoryAllocateFlagsInfo>().setFlags(vk::MemoryAllocateFlagBits::eDeviceAddress);
 			allocateInfo.get<vk::MemoryDedicatedAllocateInfo>().setBuffer(buffer.get());
 			return allocateInfo;
 		}
@@ -127,17 +131,13 @@ namespace vk_route {
 			requirements{ device->getBufferMemoryRequirements<vk::MemoryRequirements2, vk::MemoryDedicatedRequirements>(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&bci.get<vk::BufferCreateInfo>()} }) },
 			buffer{ label(device, bufferLabel, device->createBufferUnique(bci.get<vk::BufferCreateInfo>()).value) },
 			allocateInfo{ make_allocate_info(device, memory_types, requirements, buffer) },
-			memory{ label(device, bufferLabel, device->allocateMemoryUnique(allocateInfo.get<vk::MemoryAllocateInfo>()).value) }
+			memory{ label(device, bufferLabel, device->allocateMemoryUnique(allocateInfo.get<vk::MemoryAllocateInfo>()).value) },
+			bindResult{ device->bindBufferMemory2({ {.buffer{buffer.get()}, .memory{memory.get()}, .memoryOffset{0ull} } }) },
+			address{ device->getBufferAddress({.buffer{buffer.get()}})}
 		{
 #ifdef _DEBUG
 			std::cout << std::format("{} mem_requirements: {}\n", bufferLabel, requirements.get<vk::MemoryRequirements2>().memoryRequirements.size);
 #endif
-
-			device->bindBufferMemory2({ {
-				.buffer{buffer.get()},
-				.memory{memory.get()},
-				.memoryOffset{0ull},
-			} });
 		}
 	};
 
@@ -239,12 +239,14 @@ namespace vk_route {
 
 			vk::StructureChain<
 				vk::DeviceCreateInfo,
+				vk::PhysicalDeviceVulkan12Features,
 				// vk::PhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR,
 				vk::PhysicalDeviceVulkan13Features> deviceCreateInfo;
 			deviceCreateInfo.get<vk::DeviceCreateInfo>().setQueueCreateInfoCount(static_cast<uint32_t>(v_queue_create_info.size()));
 			deviceCreateInfo.get<vk::DeviceCreateInfo>().setQueueCreateInfos(v_queue_create_info);
 			deviceCreateInfo.get<vk::PhysicalDeviceVulkan13Features>().setSynchronization2(true);
 			deviceCreateInfo.get<vk::PhysicalDeviceVulkan13Features>().setComputeFullSubgroups(true);
+			deviceCreateInfo.get<vk::PhysicalDeviceVulkan12Features>().setBufferDeviceAddress(true);
 			std::vector<const char*> enabled_extensions;
 			enabled_extensions.emplace_back("VK_EXT_external_memory_host");
 			// enabled_extensions.emplace_back("VK_KHR_shader_subgroup_uniform_control_flow");
@@ -291,11 +293,17 @@ namespace vk_route {
 
 		}
 
+		struct ShaderPushConstants {
+			vk::DeviceAddress src_buf;
+			vk::DeviceAddress dst_buf;
+			uint32_t multiplicand;
+		};
+
 		inline static vk::UniquePipelineLayout make_pipeline_layout(vk::UniqueDevice& device, vk::UniqueDescriptorSetLayout& descriptorSetLayout) noexcept {
 			const std::array<vk::PushConstantRange, 1> pushConstantRange{ {{
 				.stageFlags{vk::ShaderStageFlagBits::eCompute},
 				.offset{0},
-				.size{sizeof(uint32_t)},
+				.size{sizeof(ShaderPushConstants)},
 			}} };
 
 			std::array<vk::DescriptorSetLayout, 1> descriptorSetLayouts{

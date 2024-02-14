@@ -24,16 +24,16 @@ namespace vk_route {
 		vk::UniquePipelineLayout pipelineLayout;
 		vk::UniquePipelineCache pipelineCache;
 		std::vector<vk::UniquePipeline> computePipelines;
-		vk::UniqueDescriptorPool descriptorPool;
-		std::vector<vk::UniqueDescriptorSet> descriptorSets;
+		// vk::UniqueDescriptorPool descriptorPool;
+		// std::vector<vk::UniqueDescriptorSet> descriptorSets;
 		vk::UniqueQueryPool queryPool;
 		vk::UniqueCommandPool commandPool;
 		std::vector<vk::UniqueCommandBuffer> commandBuffers;
 		vk::Queue queue;
 
-		inline static constexpr std::size_t binding_count{ 2ull };
-		inline static constexpr std::size_t general_buffer_size{ 1073741820ull };
+		inline static constexpr std::size_t general_buffer_size{ 2ull * 1024ull * 1024ull * 1024ull };
 
+#if 0
 		inline void updateDescriptorSets() {
 			std::array<vk::DescriptorBufferInfo, 1> binding0_bufferInfos{ {{.buffer{binding0.buffer.get()}, .offset{}, .range{VK_WHOLE_SIZE}}} };
 			std::array<vk::DescriptorBufferInfo, 1> binding1_bufferInfos{ {{.buffer{binding1.buffer.get()}, .offset{}, .range{VK_WHOLE_SIZE}}} };
@@ -59,6 +59,7 @@ namespace vk_route {
 				}
 			}, {});
 		}
+#endif
 
 		inline void record_command_buffer(vk::UniqueCommandBuffer &commandBuffer) noexcept {
 			commandBuffer->begin({ .flags{} });
@@ -100,12 +101,12 @@ namespace vk_route {
 			commandBuffer->bindPipeline(vk::PipelineBindPoint::eCompute, computePipelines.at(0).get());
 
 			std::vector<vk::DescriptorSet> v_descriptorSets;
-			v_descriptorSets.reserve(descriptorSets.size());
-			std::ranges::transform(descriptorSets, std::back_inserter(v_descriptorSets), [](vk::UniqueDescriptorSet& uds)->vk::DescriptorSet { return uds.get(); });
+			// v_descriptorSets.reserve(descriptorSets.size());
+			// std::ranges::transform(descriptorSets, std::back_inserter(v_descriptorSets), [](vk::UniqueDescriptorSet& uds)->vk::DescriptorSet { return uds.get(); });
 
-			commandBuffer->bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipelineLayout.get(), 0, v_descriptorSets, {});
-			std::array<uint32_t, 1> mask{ 0xff0000ffu };
-			commandBuffer->pushConstants(pipelineLayout.get(), vk::ShaderStageFlagBits::eCompute, 0, sizeof(mask), mask.data());
+			// commandBuffer->bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipelineLayout.get(), 0, v_descriptorSets, {});
+			vu::ShaderPushConstants spc{ .src_buf{binding0.address}, .dst_buf{binding1.address}, .multiplicand{0xff0000ffu} };
+			commandBuffer->pushConstants(pipelineLayout.get(), vk::ShaderStageFlagBits::eCompute, 0, sizeof(spc), &spc);
 			commandBuffer->resetQueryPool(queryPool.get(), 0, 2);
 			commandBuffer->writeTimestamp2(vk::PipelineStageFlagBits2::eComputeShader, queryPool.get(), 0);
 			commandBuffer->dispatchBase(1, 0, 0, 1, 1, 1);
@@ -209,18 +210,18 @@ namespace vk_route {
 			queue_families{ physical_device.getQueueFamilyProperties2() },
 			queueFamilyIndices{ vu::make_v_queue_family(queue_families) },
 			device{ vu::create_device(physical_device, queue_families) },
-			binding0{ device, queueFamilyIndices, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst, "binding0" },
-			binding1{ device, queueFamilyIndices, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc, "binding1" },
+			binding0{ device, queueFamilyIndices, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferDst, "binding0" },
+			binding1{ device, queueFamilyIndices, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc, "binding1" },
 			mmf_bounce_in{ "bounce_in.bin" },
 			bounce_in{ device, queueFamilyIndices, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eTransferSrc, "bounce_in" },
 			bounce_out{ device, queueFamilyIndices, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eTransferDst, "bounce_out" },
 			simple_comp{ vu::make_shader_module(device, "simple.comp.glsl.spv")},
-			descriptorSetLayout{ vu::make_descriptor_set_layout<binding_count>(device) },
+			descriptorSetLayout{ vu::make_descriptor_set_layout<0>(device) },
 			pipelineLayout{ vu::make_pipeline_layout(device, descriptorSetLayout)},
 			pipelineCache{ label(device, "pipelineCache", device->createPipelineCacheUnique(vk::PipelineCacheCreateInfo{}).value)},
 			computePipelines{ vu::make_compute_pipelines(device, simple_comp, pipelineLayout, pipelineCache) },
-			descriptorPool{ vu::make_descriptor_pool(device, binding_count)},
-			descriptorSets{ vu::make_descriptor_sets(device, descriptorSetLayout, descriptorPool) },
+			// descriptorPool{ vu::make_descriptor_pool(device, 0)},
+			// descriptorSets{ vu::make_descriptor_sets(device, descriptorSetLayout, descriptorPool) },
 			queryPool{ vu::make_query_pool(device) },
 			commandPool{ vu::make_command_pool(device, queue_families) },
 			commandBuffers{ vu::make_command_buffers(device, commandPool)},
@@ -229,7 +230,7 @@ namespace vk_route {
 
 			show_features();
 
-			updateDescriptorSets();
+			// updateDescriptorSets();
 
 			record_command_buffer(commandBuffers.at(0));
 

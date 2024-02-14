@@ -1,5 +1,8 @@
 #version 460 core
 
+#extension GL_EXT_buffer_reference : require
+// #extension GL_EXT_buffer_reference2 : require
+
 #ifdef _DEBUG
 #ifdef GL_EXT_debug_printf
 #extension GL_EXT_debug_printf : require
@@ -14,15 +17,17 @@
 #extension GL_EXT_maximal_reconvergence : require
 #endif
 
-layout(std430, binding = 0) readonly buffer ssbo_source {
-   uint source[ ];
+layout(std430, buffer_reference, buffer_reference_align = 4) readonly buffer ssbo_source {
+    restrict uint source[];
 };
 
-layout(std430, binding = 1) buffer ssbo_destination {
-   uint destination[ ];
+layout(std430, buffer_reference, buffer_reference_align = 4) writeonly buffer ssbo_destination {
+    restrict uint destination[];
 };
 
 layout(push_constant) uniform pc_args {
+   restrict ssbo_source src_buf;
+   restrict ssbo_destination dst_buf;
    uint multiplicand;
 };
 
@@ -51,7 +56,7 @@ void main()
 #endif
 {
    uint index = gl_GlobalInvocationID.x;  
-   destination[index] = source[index] * multiplicand + OFFSET;
+   dst_buf.destination[index] = src_buf.source[index] * multiplicand + OFFSET;
 #ifdef _DEBUG
 #ifdef GL_EXT_debug_printf
    debugPrintfEXT("index: %u, multiplicand: %u, OFFSET: %u\n", index, multiplicand, OFFSET);
