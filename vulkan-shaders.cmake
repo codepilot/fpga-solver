@@ -13,7 +13,16 @@ block()
     set(SPIRV "${PROJECT_BINARY_DIR}/${FILE_NAME}.spv")
     add_custom_command(
       OUTPUT ${SPIRV}
-      COMMAND $<TARGET_FILE:glslang-standalone> --target-env vulkan1.3 ${GLSL_SOURCE_FILE} -e main -H -g -gV -gVS -o ${SPIRV}
+      COMMAND
+        $<TARGET_FILE:glslang-standalone>
+        --target-env vulkan1.3
+        ${GLSL_SOURCE_FILE}
+        -e main
+        -H
+        $<$<CONFIG:Debug>:-D_DEBUG=1>
+        $<$<CONFIG:Debug>:-gVS>
+        $<$<CONFIG:RelWithDebInfo>:-gVS>
+        -o ${SPIRV}
       DEPENDS ${GLSL_SOURCE_FILE}
       DEPENDS glslang-standalone)
     list(APPEND SPIRV_BINARY_FILES ${SPIRV})
