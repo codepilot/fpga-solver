@@ -21,12 +21,128 @@ namespace vk_route {
 		std::vector<uint32_t> queueFamilyIndices;
 		vk::UniqueDevice device;
 		using UniqueDedicatedMemoryBuffer = std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory, vk::MemoryRequirements2>;
-		using UniqueHostMemoryBuffer = std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory, vk::MemoryRequirements2, void *>;
+
+		class AlignedAllocation {
+		public:
+			void* pointer;
+			size_t size;
+			template<typename T>
+			std::span<T> get_span() const noexcept {
+				return std::span<T>(reinterpret_cast<T*>(pointer), size / sizeof(T));
+			}
+			AlignedAllocation() = default;
+
+			AlignedAllocation(size_t _alignment, size_t _size):
+#ifdef _MSC_VER
+				pointer {_aligned_malloc(_size, _alignment)}, size{_size}
+#else
+				pointer{ std::aligned_alloc(_alignment, _size) }, size{ _size }
+#endif
+			{
+			}
+
+			AlignedAllocation(AlignedAllocation& other) = delete;
+			AlignedAllocation& operator=(AlignedAllocation& other) = delete;
+			AlignedAllocation(AlignedAllocation&& other) noexcept : pointer{ std::exchange(other.pointer, nullptr) }, size{ std::exchange(other.size, 0) } {}
+			void clear() noexcept {
+				if (pointer) {
+#ifdef _MSC_VER
+					_aligned_free(pointer); pointer = nullptr;
+#else
+					std::free(pointer); pointer = nullptr;
+#endif
+				}
+				size = 0;
+			}
+			AlignedAllocation& operator=(AlignedAllocation&& other) noexcept {
+				clear();
+				pointer = std::exchange(other.pointer, nullptr);
+				size = std::exchange(other.size, 0);
+				return *this;
+			}
+
+			~AlignedAllocation() {
+				if (pointer) {
+#ifdef _MSC_VER
+					_aligned_free(pointer);
+#else
+					std::free(pointer);
+#endif
+				}
+
+			}
+		};
+
+		class HostMemoryBuffer {
+		public:
+			vk::StructureChain<vk::BufferCreateInfo, vk::ExternalMemoryBufferCreateInfo> bci;
+			vk::MemoryRequirements2 requirements;
+			AlignedAllocation allocation;
+			vk::StructureChain<vk::MemoryAllocateInfo, vk::ImportMemoryHostPointerInfoEXT> allocateInfo;
+			vk::UniqueDeviceMemory memory;
+			vk::UniqueBuffer buffer;
+
+			static vk::StructureChain<vk::BufferCreateInfo, vk::ExternalMemoryBufferCreateInfo> make_bci(std::span<uint32_t> queueFamilyIndices, vk::DeviceSize bufferSize, vk::BufferUsageFlags bufferUsage) noexcept {
+				vk::StructureChain<vk::BufferCreateInfo, vk::ExternalMemoryBufferCreateInfo> bci;
+				bci.get<vk::BufferCreateInfo>().setSize(bufferSize);
+				bci.get<vk::BufferCreateInfo>().setUsage(bufferUsage);
+				bci.get<vk::BufferCreateInfo>().setSharingMode(vk::SharingMode::eExclusive);
+				bci.get<vk::BufferCreateInfo>().setQueueFamilyIndices(queueFamilyIndices);
+				bci.get<vk::ExternalMemoryBufferCreateInfo>().setHandleTypes(vk::ExternalMemoryHandleTypeFlagBits::eHostAllocationEXT);
+				return bci;
+			}
+
+			static vk::StructureChain<vk::MemoryAllocateInfo, vk::ImportMemoryHostPointerInfoEXT> make_allocate_info(vk::UniqueDevice& device, std::span<vk::MemoryType> memory_types, vk::MemoryRequirements2 &requirements, AlignedAllocation &allocation) noexcept {
+				vk::StructureChain<vk::MemoryAllocateInfo, vk::ImportMemoryHostPointerInfoEXT> allocateInfo;
+				allocateInfo.get<vk::MemoryAllocateInfo>().setAllocationSize(requirements.memoryRequirements.size);
+				auto hostPointerProperties{ device->getMemoryHostPointerPropertiesEXT(vk::ExternalMemoryHandleTypeFlagBits::eHostAllocationEXT, allocation.pointer).value };
+				allocateInfo.get<vk::MemoryAllocateInfo>().memoryTypeIndex = static_cast<uint32_t>(
+					std::distance(
+						memory_types.begin(),
+						std::ranges::find_if(
+							memory_types,
+							[&](const VkMemoryType& memoryType)-> bool { return (memoryType.propertyFlags & hostPointerProperties.memoryTypeBits) == hostPointerProperties.memoryTypeBits; }
+						)
+					)
+					);
+				allocateInfo.get<vk::ImportMemoryHostPointerInfoEXT>().setHandleType(vk::ExternalMemoryHandleTypeFlagBits::eHostAllocationEXT);
+				allocateInfo.get<vk::ImportMemoryHostPointerInfoEXT>().setPHostPointer(allocation.pointer);
+				return allocateInfo;
+			}
+
+			HostMemoryBuffer(
+				vk::UniqueDevice& device,
+				std::span<uint32_t> queueFamilyIndices,
+				std::span<vk::MemoryType> memory_types,
+				vk::StructureChain<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceExternalMemoryHostPropertiesEXT>& physical_device_properties,
+				vk::DeviceSize bufferSize,
+				vk::BufferUsageFlags bufferUsage,
+				std::string bufferLabel
+			) noexcept :
+				bci{ make_bci(queueFamilyIndices, bufferSize, bufferUsage) },
+				requirements{ device->getBufferMemoryRequirements(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&bci.get<vk::BufferCreateInfo>()} }) },
+				allocation{ physical_device_properties.get<vk::PhysicalDeviceExternalMemoryHostPropertiesEXT>().minImportedHostPointerAlignment , requirements.memoryRequirements.size },
+				allocateInfo{ make_allocate_info(device, memory_types, requirements, allocation) },
+				memory{ label(device, bufferLabel, device->allocateMemoryUnique(allocateInfo.get<vk::MemoryAllocateInfo>()).value) },
+				buffer{ label(device, bufferLabel, device->createBufferUnique(bci.get<vk::BufferCreateInfo>()).value) }
+			{
+#ifdef _DEBUG
+				std::cout << std::format("{} mem_requirements: {}\n", bufferLabel, requirements.memoryRequirements.size);
+#endif
+
+				device->bindBufferMemory2({ {
+					.buffer{buffer.get()},
+					.memory{memory.get()},
+					.memoryOffset{0ull},
+				} });
+			}
+		};
+
 		UniqueDedicatedMemoryBuffer binding0;
 		UniqueDedicatedMemoryBuffer binding1;
 		MemoryMappedFile mmf_bounce_in;
-		UniqueHostMemoryBuffer bounce_in;
-		UniqueDedicatedMemoryBuffer bounce_out;
+		HostMemoryBuffer bounce_in;
+		HostMemoryBuffer bounce_out;
 		vk::UniqueShaderModule simple_comp;
 		vk::UniqueDescriptorSetLayout descriptorSetLayout;
 		vk::UniquePipelineLayout pipelineLayout;
@@ -147,99 +263,6 @@ namespace vk_route {
 
 		}
 
-		inline static UniqueHostMemoryBuffer make_buffer_bounce_in(vk::UniqueDevice& device, std::span<uint32_t> queueFamilyIndices, std::span<vk::MemoryType> memory_types, vk::StructureChain<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceExternalMemoryHostPropertiesEXT> &physical_device_properties) {
-
-			vk::StructureChain<vk::BufferCreateInfo, vk::ExternalMemoryBufferCreateInfo> bounce_in_bci;
-			bounce_in_bci.get<vk::BufferCreateInfo>().setSize(1024ull * 1024ull);
-			bounce_in_bci.get<vk::BufferCreateInfo>().setUsage(vk::BufferUsageFlagBits::eTransferSrc);
-			bounce_in_bci.get<vk::BufferCreateInfo>().setSharingMode(vk::SharingMode::eExclusive);
-			bounce_in_bci.get<vk::BufferCreateInfo>().setQueueFamilyIndices(queueFamilyIndices);
-			bounce_in_bci.get<vk::ExternalMemoryBufferCreateInfo>().setHandleTypes(vk::ExternalMemoryHandleTypeFlagBits::eHostAllocationEXT);
-			auto bounce_in_mem_requirements{ device->getBufferMemoryRequirements(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&bounce_in_bci.get<vk::BufferCreateInfo>()}})};
-#ifdef _DEBUG
-			std::cout << std::format("bounce_in_mem_requirements:   {}\n", bounce_in_mem_requirements.memoryRequirements.size);
-#endif
-			auto bounce_in_buffer{ label(device, "bounce_in", device->createBufferUnique(bounce_in_bci.get<vk::BufferCreateInfo>()).value) };
-			vk::StructureChain<vk::MemoryAllocateInfo, vk::ImportMemoryHostPointerInfoEXT> bounce_in_ai;
-			bounce_in_ai.get<vk::MemoryAllocateInfo>().allocationSize = bounce_in_mem_requirements.memoryRequirements.size;
-#ifdef _MSC_VER
-			auto host_pointer{ _aligned_malloc(bounce_in_mem_requirements.memoryRequirements.size, physical_device_properties.get<vk::PhysicalDeviceExternalMemoryHostPropertiesEXT>().minImportedHostPointerAlignment ) };
-#else
-			auto host_pointer{ std::aligned_alloc(physical_device_properties.get<vk::PhysicalDeviceExternalMemoryHostPropertiesEXT>().minImportedHostPointerAlignment, bounce_in_mem_requirements.memoryRequirements.size) };
-#endif
-			auto hostPointerProperties{ device->getMemoryHostPointerPropertiesEXT(vk::ExternalMemoryHandleTypeFlagBits::eHostAllocationEXT, host_pointer).value };
-			bounce_in_ai.get<vk::MemoryAllocateInfo>().memoryTypeIndex = static_cast<uint32_t>(
-				std::distance(
-					memory_types.begin(),
-					std::ranges::find_if(
-						memory_types,
-						[&](const VkMemoryType& memoryType)-> bool { return (memoryType.propertyFlags & hostPointerProperties.memoryTypeBits) == hostPointerProperties.memoryTypeBits; }
-					)
-				)
-			);
-			bounce_in_ai.get<vk::ImportMemoryHostPointerInfoEXT>().setHandleType(vk::ExternalMemoryHandleTypeFlagBits::eHostAllocationEXT);
-
-			bounce_in_ai.get<vk::ImportMemoryHostPointerInfoEXT>().setPHostPointer(host_pointer);
-
-			auto bounce_in_memory{ label(device, "bounce_in", device->allocateMemoryUnique(bounce_in_ai.get<vk::MemoryAllocateInfo>()).value) };
-
-			device->bindBufferMemory2({ {
-				.buffer{bounce_in_buffer.get()},
-				.memory{bounce_in_memory.get()},
-				.memoryOffset{0ull},
-			} });
-
-			return std::make_tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory, vk::MemoryRequirements2>(
-				std::move(bounce_in_buffer),
-				std::move(bounce_in_memory),
-				std::move(bounce_in_mem_requirements),
-				host_pointer
-			);
-
-		}
-
-		inline static UniqueDedicatedMemoryBuffer make_buffer_bounce_out(vk::UniqueDevice& device, std::span<uint32_t> queueFamilyIndices, std::span<vk::MemoryType> memory_types) {
-			vk::BufferCreateInfo bounce_out_bci{
-				.size{1024ull * 1024ull},
-				.usage{vk::BufferUsageFlagBits::eTransferDst},
-				.sharingMode{vk::SharingMode::eExclusive},
-				.queueFamilyIndexCount{static_cast<uint32_t>(queueFamilyIndices.size())},
-				.pQueueFamilyIndices{queueFamilyIndices.data()},
-			};
-			auto bounce_out_mem_requirements{ device->getBufferMemoryRequirements(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&bounce_out_bci}}) };
-#ifdef _DEBUG
-			std::cout << std::format("bounce_out_mem_requirements:   {}\n", bounce_out_mem_requirements.memoryRequirements.size);
-#endif
-			auto bounce_out_buffer{ label(device, "bounce_out", device->createBufferUnique(bounce_out_bci).value) };
-			VkMemoryPropertyFlags bounce_out_needed_flags{ VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT };
-			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> bounce_out_ai;
-			bounce_out_ai.get<vk::MemoryAllocateInfo>().allocationSize = bounce_out_mem_requirements.memoryRequirements.size;
-			bounce_out_ai.get<vk::MemoryAllocateInfo>().memoryTypeIndex = static_cast<uint32_t>(
-				std::distance(
-					memory_types.begin(),
-					std::ranges::find_if(
-						memory_types,
-						[&](const VkMemoryType& memoryType)-> bool { return (memoryType.propertyFlags & bounce_out_needed_flags) == bounce_out_needed_flags; }
-					)
-				)
-			);
-			bounce_out_ai.get<vk::MemoryDedicatedAllocateInfo>().buffer = bounce_out_buffer.get();
-			auto bounce_out_memory{ label(device, "bounce_out", device->allocateMemoryUnique(bounce_out_ai.get<vk::MemoryAllocateInfo>()).value) };
-
-			device->bindBufferMemory2({ {
-				.buffer{bounce_out_buffer.get()},
-				.memory{bounce_out_memory.get()},
-				.memoryOffset{0ull},
-			} });
-
-			return std::make_tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory, vk::MemoryRequirements2>(
-				std::move(bounce_out_buffer),
-				std::move(bounce_out_memory),
-				std::move(bounce_out_mem_requirements)
-			);
-
-		}
-
 		inline static vk::UniqueShaderModule make_shader_module(vk::UniqueDevice& device, std::string spv_path) noexcept {
 			MemoryMappedFile mmf_spirv{ spv_path };
 			auto s_spirv{ mmf_spirv.get_span<uint32_t>() };
@@ -249,17 +272,16 @@ namespace vk_route {
 			return shaderModule;
 		}
 
-		inline static void setup_bounce_in(vk::UniqueDevice& device, UniqueHostMemoryBuffer &bounce_in, MemoryMappedFile &mmf_bounce_in) noexcept {
-			std::span<uint8_t> bounce_in_mapped(reinterpret_cast<uint8_t*>(std::get<3>(bounce_in)), std::get<2>(bounce_in).memoryRequirements.size);
+		inline static void setup_bounce_in(vk::UniqueDevice& device, HostMemoryBuffer &bounce_in, MemoryMappedFile &mmf_bounce_in) noexcept {
+			auto bounce_in_mapped{ bounce_in.allocation.get_span<uint8_t>() };
 #ifdef _DEBUG
 			std::cout << std::format("bounce_in_mapped<T> count: {}, bytes: {}\n", bounce_in_mapped.size(), bounce_in_mapped.size_bytes());
 #endif
 			std::ranges::copy(mmf_bounce_in.get_span<uint8_t>(), bounce_in_mapped.begin());
 		}
 
-		inline static void check_bounce_out(vk::UniqueDevice& device, UniqueDedicatedMemoryBuffer& bounce_out) {
-			auto bounce_out_mapped_ptr{ device->mapMemory(std::get<1>(bounce_out).get(), 0ull, VK_WHOLE_SIZE).value };
-			std::span<uint32_t> bounce_out_mapped(reinterpret_cast<uint32_t*>(bounce_out_mapped_ptr), std::get<2>(bounce_out).memoryRequirements.size / sizeof(uint32_t));
+		inline static void check_bounce_out(vk::UniqueDevice& device, HostMemoryBuffer& bounce_out) {
+			auto bounce_out_mapped{ bounce_out.allocation.get_span<uint32_t>() };
 #ifdef _DEBUG
 			std::cout << std::format("bounce_out_mapped<T> count: {}, bytes: {}\n", bounce_out_mapped.size(), bounce_out_mapped.size_bytes());
 #endif
@@ -271,8 +293,6 @@ namespace vk_route {
 				}
 			}
 			if(is_unexpected) std::cout << "\n";
-
-			device->unmapMemory(std::get<1>(bounce_out).get());
 		}
 
 		template<std::size_t binding_count>
@@ -439,7 +459,7 @@ namespace vk_route {
 				}} };
 
 				commandBuffer->copyBuffer2({
-					.srcBuffer{std::get<0>(bounce_in).get()},
+					.srcBuffer{bounce_in.buffer.get()},
 					.dstBuffer{std::get<0>(binding0).get()},
 					.regionCount{a_regions.size()},
 					.pRegions{a_regions.data()},
@@ -506,7 +526,7 @@ namespace vk_route {
 
 				commandBuffer->copyBuffer2({
 					.srcBuffer{std::get<0>(binding1).get()},
-					.dstBuffer{std::get<0>(bounce_out).get()},
+					.dstBuffer{bounce_out.buffer.get()},
 					.regionCount{a_regions.size()},
 					.pRegions{a_regions.data()},
 				});
@@ -569,8 +589,8 @@ namespace vk_route {
 			binding0{ make_binding_buffer(device, queueFamilyIndices, memory_types, 1024ull * 1024ull, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst, "binding0") },
 			binding1{ make_binding_buffer(device, queueFamilyIndices, memory_types, 1024ull * 1024ull, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc, "binding1") },
 			mmf_bounce_in{ "bounce_in.bin" },
-			bounce_in{ make_buffer_bounce_in(device, queueFamilyIndices, memory_types, physical_device_properties) },
-			bounce_out{ make_buffer_bounce_out(device, queueFamilyIndices, memory_types) },
+			bounce_in{ device, queueFamilyIndices, memory_types, physical_device_properties, 1024ull * 1024ull, vk::BufferUsageFlagBits::eTransferSrc, "bounce_in" },
+			bounce_out{ device, queueFamilyIndices, memory_types, physical_device_properties, 1024ull * 1024ull, vk::BufferUsageFlagBits::eTransferDst, "bounce_out" },
 			simple_comp{make_shader_module(device, "simple.comp.glsl.spv")},
 			descriptorSetLayout{make_descriptor_set_layout<binding_count>(device) },
 			pipelineLayout{make_pipeline_layout(device, descriptorSetLayout)},
@@ -590,16 +610,6 @@ namespace vk_route {
 
 			record_command_buffer(commandBuffers.at(0));
 
-		}
-
-		inline ~SingleDevice() {
-			if (std::get<3>(bounce_in)) {
-#ifdef _MSC_VER
-				_aligned_free(std::get<3>(bounce_in));
-#else
-				std::free(std::get<3>(bounce_in));
-#endif
-			}
 		}
 
 		inline std::chrono::nanoseconds do_steps() {
