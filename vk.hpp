@@ -84,6 +84,7 @@ namespace vk_route {
 			deviceCreateInfo.get<vk::DeviceCreateInfo>().setQueueCreateInfoCount(static_cast<uint32_t>(v_queue_create_info.size()));
 			deviceCreateInfo.get<vk::DeviceCreateInfo>().setQueueCreateInfos(v_queue_create_info);
 			deviceCreateInfo.get<vk::PhysicalDeviceVulkan13Features>().setSynchronization2(true);
+			deviceCreateInfo.get<vk::PhysicalDeviceVulkan13Features>().setComputeFullSubgroups(true);
 			std::array<const char* const, 2> enabled_extensions{ "VK_EXT_external_memory_host", "VK_KHR_shader_subgroup_uniform_control_flow" };
 			deviceCreateInfo.get<vk::DeviceCreateInfo>().setPEnabledExtensionNames(enabled_extensions);
 			deviceCreateInfo.get<vk::PhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR>().setShaderSubgroupUniformControlFlow(true);
@@ -371,6 +372,7 @@ namespace vk_route {
 			auto computePipelines{ labels(device, "computePipelines", device->createComputePipelinesUnique(pipelineCache.get(), {{{
 				.flags{vk::PipelineCreateFlagBits::eDispatchBase},
 				.stage{
+					.flags{vk::PipelineShaderStageCreateFlagBits::eRequireFullSubgroups},
 					.stage{vk::ShaderStageFlagBits::eCompute},
 					.module{simple_comp.get()},
 					.pName{"main"},
@@ -667,6 +669,17 @@ namespace vk_route {
 				std::cout << "missing shaderSubgroupUniformControlFlow\n";
 				return;
 			}
+
+			if (!physical_device_features.get<vk::PhysicalDeviceVulkan13Features>().computeFullSubgroups) {
+				std::cout << "missing computeFullSubgroups\n";
+				return;
+			}
+
+			if (!physical_device_features.get<vk::PhysicalDeviceVulkan13Features>().synchronization2) {
+				std::cout << "missing synchronization2\n";
+				return;
+			}
+
 			SingleDevice sd{ physical_device };
 			sd.do_steps();
 		}
