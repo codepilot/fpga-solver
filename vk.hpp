@@ -31,7 +31,7 @@ namespace vk_route {
 		std::vector<vk::UniqueCommandBuffer> commandBuffers;
 		vk::Queue queue;
 
-		inline static constexpr std::size_t general_buffer_size{ 2ull * 1024ull * 1024ull * 1024ull };
+		inline static constexpr std::size_t general_buffer_size{ 1ull * 1024ull * 1024ull * 1024ull };
 
 #if 0
 		inline void updateDescriptorSets() {
