@@ -278,12 +278,17 @@ namespace vk_route {
 			// }
 
 			auto physical_device_properties{ physical_device.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceExternalMemoryHostPropertiesEXT>() };
-			auto physical_device_features{ physical_device.getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan12Features, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR>() };
+			auto physical_device_features{ physical_device.getFeatures2<
+				vk::PhysicalDeviceFeatures2,
+				// vk::PhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR,
+				vk::PhysicalDeviceVulkan11Features,
+				vk::PhysicalDeviceVulkan12Features,
+				vk::PhysicalDeviceVulkan13Features>() };
 
-			if (!physical_device_features.get<vk::PhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR>().shaderSubgroupUniformControlFlow) {
-				std::cout << "missing shaderSubgroupUniformControlFlow\n";
-				return;
-			}
+			// if (!physical_device_features.get<vk::PhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR>().shaderSubgroupUniformControlFlow) {
+			//	std::cout << "missing shaderSubgroupUniformControlFlow\n";
+			//	return;
+			//}
 
 			if (!physical_device_features.get<vk::PhysicalDeviceVulkan13Features>().computeFullSubgroups) {
 				std::cout << "missing computeFullSubgroups\n";

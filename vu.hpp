@@ -172,7 +172,10 @@ namespace vk_route {
 					});
 				});
 
-			vk::StructureChain<vk::DeviceCreateInfo, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR> deviceCreateInfo;
+			vk::StructureChain<
+				vk::DeviceCreateInfo,
+				// vk::PhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR,
+				vk::PhysicalDeviceVulkan13Features> deviceCreateInfo;
 			deviceCreateInfo.get<vk::DeviceCreateInfo>().setQueueCreateInfoCount(static_cast<uint32_t>(v_queue_create_info.size()));
 			deviceCreateInfo.get<vk::DeviceCreateInfo>().setQueueCreateInfos(v_queue_create_info);
 			deviceCreateInfo.get<vk::PhysicalDeviceVulkan13Features>().setSynchronization2(true);
@@ -182,7 +185,7 @@ namespace vk_route {
 			// enabled_extensions.emplace_back("VK_KHR_shader_subgroup_uniform_control_flow");
 
 			deviceCreateInfo.get<vk::DeviceCreateInfo>().setPEnabledExtensionNames(enabled_extensions);
-			deviceCreateInfo.get<vk::PhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR>().setShaderSubgroupUniformControlFlow(true);
+			// deviceCreateInfo.get<vk::PhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR>().setShaderSubgroupUniformControlFlow(true);
 
 			auto device{ physical_device.createDeviceUnique(deviceCreateInfo.get<vk::DeviceCreateInfo>()).value };
 			VULKAN_HPP_DEFAULT_DISPATCHER.init(device.get());
