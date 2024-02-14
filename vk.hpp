@@ -97,90 +97,52 @@ namespace vk_route {
 			return device;
 		}
 
-		inline static UniqueDedicatedMemoryBuffer make_buffer_binding0(vk::UniqueDevice &device, std::span<uint32_t> queueFamilyIndices, std::span<vk::MemoryType> memory_types) {
-			vk::BufferCreateInfo binding0_bci{
-				.size{1024ull * 1024ull},
-				.usage{vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst},
+		inline static UniqueDedicatedMemoryBuffer make_binding_buffer(vk::UniqueDevice& device, std::span<uint32_t> queueFamilyIndices, std::span<vk::MemoryType> memory_types, vk::DeviceSize bufferSize, vk::BufferUsageFlags bufferUsage, std::string bufferLabel) {
+			vk::BufferCreateInfo bci{
+				.size{bufferSize},
+				.usage{bufferUsage},
 				.sharingMode{vk::SharingMode::eExclusive},
 				.queueFamilyIndexCount{static_cast<uint32_t>(queueFamilyIndices.size())},
 				.pQueueFamilyIndices{queueFamilyIndices.data()},
 			};
 
-			auto binding0_mem_requirements{ device->getBufferMemoryRequirements(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&binding0_bci}}) };
+
+			auto mem_requirements{ device->getBufferMemoryRequirements(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&bci}}) };
+
 #ifdef _DEBUG
-			std::cout << std::format("binding0_mem_requirements: {}\n", binding0_mem_requirements.memoryRequirements.size);
+			std::cout << std::format("{} mem_requirements: {}\n", bufferLabel, mem_requirements.memoryRequirements.size);
 #endif
-			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> binding0_ai;
-
-			binding0_ai.get<vk::MemoryAllocateInfo>().allocationSize = binding0_mem_requirements.memoryRequirements.size;
-
-			VkMemoryPropertyFlags binding0_needed_flags{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT };
-			binding0_ai.get<vk::MemoryAllocateInfo>().memoryTypeIndex = static_cast<uint32_t>(
-				std::distance(
-					memory_types.begin(),
-					std::ranges::find_if(
-						memory_types,
-						[&](const VkMemoryType& memoryType)-> bool { return (memoryType.propertyFlags & binding0_needed_flags) == binding0_needed_flags; }
-					)
-				)
-			);
-
-			auto binding0_buffer{ label(device, "binding0", device->createBufferUnique(binding0_bci).value) };
-			binding0_ai.get<vk::MemoryDedicatedAllocateInfo>().buffer = binding0_buffer.get();
 			
-			auto binding0_memory{ label(device, "binding0", device->allocateMemoryUnique(binding0_ai.get<vk::MemoryAllocateInfo>()).value) };
+			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> allocateInfo;
 
-			device->bindBufferMemory2({ {
-				.buffer{binding0_buffer.get()},
-				.memory{binding0_memory.get()},
-				.memoryOffset{0ull},
-			} });
+			allocateInfo.get<vk::MemoryAllocateInfo>().allocationSize = mem_requirements.memoryRequirements.size;
 
-			return std::make_tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory, vk::MemoryRequirements2>(
-				std::move(binding0_buffer),
-				std::move(binding0_memory),
-				std::move(binding0_mem_requirements)
-			);
-		}
-
-		inline static UniqueDedicatedMemoryBuffer make_buffer_binding1(vk::UniqueDevice& device, std::span<uint32_t> queueFamilyIndices, std::span<vk::MemoryType> memory_types) {
-			vk::BufferCreateInfo binding1_bci{
-				.size{1024ull * 1024ull},
-				.usage{vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc},
-				.sharingMode{vk::SharingMode::eExclusive},
-				.queueFamilyIndexCount{static_cast<uint32_t>(queueFamilyIndices.size())},
-				.pQueueFamilyIndices{queueFamilyIndices.data()},
-			};
-
-			auto binding1_mem_requirements{ device->getBufferMemoryRequirements(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&binding1_bci}}) };
-#ifdef _DEBUG
-			std::cout << std::format("binding1_mem_requirements: {}\n", binding1_mem_requirements.memoryRequirements.size);
-#endif
-			auto binding1_buffer{ label(device, "binding1", device->createBufferUnique(binding1_bci).value)};
-			VkMemoryPropertyFlags binding1_needed_flags{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT };
-			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo> binding1_ai;
-			binding1_ai.get<vk::MemoryAllocateInfo>().allocationSize = binding1_mem_requirements.memoryRequirements.size;
-			binding1_ai.get<vk::MemoryAllocateInfo>().memoryTypeIndex = static_cast<uint32_t>(
+			VkMemoryPropertyFlags needed_flags{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT };
+			allocateInfo.get<vk::MemoryAllocateInfo>().memoryTypeIndex = static_cast<uint32_t>(
 				std::distance(
 					memory_types.begin(),
 					std::ranges::find_if(
 						memory_types,
-						[&](const VkMemoryType& memoryType)-> bool { return (memoryType.propertyFlags & binding1_needed_flags) == binding1_needed_flags; }
+						[&](const VkMemoryType& memoryType)-> bool { return (memoryType.propertyFlags & needed_flags) == needed_flags; }
 					)
 				)
 			);
-			binding1_ai.get<vk::MemoryDedicatedAllocateInfo>().buffer = binding1_buffer.get();
-			auto binding1_memory{ label(device, "binding1", device->allocateMemoryUnique(binding1_ai.get<vk::MemoryAllocateInfo>()).value) };
+
+			auto buffer{ label(device, bufferLabel, device->createBufferUnique(bci).value) };
+			allocateInfo.get<vk::MemoryDedicatedAllocateInfo>().setBuffer(buffer.get());
+
+			auto memory{ label(device, bufferLabel, device->allocateMemoryUnique(allocateInfo.get<vk::MemoryAllocateInfo>()).value) };
+
 			device->bindBufferMemory2({ {
-				.buffer{binding1_buffer.get()},
-				.memory{binding1_memory.get()},
+				.buffer{buffer.get()},
+				.memory{memory.get()},
 				.memoryOffset{0ull},
 			} });
 
 			return std::make_tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory, vk::MemoryRequirements2>(
-				std::move(binding1_buffer),
-				std::move(binding1_memory),
-				std::move(binding1_mem_requirements)
+				std::move(buffer),
+				std::move(memory),
+				std::move(mem_requirements)
 			);
 
 		}
@@ -604,8 +566,8 @@ namespace vk_route {
 			queue_families{ physical_device.getQueueFamilyProperties2() },
 			queueFamilyIndices{ make_v_queue_family(queue_families) },
 			device{ create_device(physical_device, queue_families) },
-			binding0{ make_buffer_binding0(device, queueFamilyIndices, memory_types) },
-			binding1{ make_buffer_binding1(device, queueFamilyIndices, memory_types) },
+			binding0{ make_binding_buffer(device, queueFamilyIndices, memory_types, 1024ull * 1024ull, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst, "binding0") },
+			binding1{ make_binding_buffer(device, queueFamilyIndices, memory_types, 1024ull * 1024ull, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc, "binding1") },
 			mmf_bounce_in{ "bounce_in.bin" },
 			bounce_in{ make_buffer_bounce_in(device, queueFamilyIndices, memory_types, physical_device_properties) },
 			bounce_out{ make_buffer_bounce_out(device, queueFamilyIndices, memory_types) },
