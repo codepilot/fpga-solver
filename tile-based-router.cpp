@@ -1,3 +1,9 @@
+#ifndef _DEBUG
+#ifndef NDEBUG
+#define _DEBUG
+#endif
+#endif
+
 #include "tile-based-router.h"
 
 inline static const std::string default_file{ "logicnets_jscl" };
