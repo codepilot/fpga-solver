@@ -1,5 +1,9 @@
 #version 460 core
 
+#ifdef GL_EXT_debug_printf
+#extension GL_EXT_debug_printf : require
+#endif
+
 #ifdef GL_EXT_subgroup_uniform_control_flow
 #extension GL_EXT_subgroup_uniform_control_flow : require
 #endif
@@ -46,4 +50,7 @@ void main()
 {
    uint index = gl_GlobalInvocationID.x;  
    destination[index] = source[index] * multiplicand + OFFSET;
+#ifdef GL_EXT_debug_printf
+   debugPrintfEXT("index: %u, multiplicand: %u, OFFSET: %u\n", index, multiplicand, OFFSET);
+#endif
 }
