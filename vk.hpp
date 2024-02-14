@@ -80,12 +80,13 @@ namespace vk_route {
 				});
 			});
 
-			vk::StructureChain<vk::DeviceCreateInfo, vk::PhysicalDeviceVulkan13Features> deviceCreateInfo;
+			vk::StructureChain<vk::DeviceCreateInfo, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR> deviceCreateInfo;
 			deviceCreateInfo.get<vk::DeviceCreateInfo>().setQueueCreateInfoCount(static_cast<uint32_t>(v_queue_create_info.size()));
 			deviceCreateInfo.get<vk::DeviceCreateInfo>().setQueueCreateInfos(v_queue_create_info);
 			deviceCreateInfo.get<vk::PhysicalDeviceVulkan13Features>().setSynchronization2(true);
-			std::array<const char* const, 1> enabled_extensions{ "VK_EXT_external_memory_host" };
+			std::array<const char* const, 2> enabled_extensions{ "VK_EXT_external_memory_host", "VK_KHR_shader_subgroup_uniform_control_flow" };
 			deviceCreateInfo.get<vk::DeviceCreateInfo>().setPEnabledExtensionNames(enabled_extensions);
+			deviceCreateInfo.get<vk::PhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR>().setShaderSubgroupUniformControlFlow(true);
 
 			auto device{ physical_device.createDeviceUnique(deviceCreateInfo.get<vk::DeviceCreateInfo>()).value };
 			VULKAN_HPP_DEFAULT_DISPATCHER.init(device.get());
