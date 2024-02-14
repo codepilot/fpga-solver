@@ -6,9 +6,9 @@
 #endif
 #endif
 
-#ifdef GL_EXT_subgroup_uniform_control_flow
-#extension GL_EXT_subgroup_uniform_control_flow : require
-#endif
+// #ifdef GL_EXT_subgroup_uniform_control_flow
+// #extension GL_EXT_subgroup_uniform_control_flow : require
+// #endif
 
 #ifdef GL_EXT_maximal_reconvergence
 #extension GL_EXT_maximal_reconvergence : require
@@ -43,9 +43,9 @@ layout (constant_id = 0) const uint OFFSET = 0;
 layout (local_size_x = WORD_GROUP_SIZE_X, local_size_y = WORD_GROUP_SIZE_Y, local_size_z = WORD_GROUP_SIZE_Z) in;
 
 void main()
-#ifdef GL_EXT_subgroup_uniform_control_flow
-[[subgroup_uniform_control_flow]]
-#endif
+// #ifdef GL_EXT_subgroup_uniform_control_flow
+// [[subgroup_uniform_control_flow]]
+// #endif
 #ifdef GL_EXT_maximal_reconvergence
 [[maximally_reconverges]]
 #endif

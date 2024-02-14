@@ -177,10 +177,10 @@ namespace vk_route {
 			deviceCreateInfo.get<vk::DeviceCreateInfo>().setQueueCreateInfos(v_queue_create_info);
 			deviceCreateInfo.get<vk::PhysicalDeviceVulkan13Features>().setSynchronization2(true);
 			deviceCreateInfo.get<vk::PhysicalDeviceVulkan13Features>().setComputeFullSubgroups(true);
-			std::array<const char* const, 2> enabled_extensions{
-				"VK_EXT_external_memory_host",
-				"VK_KHR_shader_subgroup_uniform_control_flow",
-			};
+			std::vector<const char*> enabled_extensions;
+			enabled_extensions.emplace_back("VK_EXT_external_memory_host");
+			// enabled_extensions.emplace_back("VK_KHR_shader_subgroup_uniform_control_flow");
+
 			deviceCreateInfo.get<vk::DeviceCreateInfo>().setPEnabledExtensionNames(enabled_extensions);
 			deviceCreateInfo.get<vk::PhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR>().setShaderSubgroupUniformControlFlow(true);
 

@@ -271,11 +271,11 @@ namespace vk_route {
 
 		inline static void use_physical_device(vk::PhysicalDevice physical_device) noexcept {
 			auto physical_device_extensions{ physical_device.enumerateDeviceExtensionProperties().value };
-			auto contains_VK_KHR_shader_subgroup_uniform_control_flow{ std::ranges::contains(physical_device_extensions, true, [](vk::ExtensionProperties& extensionProperties)->bool { return std::string_view(extensionProperties.extensionName) == "VK_KHR_shader_subgroup_uniform_control_flow"; }) };
-			if (!contains_VK_KHR_shader_subgroup_uniform_control_flow) {
-				std::cout << "missing VK_KHR_shader_subgroup_uniform_control_flow\n";
-				return;
-			}
+			// auto contains_VK_KHR_shader_subgroup_uniform_control_flow{ std::ranges::contains(physical_device_extensions, true, [](vk::ExtensionProperties& extensionProperties)->bool { return std::string_view(extensionProperties.extensionName) == "VK_KHR_shader_subgroup_uniform_control_flow"; }) };
+			// if (!contains_VK_KHR_shader_subgroup_uniform_control_flow) {
+			// 	std::cout << "missing VK_KHR_shader_subgroup_uniform_control_flow\n";
+			// 	return;
+			// }
 
 			auto physical_device_properties{ physical_device.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceExternalMemoryHostPropertiesEXT>() };
 			auto physical_device_features{ physical_device.getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan12Features, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR>() };
