@@ -178,17 +178,19 @@ namespace vk_route {
 			auto types{ std::span(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryTypes).first(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryTypeCount) };
 			auto budgets{ std::span(memory_properties.get<vk::PhysicalDeviceMemoryBudgetPropertiesEXT>().heapBudget).first(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryHeapCount) };
 			auto usages{ std::span(memory_properties.get<vk::PhysicalDeviceMemoryBudgetPropertiesEXT>().heapUsage).first(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryHeapCount) };
-			each<uint32_t>(types, [&](uint32_t type_index, const vk::MemoryType& type) {
-				decltype(auto) heap{ heaps[type.heapIndex] };
-				std::cout << std::format("heap[{}]: size: {:.3f} GiB, budget: {:.3f} GiB, usage: {:.3f} GiB, heapFlags: {}, type[{}]: typeFlags: {} \n",
-					type.heapIndex,
-					std::scalbln(static_cast<double>(heap.size), -30l),
-					std::scalbln(static_cast<double>(budgets[type.heapIndex]), -30l),
-					std::scalbln(static_cast<double>(usages[type.heapIndex]), -30l),
-					vk::to_string(heap.flags),
-					type_index,
-					vk::to_string(type.propertyFlags)
-				);
+			each<uint32_t>(heaps, [&](uint32_t heap_index, const vk::MemoryHeap& heap) {
+				each<uint32_t>(types, [&](uint32_t type_index, const vk::MemoryType& type) {
+					if (heap_index != type.heapIndex) return;
+					std::cout << std::format("heap[{}]: size: {:.3f} GiB, budget: {:.3f} GiB, usage: {:.3f} GiB, heapFlags: {}, type[{}]: typeFlags: {} \n",
+						type.heapIndex,
+						std::scalbln(static_cast<double>(heap.size), -30l),
+						std::scalbln(static_cast<double>(budgets[type.heapIndex]), -30l),
+						std::scalbln(static_cast<double>(usages[type.heapIndex]), -30l),
+						vk::to_string(heap.flags),
+						type_index,
+						vk::to_string(type.propertyFlags)
+					);
+				});
 			});
 			std::cout << std::format("heaps: {}\n", memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryHeapCount);
 			std::cout << std::format("types: {}\n", memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryTypeCount);
