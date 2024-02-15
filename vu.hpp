@@ -246,6 +246,7 @@ namespace vk_route {
 			deviceCreateInfo.get<vk::DeviceCreateInfo>().setQueueCreateInfos(v_queue_create_info);
 			deviceCreateInfo.get<vk::PhysicalDeviceVulkan13Features>().setSynchronization2(true);
 			deviceCreateInfo.get<vk::PhysicalDeviceVulkan13Features>().setComputeFullSubgroups(true);
+			deviceCreateInfo.get<vk::PhysicalDeviceVulkan13Features>().setMaintenance4(true);
 			deviceCreateInfo.get<vk::PhysicalDeviceVulkan12Features>().setBufferDeviceAddress(true);
 			std::vector<const char*> enabled_extensions;
 			enabled_extensions.emplace_back("VK_EXT_external_memory_host");
@@ -323,12 +324,13 @@ namespace vk_route {
 		}
 
 		inline static std::vector<vk::UniquePipeline> make_compute_pipelines(vk::UniqueDevice& device, vk::UniqueShaderModule& simple_comp, vk::UniquePipelineLayout& pipelineLayout, vk::UniquePipelineCache& pipelineCache) noexcept {
-			std::array<vk::SpecializationMapEntry, 1> specializationMapEntries{ {{
-					.constantID{0},
-					.offset{0},
-					.size{sizeof(uint32_t)},
-				}} };
-			std::array<uint32_t, 1> specializationData{ 1 };
+			std::array<vk::SpecializationMapEntry, 4> specializationMapEntries{ {
+				{.constantID{0}, .offset{0}, .size{sizeof(uint32_t)}, },
+				{.constantID{1}, .offset{4}, .size{sizeof(uint32_t)}, },
+				{.constantID{2}, .offset{8}, .size{sizeof(uint32_t)}, },
+				{.constantID{3}, .offset{12}, .size{sizeof(uint32_t)}, },
+			} };
+			std::array<uint32_t, 4> specializationData{ 1024, 1, 1, 1 };
 			vk::SpecializationInfo specializationInfo;
 			specializationInfo.setData<uint32_t>(specializationData);
 			specializationInfo.setMapEntries(specializationMapEntries);

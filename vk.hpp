@@ -31,7 +31,11 @@ namespace vk_route {
 		std::vector<vk::UniqueCommandBuffer> commandBuffers;
 		vk::Queue queue;
 
-		inline static constexpr std::size_t general_buffer_size{ 1ull * 1024ull * 1024ull * 1024ull };
+		inline static constexpr std::size_t general_buffer_size{ 1024ull * 1024ull * 1024ull };
+		inline static constexpr std::size_t workgroup_size{ 1024ull };
+		inline static constexpr std::size_t invocations_needed{ general_buffer_size / workgroup_size / sizeof(uint32_t) };
+		inline static constexpr std::size_t max_dispatch_invocations{ 65536ull };
+		inline static constexpr std::size_t dispatches_needed{ invocations_needed / max_dispatch_invocations };
 
 #if 0
 		inline void updateDescriptorSets() {
@@ -109,7 +113,7 @@ namespace vk_route {
 			commandBuffer->pushConstants(pipelineLayout.get(), vk::ShaderStageFlagBits::eCompute, 0, sizeof(spc), &spc);
 			commandBuffer->resetQueryPool(queryPool.get(), 0, 2);
 			commandBuffer->writeTimestamp2(vk::PipelineStageFlagBits2::eComputeShader, queryPool.get(), 0);
-			commandBuffer->dispatchBase(1, 0, 0, 1, 1, 1);
+			commandBuffer->dispatchBase(0, 0, 0, max_dispatch_invocations, dispatches_needed, 1);
 			commandBuffer->writeTimestamp2(vk::PipelineStageFlagBits2::eComputeShader, queryPool.get(), 1);
 
 			{
@@ -250,7 +254,7 @@ namespace vk_route {
 			std::cout << std::format("bounce_out_mapped<T> count: {}, bytes: {}\n", bounce_out_mapped.size(), bounce_out_mapped.size_bytes());
 #endif
 			bool is_unexpected{ false };
-			for (auto b : bounce_out_mapped.first(512).last(256)) {
+			for (auto b : bounce_out_mapped) {
 				if (b != 0xaaffffac) {
 					std::cout << std::format("{:08x} ", b);
 					is_unexpected = true;

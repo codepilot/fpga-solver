@@ -31,21 +31,10 @@ layout(push_constant) uniform pc_args {
    uint multiplicand;
 };
 
-#ifndef WORD_GROUP_SIZE_X
-#define WORD_GROUP_SIZE_X 256
-#endif
+layout(local_size_x_id = 0, local_size_y_id = 1, local_size_z_id = 2) in;
+layout (constant_id = 3) const uint OFFSET = 0;
 
-#ifndef WORD_GROUP_SIZE_Y
-#define WORD_GROUP_SIZE_Y 1
-#endif
-
-#ifndef WORD_GROUP_SIZE_Z
-#define WORD_GROUP_SIZE_Z 1
-#endif
-
-layout (constant_id = 0) const uint OFFSET = 0;
-
-layout (local_size_x = WORD_GROUP_SIZE_X, local_size_y = WORD_GROUP_SIZE_Y, local_size_z = WORD_GROUP_SIZE_Z) in;
+// layout (local_size_x = WORD_GROUP_SIZE_X, local_size_y = WORD_GROUP_SIZE_Y, local_size_z = WORD_GROUP_SIZE_Z) in;
 
 void main()
 // #ifdef GL_EXT_subgroup_uniform_control_flow
@@ -55,11 +44,13 @@ void main()
 [[maximally_reconverges]]
 #endif
 {
-   uint index = gl_GlobalInvocationID.x;  
+   uint index = gl_GlobalInvocationID.x +
+      gl_GlobalInvocationID.y * gl_NumWorkGroups.x * gl_WorkGroupSize.x;
+
    dst_buf.destination[index] = src_buf.source[index] * multiplicand + OFFSET;
 #ifdef _DEBUG
 #ifdef GL_EXT_debug_printf
-   debugPrintfEXT("index: %u, multiplicand: %u, OFFSET: %u\n", index, multiplicand, OFFSET);
+   // debugPrintfEXT("index: %u, multiplicand: %u, OFFSET: %u\n", index, multiplicand, OFFSET);
 #endif
 #endif
 }
