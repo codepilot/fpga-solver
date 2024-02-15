@@ -279,6 +279,13 @@ namespace vk_route {
 
 		inline static void use_physical_device(vk::PhysicalDevice physical_device) noexcept {
 			auto physical_device_extensions{ physical_device.enumerateDeviceExtensionProperties().value };
+			
+			auto contains_VK_EXT_external_memory_host{ std::ranges::contains(physical_device_extensions, true, [](vk::ExtensionProperties& extensionProperties)->bool { return std::string_view(extensionProperties.extensionName) == "VK_EXT_external_memory_host"; }) };
+			if (!contains_VK_EXT_external_memory_host) {
+				std::cout << "missing VK_EXT_external_memory_host\n";
+				return;
+			}
+
 			// auto contains_VK_KHR_shader_subgroup_uniform_control_flow{ std::ranges::contains(physical_device_extensions, true, [](vk::ExtensionProperties& extensionProperties)->bool { return std::string_view(extensionProperties.extensionName) == "VK_KHR_shader_subgroup_uniform_control_flow"; }) };
 			// if (!contains_VK_KHR_shader_subgroup_uniform_control_flow) {
 			// 	std::cout << "missing VK_KHR_shader_subgroup_uniform_control_flow\n";
