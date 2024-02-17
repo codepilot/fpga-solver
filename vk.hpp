@@ -340,6 +340,11 @@ namespace vk_route {
 				return;
 			}
 
+			if (!physical_device_features.get<vk::PhysicalDeviceVulkan12Features>().bufferDeviceAddress) {
+				std::cout << "missing bufferDeviceAddress\n";
+				return;
+			}
+
 			SingleDevice sd{ physical_device };
 			for (uint64_t step_index{}; step_index < 10; step_index++) {
 				sd.do_steps(step_index);
