@@ -164,15 +164,34 @@ namespace vk_route {
 			vk::StructureChain<vk::MemoryAllocateInfo, vk::ImportMemoryHostPointerInfoEXT> allocateInfo;
 			allocateInfo.get<vk::MemoryAllocateInfo>().setAllocationSize(requirements.memoryRequirements.size);
 			auto hostPointerProperties{ device->getMemoryHostPointerPropertiesEXT(vk::ExternalMemoryHandleTypeFlagBits::eHostAllocationEXT, allocation.pointer).value };
+			std::bitset<32> allowed_types(static_cast<uint64_t>(hostPointerProperties.memoryTypeBits));
+			vk::MemoryPropertyFlags needed_flags{ vk::MemoryPropertyFlagBits::eHostVisible };
+#ifdef _DEBUG
+			for (uint32_t allowed_type_idx = 0; allowed_type_idx < allowed_types.size(); allowed_type_idx++) {
+				if (!allowed_types[allowed_type_idx]) continue;
+				decltype(auto) memoryType{ memory_types[allowed_type_idx] };
+				std::cout << std::format("allowed heap[{}] type[{}] properties: {}\n", memoryType.heapIndex, allowed_type_idx, vk::to_string(memoryType.propertyFlags));
+			}
+#endif
 			allocateInfo.get<vk::MemoryAllocateInfo>().memoryTypeIndex = static_cast<uint32_t>(
 				std::distance(
 					memory_types.begin(),
 					std::ranges::find_if(
 						memory_types,
-						[&](const VkMemoryType& memoryType)-> bool { return (memoryType.propertyFlags & hostPointerProperties.memoryTypeBits) == hostPointerProperties.memoryTypeBits; }
+						[&, memory_type_index = 0u](const vk::MemoryType& memoryType) mutable -> bool {
+							const uint32_t current_memory_type_index{ memory_type_index++ };
+							if (!allowed_types[current_memory_type_index]) return false;
+							return true;
+						}
 					)
 				)
-				);
+			);
+#ifdef _DEBUG
+			std::cout << std::format("heap[{}] type[{}] properties: {}\n",
+				memory_types[allocateInfo.get<vk::MemoryAllocateInfo>().memoryTypeIndex].heapIndex,
+				allocateInfo.get<vk::MemoryAllocateInfo>().memoryTypeIndex,
+				vk::to_string(memory_types[allocateInfo.get<vk::MemoryAllocateInfo>().memoryTypeIndex].propertyFlags));
+#endif
 			allocateInfo.get<vk::ImportMemoryHostPointerInfoEXT>().setHandleType(vk::ExternalMemoryHandleTypeFlagBits::eHostAllocationEXT);
 			allocateInfo.get<vk::ImportMemoryHostPointerInfoEXT>().setPHostPointer(allocation.pointer);
 			return allocateInfo;
