@@ -45,7 +45,7 @@ namespace vk_route {
 		inline static constexpr std::size_t general_buffer_size{ 1024ull * 1024ull * 1024ull };
 		inline static constexpr std::size_t workgroup_size{ 1024ull };
 		inline static constexpr std::size_t invocations_needed{ general_buffer_size / workgroup_size / sizeof(uint32_t) };
-		inline static constexpr std::size_t max_dispatch_invocations{ 65536ull };
+		inline static constexpr std::size_t max_dispatch_invocations{ 512ull };
 		inline static constexpr std::size_t dispatches_needed{ invocations_needed / max_dispatch_invocations };
 
 #if 0
@@ -275,12 +275,12 @@ namespace vk_route {
 		inline void check_bounce_out() const noexcept {
 			auto bounce_out_mapped{ bounce_out.get_span<uint32_t>() };
 			bool is_unexpected{ false };
-			for (auto b : bounce_out_mapped) {
+			each<uint32_t>(bounce_out_mapped, [&](uint32_t bi, uint32_t b) {
 				if (b != 0xaaffffac) {
-					std::cout << std::format("{:08x} ", b);
+					std::cout << std::format("[{}]{:08x} ", bi, b);
 					is_unexpected = true;
 				}
-			}
+			});
 			if (is_unexpected) std::cout << "\n";
 		}
 

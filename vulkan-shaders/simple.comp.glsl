@@ -44,8 +44,8 @@ void main()
 [[maximally_reconverges]]
 #endif
 {
-   uint index = gl_GlobalInvocationID.x +
-      gl_GlobalInvocationID.y * gl_NumWorkGroups.x * gl_WorkGroupSize.x;
+   uint global_width = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
+   uint index = gl_GlobalInvocationID.x + gl_WorkGroupID.y * global_width;
 
    dst_buf.destination[index] = src_buf.source[index] * multiplicand + OFFSET;
 #ifdef _DEBUG
