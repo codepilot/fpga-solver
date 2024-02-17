@@ -6,6 +6,9 @@
 namespace vk_route {
 	class SingleDevice {
 	public:
+		inline static constexpr uint64_t u64_compute_start{ 0ull };
+		inline static constexpr uint64_t u64_compute_done{ 1ull };
+		inline static constexpr uint64_t u64_compute_steps{ 1ull };
 		vk::PhysicalDevice physical_device;
 		vk::StructureChain<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceExternalMemoryHostPropertiesEXT> physical_device_properties;
 		vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan12Features, vk::PhysicalDeviceVulkan13Features> physical_device_features;
@@ -13,6 +16,8 @@ namespace vk_route {
 		std::span<vk::MemoryHeap> memory_heaps;
 		std::span<vk::MemoryType> memory_types;
 		std::vector<vk::QueueFamilyProperties2> queue_families;
+		uint32_t qfi_compute;
+		uint32_t qfi_transfer;
 		std::vector<uint32_t> queueFamilyIndices;
 		vk::UniqueDevice device;
 		DeviceMemoryBuffer binding0;
@@ -28,9 +33,14 @@ namespace vk_route {
 		// vk::UniqueDescriptorPool descriptorPool;
 		// std::vector<vk::UniqueDescriptorSet> descriptorSets;
 		vk::UniqueQueryPool queryPool;
-		vk::UniqueCommandPool commandPool;
-		std::vector<vk::UniqueCommandBuffer> commandBuffers;
-		vk::Queue queue;
+		vk::UniqueCommandPool cp_compute;
+		vk::UniqueCommandPool cp_transfer;
+		std::vector<vk::UniqueCommandBuffer> vcb_compute;
+		std::vector<vk::UniqueCommandBuffer> vcb_transfer_in;
+		std::vector<vk::UniqueCommandBuffer> vcb_transfer_out;
+		std::vector<vk::Queue> compute_queues;
+		std::vector<vk::Queue> transfer_queues;
+		vk::UniqueSemaphore primary_timeline;
 
 		inline static constexpr std::size_t general_buffer_size{ 1024ull * 1024ull * 1024ull };
 		inline static constexpr std::size_t workgroup_size{ 1024ull };
@@ -66,7 +76,7 @@ namespace vk_route {
 		}
 #endif
 
-		inline void record_command_buffer(vk::UniqueCommandBuffer &commandBuffer) noexcept {
+		inline void compute_cb_record(vk::UniqueCommandBuffer &commandBuffer) noexcept {
 			commandBuffer->begin({ .flags{} });
 
 			{
@@ -153,19 +163,24 @@ namespace vk_route {
 			commandBuffer->end();
 		}
 
-		inline void submit() noexcept {
-			std::vector<vk::CommandBuffer> v_command_buffers;
-			v_command_buffers.reserve(commandBuffers.size());
-			std::ranges::transform(commandBuffers, std::back_inserter(v_command_buffers), [](vk::UniqueCommandBuffer& commandBuffer)-> vk::CommandBuffer { return commandBuffer.get(); });
+		inline void submit(uint64_t step_index) noexcept {
+			std::vector<vk::CommandBufferSubmitInfo> command_buffer_submit_infos;
+			command_buffer_submit_infos.reserve(vcb_compute.size());
+			std::ranges::transform(vcb_compute, std::back_inserter(command_buffer_submit_infos), [](vk::UniqueCommandBuffer& commandBuffer)-> vk::CommandBufferSubmitInfo {
+				vk::CommandBufferSubmitInfo submitInfo;
+				submitInfo.setCommandBuffer(commandBuffer.get());
+				return submitInfo;
+			});
 
-			queue.submit({ {{
-				.commandBufferCount{static_cast<uint32_t>(v_command_buffers.size())},
-				.pCommandBuffers{v_command_buffers.data()},
-			}} });
-		}
+			std::array<vk::SemaphoreSubmitInfo, 1> waitSemaphoreSubmitInfo{ {{.semaphore{primary_timeline.get()}, .value{step_index * u64_compute_steps + u64_compute_start}, .stageMask{vk::PipelineStageFlagBits2::eComputeShader | vk::PipelineStageFlagBits2::eCopy }}} };
+			std::array<vk::SemaphoreSubmitInfo, 1> signalSemaphoreSubmitInfo{ {{.semaphore{primary_timeline.get()}, .value{step_index * u64_compute_steps + u64_compute_done}, .stageMask{vk::PipelineStageFlagBits2::eComputeShader | vk::PipelineStageFlagBits2::eCopy}}} };
 
-		inline void waitIdle() noexcept {
-			queue.waitIdle();
+			std::array<vk::SubmitInfo2, 1> submitInfos{};
+			submitInfos.front().setCommandBufferInfos(command_buffer_submit_infos);
+			submitInfos.front().setWaitSemaphoreInfos(waitSemaphoreSubmitInfo);
+			submitInfos.front().setSignalSemaphoreInfos(signalSemaphoreSubmitInfo);
+
+			compute_queues.front().submit2(submitInfos);
 		}
 
 		inline std::vector<uint64_t> get_queries_results() noexcept {
@@ -180,6 +195,9 @@ namespace vk_route {
 		inline void show_features() const noexcept {
 			std::cout << std::format("deviceName {}\n", static_cast<std::string_view>(physical_device_properties.get<vk::PhysicalDeviceProperties2>().properties.deviceName));
 #ifdef _DEBUG
+			for (auto& queue_props : queue_families) {
+				std::cout << std::format("count: {}, flags: {}\n", queue_props.queueFamilyProperties.queueCount, vk::to_string(queue_props.queueFamilyProperties.queueFlags));
+			}
 			std::cout << std::format("synchronization2: {}\n", physical_device_features.get<vk::PhysicalDeviceVulkan13Features>().synchronization2);
 			auto heaps{ std::span(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryHeaps).first(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryHeapCount) };
 			auto types{ std::span(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryTypes).first(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryTypeCount) };
@@ -214,8 +232,10 @@ namespace vk_route {
 			memory_heaps{ std::span(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryHeaps).first(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryHeapCount) },
 			memory_types{ std::span(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryTypes).first(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryTypeCount) },
 			queue_families{ physical_device.getQueueFamilyProperties2() },
-			queueFamilyIndices{ vu::make_v_queue_family(queue_families) },
-			device{ vu::create_device(physical_device, queue_families) },
+			queueFamilyIndices{ qfi_compute, qfi_transfer },
+			qfi_compute{ vu::get_compute_queue_families(queue_families).front() },
+			qfi_transfer{ vu::get_transfer_queue_families(queue_families).front() },
+			device{ vu::create_device(physical_device, queue_families, qfi_compute, qfi_transfer) },
 			binding0{ device, queueFamilyIndices, memory_heaps, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferDst, "binding0" },
 			binding1{ device, queueFamilyIndices, memory_heaps, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc, "binding1" },
 			mmf_bounce_in{ "bounce_in.bin" },
@@ -229,32 +249,31 @@ namespace vk_route {
 			// descriptorPool{ vu::make_descriptor_pool(device, 0)},
 			// descriptorSets{ vu::make_descriptor_sets(device, descriptorSetLayout, descriptorPool) },
 			queryPool{ vu::make_query_pool(device) },
-			commandPool{ vu::make_command_pool(device, queue_families) },
-			commandBuffers{ vu::make_command_buffers(device, commandPool)},
-			queue{ vu::make_queue(device, queue_families)}
+			cp_compute{ label(device, "cp_compute", device->createCommandPoolUnique({.flags{vk::CommandPoolCreateFlagBits::eTransient}, .queueFamilyIndex{qfi_compute} }).value) },
+			cp_transfer{ label(device, "cp_transfer", device->createCommandPoolUnique({.flags{vk::CommandPoolCreateFlagBits::eTransient}, .queueFamilyIndex{qfi_transfer} }).value) },
+			vcb_compute{ labels(device, "vcb_compute", device->allocateCommandBuffersUnique({.commandPool{cp_compute.get()}, .level{vk::CommandBufferLevel::ePrimary}, .commandBufferCount{1}, }).value) },
+			vcb_transfer_in{ labels(device, "vcb_transfer_in", device->allocateCommandBuffersUnique({.commandPool{cp_transfer.get()}, .level{vk::CommandBufferLevel::ePrimary}, .commandBufferCount{1}, }).value) },
+			vcb_transfer_out{ labels(device, "vcb_transfer_out", device->allocateCommandBuffersUnique({.commandPool{cp_transfer.get()}, .level{vk::CommandBufferLevel::ePrimary}, .commandBufferCount{1}, }).value) },
+			compute_queues{ vu::make_queues_from_v_index(device, queue_families, qfi_compute) },
+			transfer_queues{ vu::make_queues_from_v_index(device, queue_families, qfi_transfer) },
+			primary_timeline{ vu::make_timeline_semaphore(device, u64_compute_start) }
 		{
 
 			show_features();
 
 			// updateDescriptorSets();
 
-			record_command_buffer(commandBuffers.at(0));
+			compute_cb_record(vcb_compute.at(0));
 
 		}
 
 		inline void setup_bounce_in() noexcept {
 			auto bounce_in_mapped{ bounce_in.allocation.get_span<uint8_t>() };
-#ifdef _DEBUG
-			std::cout << std::format("bounce_in_mapped<T> count: {}, bytes: {}\n", bounce_in_mapped.size(), bounce_in_mapped.size_bytes());
-#endif
 			std::ranges::copy(mmf_bounce_in.get_span<uint8_t>(), bounce_in_mapped.begin());
 		}
 
 		inline void check_bounce_out() const noexcept {
 			auto bounce_out_mapped{ bounce_out.allocation.get_span<uint32_t>() };
-#ifdef _DEBUG
-			std::cout << std::format("bounce_out_mapped<T> count: {}, bytes: {}\n", bounce_out_mapped.size(), bounce_out_mapped.size_bytes());
-#endif
 			bool is_unexpected{ false };
 			for (auto b : bounce_out_mapped) {
 				if (b != 0xaaffffac) {
@@ -265,17 +284,21 @@ namespace vk_route {
 			if (is_unexpected) std::cout << "\n";
 		}
 
-		inline std::chrono::nanoseconds do_steps() {
+		inline std::chrono::nanoseconds do_steps(uint64_t step_index) {
 			setup_bounce_in();
 
-			submit();
-
-			waitIdle();
+			submit(step_index);
+			vk::SemaphoreWaitInfo semaphoreWaitInfo{};
+			std::array<const vk::Semaphore, 1> waitSemaphores{primary_timeline.get()};
+			std::array<uint64_t, waitSemaphores.size()> waitValues{ step_index * u64_compute_steps + u64_compute_done};
+			semaphoreWaitInfo.setSemaphores(waitSemaphores);
+			semaphoreWaitInfo.setValues(waitValues);
+			device->waitSemaphores(semaphoreWaitInfo, UINT64_MAX);
 
 			check_bounce_out();
 
 			auto run_time{ get_run_time() };
-			std::cout << std::format("query_diff: {}\n", run_time);
+			std::cout << std::format("query_diff: {}\n", std::chrono::duration_cast<std::chrono::milliseconds>(run_time));
 			return run_time;
 		}
 
@@ -318,14 +341,21 @@ namespace vk_route {
 			}
 
 			SingleDevice sd{ physical_device };
-			sd.do_steps();
-			sd.do_steps();
+			for (uint64_t step_index{}; step_index < 10; step_index++) {
+				sd.do_steps(step_index);
+			}
+			// sd.do_steps();
 		}
 	};
 
+	bool bounce_in_bin_exists() {
+		MemoryMappedFile mmf_bounce_in{ "bounce_in.bin" };
+		return mmf_bounce_in.fsize == SingleDevice::general_buffer_size;
+	}
+
 	void init() noexcept {
 		VULKAN_HPP_DEFAULT_DISPATCHER.init();
-		{
+		if(!bounce_in_bin_exists()) {
 			MemoryMappedFile mmf_bounce_in{ "bounce_in.bin", SingleDevice::general_buffer_size };
 			auto s_bounce_in{ mmf_bounce_in.get_span<uint8_t>() };
 			std::ranges::fill(s_bounce_in, 0x55);

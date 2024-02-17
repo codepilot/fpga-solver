@@ -6,6 +6,10 @@
 
 #include <vulkan/vulkan.hpp>
 #include <expected>
+#include <bitset>
+#include <iostream>
+#include "MemoryMappedFile.h"
+#include "each.h"
 
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
@@ -78,9 +82,9 @@ namespace vk_route {
 	public:
 		vk::StructureChain<vk::BufferCreateInfo> bci;
 		vk::StructureChain<vk::MemoryRequirements2, vk::MemoryDedicatedRequirements> requirements;
-		vk::UniqueBuffer buffer;
-		vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo, vk::MemoryAllocateFlagsInfo> allocateInfo;
+		vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryAllocateFlagsInfo> allocateInfo;
 		vk::UniqueDeviceMemory memory;
+		vk::UniqueBuffer buffer;
 		vk::Result bindResult;
 		vk::DeviceAddress address;
 
@@ -89,16 +93,15 @@ namespace vk_route {
 			bci.get<vk::BufferCreateInfo>().setSize(bufferSize);
 			bci.get<vk::BufferCreateInfo>().setUsage(bufferUsage);
 			bci.get<vk::BufferCreateInfo>().setSharingMode(vk::SharingMode::eExclusive);
-			bci.get<vk::BufferCreateInfo>().setQueueFamilyIndices(queueFamilyIndices);
+			// bci.get<vk::BufferCreateInfo>().setQueueFamilyIndices(queueFamilyIndices);
 			return bci;
 		}
 
-		static vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo, vk::MemoryAllocateFlagsInfo> make_allocate_info(
+		static vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryAllocateFlagsInfo> make_allocate_info(
 			vk::UniqueDevice& device,
 			std::span<vk::MemoryHeap> memory_heaps,
 			std::span<vk::MemoryType> memory_types,
-			vk::StructureChain<vk::MemoryRequirements2, vk::MemoryDedicatedRequirements>& requirements,
-			vk::UniqueBuffer &buffer
+			vk::StructureChain<vk::MemoryRequirements2, vk::MemoryDedicatedRequirements>& requirements
 		) noexcept {
 
 			std::bitset<32> allowed_types(static_cast<uint64_t>(requirements.get<vk::MemoryRequirements2>().memoryRequirements.memoryTypeBits));
@@ -117,7 +120,7 @@ namespace vk_route {
 				std::cout << std::format("allowed heap[{}] type[{}] properties: {}\n", memoryType.heapIndex, allowed_type_idx, vk::to_string(memoryType.propertyFlags));
 			}
 #endif
-			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo, vk::MemoryAllocateFlagsInfo> allocateInfo;
+			vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryAllocateFlagsInfo> allocateInfo;
 			allocateInfo.get<vk::MemoryAllocateInfo>().setAllocationSize(requirements.get<vk::MemoryRequirements2>().memoryRequirements.size);
 
 			// VkMemoryPropertyFlags needed_flags{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT };
@@ -142,7 +145,6 @@ namespace vk_route {
 				vk::to_string(memory_types[allocateInfo.get<vk::MemoryAllocateInfo>().memoryTypeIndex].propertyFlags));
 #endif
 			allocateInfo.get<vk::MemoryAllocateFlagsInfo>().setFlags(vk::MemoryAllocateFlagBits::eDeviceAddress);
-			allocateInfo.get<vk::MemoryDedicatedAllocateInfo>().setBuffer(buffer.get());
 			return allocateInfo;
 		}
 
@@ -158,9 +160,9 @@ namespace vk_route {
 		) noexcept :
 			bci{ make_bci(queueFamilyIndices, bufferSize, bufferUsage) },
 			requirements{ device->getBufferMemoryRequirements<vk::MemoryRequirements2, vk::MemoryDedicatedRequirements>(vk::DeviceBufferMemoryRequirements{.pCreateInfo{&bci.get<vk::BufferCreateInfo>()} }) },
-			buffer{ label(device, bufferLabel, device->createBufferUnique(bci.get<vk::BufferCreateInfo>()).value) },
-			allocateInfo{ make_allocate_info(device, memory_heaps, memory_types, requirements, buffer) },
+			allocateInfo{ make_allocate_info(device, memory_heaps, memory_types, requirements) },
 			memory{ label(device, bufferLabel, device->allocateMemoryUnique(allocateInfo.get<vk::MemoryAllocateInfo>()).value) },
+			buffer{ label(device, bufferLabel, device->createBufferUnique(bci.get<vk::BufferCreateInfo>()).value) },
 			bindResult{ device->bindBufferMemory2({ {.buffer{buffer.get()}, .memory{memory.get()}, .memoryOffset{0ull} } }) },
 			address{ device->getBufferAddress({.buffer{buffer.get()}})}
 		{
@@ -184,7 +186,7 @@ namespace vk_route {
 			bci.get<vk::BufferCreateInfo>().setSize(bufferSize);
 			bci.get<vk::BufferCreateInfo>().setUsage(bufferUsage);
 			bci.get<vk::BufferCreateInfo>().setSharingMode(vk::SharingMode::eExclusive);
-			bci.get<vk::BufferCreateInfo>().setQueueFamilyIndices(queueFamilyIndices);
+			// bci.get<vk::BufferCreateInfo>().setQueueFamilyIndices(queueFamilyIndices);
 			bci.get<vk::ExternalMemoryBufferCreateInfo>().setHandleTypes(vk::ExternalMemoryHandleTypeFlagBits::eHostAllocationEXT);
 			return bci;
 		}
@@ -277,22 +279,19 @@ namespace vk_route {
 			return queueFamilyIndices;
 		}
 
-		inline static vk::UniqueDevice create_device(vk::PhysicalDevice physical_device, std::span<vk::QueueFamilyProperties2> queue_families) {
+		inline static vk::UniqueDevice create_device(vk::PhysicalDevice physical_device, std::span<vk::QueueFamilyProperties2> queue_families, uint32_t qfi_compute, uint32_t qfi_transfer) {
 			std::vector<vk::DeviceQueueCreateInfo> v_queue_create_info;
 			std::vector<std::vector<float>> all_queue_priorities;
-			all_queue_priorities.reserve(queue_families.size());
 
 			each<uint32_t>(queue_families, [&](uint32_t queue_family_idx, VkQueueFamilyProperties2& queue_familiy_properties) {
-				if ((queue_familiy_properties.queueFamilyProperties.queueFlags & VkQueueFlagBits::VK_QUEUE_COMPUTE_BIT) != VK_QUEUE_COMPUTE_BIT) {
-					return;
-				}
+				if (queue_family_idx != qfi_compute && queue_family_idx != qfi_transfer) return;
 				decltype(auto) queue_priorities{ all_queue_priorities.emplace_back(std::vector<float>(static_cast<size_t>(queue_familiy_properties.queueFamilyProperties.queueCount), 1.0f)) };
 				v_queue_create_info.emplace_back(vk::DeviceQueueCreateInfo{
 					.queueFamilyIndex{queue_family_idx},
 					.queueCount{queue_familiy_properties.queueFamilyProperties.queueCount},
 					.pQueuePriorities{queue_priorities.data()},
-					});
 				});
+			});
 
 			vk::StructureChain<
 				vk::DeviceCreateInfo,
@@ -305,6 +304,7 @@ namespace vk_route {
 			deviceCreateInfo.get<vk::PhysicalDeviceVulkan13Features>().setComputeFullSubgroups(true);
 			deviceCreateInfo.get<vk::PhysicalDeviceVulkan13Features>().setMaintenance4(true);
 			deviceCreateInfo.get<vk::PhysicalDeviceVulkan12Features>().setBufferDeviceAddress(true);
+			deviceCreateInfo.get<vk::PhysicalDeviceVulkan12Features>().setTimelineSemaphore(true);
 			std::vector<const char*> enabled_extensions;
 			enabled_extensions.emplace_back("VK_EXT_external_memory_host");
 			// enabled_extensions.emplace_back("VK_KHR_shader_subgroup_uniform_control_flow");
@@ -443,29 +443,82 @@ namespace vk_route {
 				}).value);
 		}
 
-		inline static uint32_t selectQueueFamilyIndex(std::span<vk::QueueFamilyProperties2> queue_families) {
-			return static_cast<uint32_t>(std::distance(queue_families.begin(), std::ranges::find(queue_families, VK_QUEUE_COMPUTE_BIT, [](VkQueueFamilyProperties2& props)-> VkQueueFlagBits {
-				return std::bit_cast<VkQueueFlagBits>(props.queueFamilyProperties.queueFlags & VK_QUEUE_COMPUTE_BIT);
-				})));
+		inline static vk::UniqueCommandPool make_command_pool(vk::UniqueDevice& device, uint32_t queueFamilyIndex) noexcept {
+			return label(device, "commandPool", device->createCommandPoolUnique({ .flags{vk::CommandPoolCreateFlagBits::eTransient}, .queueFamilyIndex{queueFamilyIndex} }).value);
 		}
 
-		inline static vk::UniqueCommandPool make_command_pool(vk::UniqueDevice& device, std::span<vk::QueueFamilyProperties2> queue_families) noexcept {
-			return label(device, "commandPool", device->createCommandPoolUnique({ .queueFamilyIndex{selectQueueFamilyIndex(queue_families)} }).value);
-		}
-
-		inline static auto make_command_buffers(vk::UniqueDevice& device, vk::UniqueCommandPool& commandPool) noexcept {
+		inline static std::vector<vk::UniqueCommandBuffer> make_command_buffers(vk::UniqueDevice& device, vk::UniqueCommandPool& commandPool) noexcept {
 			return labels(device, "commandBuffers", device->allocateCommandBuffersUnique({
 				.commandPool{commandPool.get()},
 				.level{vk::CommandBufferLevel::ePrimary},
 				.commandBufferCount{1},
-				}).value);
+			}).value);
 		}
 
-		inline static vk::Queue make_queue(vk::UniqueDevice& device, std::span<vk::QueueFamilyProperties2> queue_families) noexcept {
-			return device->getQueue2({
-				.queueFamilyIndex{selectQueueFamilyIndex(queue_families)},
-				.queueIndex{0},
-				});
+		inline static std::vector<uint32_t> get_graphics_queue_families(std::span<vk::QueueFamilyProperties2> queue_families) noexcept {
+			std::vector<uint32_t> v_queue_family;
+			each<uint32_t>(queue_families, [&](uint32_t queue_family_index, vk::QueueFamilyProperties2& properties) {
+				if ((properties.queueFamilyProperties.queueFlags & vk::QueueFlagBits::eGraphics) == vk::QueueFlagBits::eGraphics) {
+					v_queue_family.emplace_back(queue_family_index);
+				}
+			});
+			return v_queue_family;
+		}
+
+		inline static std::vector<uint32_t> get_compute_queue_families(std::span<vk::QueueFamilyProperties2> queue_families) noexcept {
+			std::vector<uint32_t> v_queue_family;
+			static constexpr auto mask_graphics_compute{ vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute };
+			each<uint32_t>(queue_families, [&](uint32_t queue_family_index, vk::QueueFamilyProperties2& properties) {
+				if ((properties.queueFamilyProperties.queueFlags & mask_graphics_compute) == vk::QueueFlagBits::eCompute) {
+					v_queue_family.emplace_back(queue_family_index);
+				}
+			});
+			if (!v_queue_family.empty()) return v_queue_family;
+			return get_graphics_queue_families(queue_families);
+		}
+
+		inline static std::vector<uint32_t> get_transfer_queue_families(std::span<vk::QueueFamilyProperties2> queue_families) noexcept {
+			std::vector<uint32_t> queue_family;
+			static constexpr auto mask_graphics_compute{ vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute | vk::QueueFlagBits::eTransfer };
+			each<uint32_t>(queue_families, [&](uint32_t queue_family_index, vk::QueueFamilyProperties2& properties) {
+				if ((properties.queueFamilyProperties.queueFlags & mask_graphics_compute) == vk::QueueFlagBits::eTransfer) {
+					queue_family.emplace_back(queue_family_index);
+				}
+			});
+			if (!queue_family.empty()) return queue_family;
+			return get_compute_queue_families(queue_families);
+		}
+
+		inline static std::vector<vk::Queue> make_queues_from_v_index(vk::UniqueDevice& device, std::span<vk::QueueFamilyProperties2> queue_families, uint32_t queueFamilyIndex) {
+			// uint32_t queueFamilyIndex{ v_queue_index.front() };
+			decltype(auto) queueFamily{ queue_families[queueFamilyIndex] };
+			std::vector<vk::Queue> queues;
+
+#ifdef _DEBUG
+			std::cout << std::format("make {} queues {}\n", queueFamily.queueFamilyProperties.queueCount, vk::to_string(queueFamily.queueFamilyProperties.queueFlags));
+#endif
+			for (uint32_t queueIndex = 0; queueIndex < queueFamily.queueFamilyProperties.queueCount; ++queueIndex) {
+				queues.emplace_back(device->getQueue2({ .queueFamilyIndex{queueFamilyIndex}, .queueIndex{queueIndex} }));
+			}
+
+			return queues;
+		}
+
+		inline static std::vector<vk::Queue> make_compute_queues(vk::UniqueDevice& device, std::span<vk::QueueFamilyProperties2> queue_families) noexcept {
+			std::vector<uint32_t> v_queue_index{ get_compute_queue_families(queue_families) };
+			return make_queues_from_v_index(device, queue_families, v_queue_index.front());
+		}
+
+		inline static std::vector<vk::Queue> make_transfer_queues(vk::UniqueDevice& device, std::span<vk::QueueFamilyProperties2> queue_families) noexcept {
+			std::vector<uint32_t> v_queue_index{ get_transfer_queue_families(queue_families) };
+			return make_queues_from_v_index(device, queue_families, v_queue_index.front());
+		}
+
+		inline static vk::UniqueSemaphore make_timeline_semaphore(vk::UniqueDevice& device, uint64_t initial_value=0) noexcept {
+			vk::StructureChain<vk::SemaphoreCreateInfo, vk::SemaphoreTypeCreateInfo> createInfo;
+			createInfo.get<vk::SemaphoreTypeCreateInfo>().setSemaphoreType(vk::SemaphoreType::eTimeline);
+			createInfo.get<vk::SemaphoreTypeCreateInfo>().setInitialValue(initial_value);
+			return device->createSemaphoreUnique(createInfo.get<vk::SemaphoreCreateInfo>()).value;
 		}
 
 	};
