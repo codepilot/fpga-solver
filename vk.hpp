@@ -10,6 +10,7 @@ namespace vk_route {
 		vk::StructureChain<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceExternalMemoryHostPropertiesEXT> physical_device_properties;
 		vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan12Features, vk::PhysicalDeviceVulkan13Features> physical_device_features;
 		vk::StructureChain<vk::PhysicalDeviceMemoryProperties2, vk::PhysicalDeviceMemoryBudgetPropertiesEXT> memory_properties;
+		std::span<vk::MemoryHeap> memory_heaps;
 		std::span<vk::MemoryType> memory_types;
 		std::vector<vk::QueueFamilyProperties2> queue_families;
 		std::vector<uint32_t> queueFamilyIndices;
@@ -210,15 +211,16 @@ namespace vk_route {
 			physical_device_properties{ physical_device.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceExternalMemoryHostPropertiesEXT>() },
 			physical_device_features{ physical_device.getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan12Features, vk::PhysicalDeviceVulkan13Features>() },
 			memory_properties{ physical_device.getMemoryProperties2<vk::PhysicalDeviceMemoryProperties2, vk::PhysicalDeviceMemoryBudgetPropertiesEXT>() },
+			memory_heaps{ std::span(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryHeaps).first(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryHeapCount) },
 			memory_types{ std::span(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryTypes).first(memory_properties.get<vk::PhysicalDeviceMemoryProperties2>().memoryProperties.memoryTypeCount) },
 			queue_families{ physical_device.getQueueFamilyProperties2() },
 			queueFamilyIndices{ vu::make_v_queue_family(queue_families) },
 			device{ vu::create_device(physical_device, queue_families) },
-			binding0{ device, queueFamilyIndices, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferDst, "binding0" },
-			binding1{ device, queueFamilyIndices, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc, "binding1" },
+			binding0{ device, queueFamilyIndices, memory_heaps, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferDst, "binding0" },
+			binding1{ device, queueFamilyIndices, memory_heaps, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc, "binding1" },
 			mmf_bounce_in{ "bounce_in.bin" },
-			bounce_in{ device, queueFamilyIndices, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eTransferSrc, "bounce_in" },
-			bounce_out{ device, queueFamilyIndices, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eTransferDst, "bounce_out" },
+			bounce_in{ device, queueFamilyIndices, memory_heaps, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eTransferSrc, "bounce_in" },
+			bounce_out{ device, queueFamilyIndices, memory_heaps, memory_types, physical_device_properties, general_buffer_size, vk::BufferUsageFlagBits::eTransferDst, "bounce_out" },
 			simple_comp{ vu::make_shader_module(device, "simple.comp.glsl.spv")},
 			descriptorSetLayout{ vu::make_descriptor_set_layout<0>(device) },
 			pipelineLayout{ vu::make_pipeline_layout(device, descriptorSetLayout)},
