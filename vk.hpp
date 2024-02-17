@@ -268,12 +268,12 @@ namespace vk_route {
 		}
 
 		inline void setup_bounce_in() noexcept {
-			auto bounce_in_mapped{ bounce_in.allocation.get_span<uint8_t>() };
+			auto bounce_in_mapped{ bounce_in.get_span<uint8_t>() };
 			std::ranges::copy(mmf_bounce_in.get_span<uint8_t>(), bounce_in_mapped.begin());
 		}
 
 		inline void check_bounce_out() const noexcept {
-			auto bounce_out_mapped{ bounce_out.allocation.get_span<uint32_t>() };
+			auto bounce_out_mapped{ bounce_out.get_span<uint32_t>() };
 			bool is_unexpected{ false };
 			for (auto b : bounce_out_mapped) {
 				if (b != 0xaaffffac) {
@@ -305,11 +305,11 @@ namespace vk_route {
 		inline static void use_physical_device(vk::PhysicalDevice physical_device) noexcept {
 			auto physical_device_extensions{ physical_device.enumerateDeviceExtensionProperties().value };
 			
-			auto contains_VK_EXT_external_memory_host{ std::ranges::contains(physical_device_extensions, true, [](vk::ExtensionProperties& extensionProperties)->bool { return std::string_view(extensionProperties.extensionName) == "VK_EXT_external_memory_host"; }) };
-			if (!contains_VK_EXT_external_memory_host) {
-				std::cout << "missing VK_EXT_external_memory_host\n";
-				return;
-			}
+			// auto contains_VK_EXT_external_memory_host{ std::ranges::contains(physical_device_extensions, true, [](vk::ExtensionProperties& extensionProperties)->bool { return std::string_view(extensionProperties.extensionName) == "VK_EXT_external_memory_host"; }) };
+			// if (!contains_VK_EXT_external_memory_host) {
+			// 	std::cout << "missing VK_EXT_external_memory_host\n";
+			// 	return;
+			// }
 
 			// auto contains_VK_KHR_shader_subgroup_uniform_control_flow{ std::ranges::contains(physical_device_extensions, true, [](vk::ExtensionProperties& extensionProperties)->bool { return std::string_view(extensionProperties.extensionName) == "VK_KHR_shader_subgroup_uniform_control_flow"; }) };
 			// if (!contains_VK_KHR_shader_subgroup_uniform_control_flow) {
