@@ -542,6 +542,10 @@ namespace xcvu3p {
 	}
 
 	static auto make_pip_paths() {
+		{
+			MemoryMappedFile mmf_intra_tile_paths{ "intra_tile_paths.bin" };
+			if (mmf_intra_tile_paths.fsize > 0) return true;
+		}
 		std::atomic<uint64_t> total_ends;
 		std::atomic<uint64_t> max_v_size{ 800000 };
 
