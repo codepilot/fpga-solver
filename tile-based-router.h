@@ -240,8 +240,8 @@ namespace xcvu3p {
 		const std::bitset<max_tile_wire_count>& inbound_only_wires,
 		const std::bitset<max_tile_wire_count>& outbound_only_wires,
 		const std::bitset<max_tile_wire_count>& bidirectional_wires,
-		std::bitset<max_tile_wire_count> &reachable_wires,
-		std::map<uint16_t, std::unordered_set<std::bitset<max_tile_wire_count>>> &map_all_paths
+		std::bitset<max_tile_wire_count> &reachable_wires//,
+		//std::map<uint16_t, std::unordered_set<std::bitset<max_tile_wire_count>>> &map_all_paths
 	) noexcept {
 
 		std::vector<wire_pip_node> ret;
@@ -252,8 +252,8 @@ namespace xcvu3p {
 		}
 		// std::cout << std::format("{} ", c_wpn.wire_id);
 		auto touched_wires(get_touched_wires(cn, s_wpn));
-		decltype(auto) found_paths{ map_all_paths[c_wpn.wire_id] };
 #if 0
+		decltype(auto) found_paths{ map_all_paths[c_wpn.wire_id] };
 		if (false)
 			for (auto found_path : found_paths) {
 				if (std::ranges::includes(touched_wires, found_path)) {
@@ -266,10 +266,10 @@ namespace xcvu3p {
 					abort();
 				}
 			}
+		found_paths.insert(touched_wires);
 #endif
 
 		// all_paths.insert(touched_wires);
-		found_paths.insert(touched_wires);
 
 		if (c_wpn.head_reachable_wires.none()) abort();
 		if (depth != touched_wires.count()) {
@@ -324,9 +324,11 @@ namespace xcvu3p {
 	) noexcept {
 		if (!outbound_only_wires.test(oi)) return;
 		std::vector<wire_pip_node> wpn(1, make_init_wire_pip_node(oi, pipsByWire));
-		size_t depth{};
-		std::map<uint16_t, std::unordered_set<std::bitset<max_tile_wire_count>>> map_all_paths;
 		std::vector<uint64_t> ends;
+		wpn.reserve(max_v_size.load());
+		ends.reserve(max_v_size.load());
+		size_t depth{};
+		// std::map<uint16_t, std::unordered_set<std::bitset<max_tile_wire_count>>> map_all_paths;
 		std::bitset<max_tile_wire_count> reachable_wires;
 		for (size_t cn{}; cn < wpn.size(); cn++) {
 			wpn.append_range(grow_head(
@@ -339,12 +341,12 @@ namespace xcvu3p {
 				inbound_only_wires,
 				outbound_only_wires,
 				bidirectional_wires,
-				reachable_wires,
-				map_all_paths
+				reachable_wires
+				/*map_all_paths*/
 			));
 		}
 		auto my_total_ends{ total_ends.fetch_add(ends.size()) };
-		if (depth > 10)
+		// if (depth > 10)
 			std::cout << std::format("total_ends:{:6.2f}M {} bidi:{} depth:{} wpn:{} ends:{} reachable:{}\n",
 				std::scalbln(static_cast<double>(my_total_ends), -20), strs[tile_type_wires[oi]].cStr(),
 				bidirectional_wire_count,
@@ -493,7 +495,7 @@ namespace xcvu3p {
 	static auto make_pip_paths() {
 		std::atomic<uint64_t> total_ends;
 		std::atomic<uint64_t> max_depth;
-		std::atomic<uint64_t> max_v_size;
+		std::atomic<uint64_t> max_v_size{ 800000 };
 
 		std::vector<intra_tile_path> v_intra_tile_paths(max_intra_tile_path_count);
 		std::atomic<uint64_t> intra_tile_path_offset;
