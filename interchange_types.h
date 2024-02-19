@@ -42,3 +42,4 @@ using string_list_reader = ::capnp::List< ::capnp::Text, ::capnp::Kind::BLOB>::R
 using string_reader = ::capnp::Text::Reader;
 using device_reader = ::DeviceResources::Device::Reader;
 using phys_reader = ::PhysicalNetlist::PhysNetlist::Reader;
+using uint32_list_reader = ::capnp::List< ::uint32_t, ::capnp::Kind::PRIMITIVE>::Reader;
