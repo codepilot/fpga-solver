@@ -149,8 +149,89 @@ namespace xcvu3p {
 		};
 	}
 
+	static std::bitset<max_tile_wire_count> get_touched_wires(size_t cn, std::span<wire_pip_node> s_wpn) noexcept {
+		std::bitset<max_tile_wire_count> touched_wires;
+		for (auto pt{ cn }; pt != UINT64_MAX; pt = s_wpn[pt].parent) {
+			if (touched_wires.test(s_wpn[pt].wire_id)) abort();
+			touched_wires.set(s_wpn[pt].wire_id);
+		}
+		return touched_wires;
+	}
+
+	static std::optional<wire_pip_node> get_reachable_wire(
+		const size_t cn,
+		const uint16_t head_reachable_wire,
+		const wire_pip_node &c_wpn,
+		const std::bitset<max_tile_wire_count>& inbound_only_wires,
+		const std::bitset<max_tile_wire_count>& outbound_only_wires,
+		const std::bitset<max_tile_wire_count>& bidirectional_wires,
+		const std::bitset<max_tile_wire_count>& touched_wires,
+		const PipsByWire& pipsByWire,
+		std::vector<uint64_t>& ends,
+		std::bitset<max_tile_wire_count>& reachable_wires
+	) noexcept {
+		if (!c_wpn.head_reachable_wires.test(head_reachable_wire)) return std::nullopt;
+		if (outbound_only_wires.test(head_reachable_wire)) {
+			abort();
+		}
+		if (touched_wires.test(head_reachable_wire)) return std::nullopt;
+
+		if (inbound_only_wires.test(head_reachable_wire)) {
+			//if (found_paths.contains(touched_wires)) {
+			//	abort();
+			//	continue;
+			//}
+			// all_paths.insert(touched_wires);
+			// found_paths.insert(touched_wires);
+			ends.emplace_back(cn);
+			reachable_wires.set(head_reachable_wire);
+
+			// wpn[cn].children.emplace_back(static_cast<uint32_t>(wpn.size()));
+			return wire_pip_node{
+				.wire_id{ head_reachable_wire },
+				.parent{ static_cast<uint64_t>(cn) },
+			};
+		}
+
+		std::span<const PIP_SORTED_BY_WIRE1> pip_range{
+			std::ranges::equal_range(
+				pipsByWire.pips_by_wire1,
+				PIP_SORTED_BY_WIRE1{.wire0{0}, .wire1{static_cast<uint16_t>(head_reachable_wire)} },
+				[](const PIP_SORTED_BY_WIRE1 a, const PIP_SORTED_BY_WIRE1 b)-> bool { return a.wire1 < b.wire1; }
+			)
+		};
+		std::bitset<max_tile_wire_count> n_reachable{ c_wpn.all_reachable_wires };
+		std::bitset<max_tile_wire_count> n_head_reachable;
+		bool added_reachable{ false };
+		for (const PIP_SORTED_BY_WIRE1& pipn : pip_range) {
+			//auto [_, is_added] = n_reachable.insert(pipn.wire0);
+			//added_reachable = added_reachable || is_added;
+
+			if (!n_reachable.test(pipn.wire0)) {
+				n_head_reachable.set(pipn.wire0);
+				n_reachable.set(pipn.wire0);
+				added_reachable = true;
+			}
+		}
+		//if (std::ranges::includes(c_wpn.reachable_wires, n_reachable)) {
+		//	continue;
+		//}
+		if ((!added_reachable) && bidirectional_wires.test(head_reachable_wire)) {
+			return std::nullopt;
+		}
+
+		// wpn[cn].children.emplace_back(static_cast<uint32_t>(wpn.size()));
+
+		return wire_pip_node{
+			.wire_id{ head_reachable_wire },
+			.parent{ static_cast<uint64_t>(cn) },
+			.all_reachable_wires{std::move(n_reachable)},
+			.head_reachable_wires{std::move(n_head_reachable)},
+		};
+	}
+
 	static std::vector<wire_pip_node> grow_head(
-		size_t cn,
+		const size_t cn,
 		std::span<wire_pip_node> s_wpn,
 		std::vector<uint64_t> &ends,
 		size_t &depth,
@@ -165,16 +246,12 @@ namespace xcvu3p {
 
 		std::vector<wire_pip_node> ret;
 
-		const wire_pip_node c_wpn{ s_wpn[cn] };
+		const wire_pip_node &c_wpn{ s_wpn[cn] };
 		if (inbound_only_wires.test(c_wpn.wire_id)) {
 			return ret;
 		}
 		// std::cout << std::format("{} ", c_wpn.wire_id);
-		std::bitset<max_tile_wire_count> touched_wires;
-		for (auto pt{ cn }; pt != UINT64_MAX; pt = s_wpn[pt].parent) {
-			if (touched_wires.test(s_wpn[pt].wire_id)) abort();
-			touched_wires.set(s_wpn[pt].wire_id);
-		}
+		auto touched_wires(get_touched_wires(cn, s_wpn));
 		decltype(auto) found_paths{ map_all_paths[c_wpn.wire_id] };
 #if 0
 		if (false)
@@ -212,65 +289,20 @@ namespace xcvu3p {
 		// if (touched_wires.count() >= 15) continue;
 
 		for (uint16_t head_reachable_wire{}; head_reachable_wire < c_wpn.head_reachable_wires.size(); head_reachable_wire++) {
-			if (!c_wpn.head_reachable_wires.test(head_reachable_wire)) continue;
-			if (outbound_only_wires.test(head_reachable_wire)) {
-				abort();
-			}
-			if (touched_wires.test(head_reachable_wire)) continue;
-
-			if (inbound_only_wires.test(head_reachable_wire)) {
-				//if (found_paths.contains(touched_wires)) {
-				//	abort();
-				//	continue;
-				//}
-				// all_paths.insert(touched_wires);
-				// found_paths.insert(touched_wires);
-				ends.emplace_back(cn);
-				reachable_wires.set(head_reachable_wire);
-
-				// wpn[cn].children.emplace_back(static_cast<uint32_t>(wpn.size()));
-				ret.emplace_back(wire_pip_node{
-					.wire_id{ head_reachable_wire },
-					.parent{ static_cast<uint64_t>(cn) },
-				});
-				continue;
-			}
-
-			std::span<const PIP_SORTED_BY_WIRE1> pip_range{
-				std::ranges::equal_range(
-					pipsByWire.pips_by_wire1,
-					PIP_SORTED_BY_WIRE1{.wire0{0}, .wire1{static_cast<uint16_t>(head_reachable_wire)} },
-					[](const PIP_SORTED_BY_WIRE1 a, const PIP_SORTED_BY_WIRE1 b)-> bool { return a.wire1 < b.wire1; }
-				)
-			};
-			std::bitset<max_tile_wire_count> n_reachable{ c_wpn.all_reachable_wires };
-			std::bitset<max_tile_wire_count> n_head_reachable;
-			bool added_reachable{ false };
-			for (const PIP_SORTED_BY_WIRE1& pipn : pip_range) {
-				//auto [_, is_added] = n_reachable.insert(pipn.wire0);
-				//added_reachable = added_reachable || is_added;
-
-				if (!n_reachable.test(pipn.wire0)) {
-					n_head_reachable.set(pipn.wire0);
-					n_reachable.set(pipn.wire0);
-					added_reachable = true;
-				}
-			}
-			//if (std::ranges::includes(c_wpn.reachable_wires, n_reachable)) {
-			//	continue;
-			//}
-			if ((!added_reachable) && bidirectional_wires.test(head_reachable_wire)) {
-				continue;
-			}
-
-			// wpn[cn].children.emplace_back(static_cast<uint32_t>(wpn.size()));
-
-			ret.emplace_back(wire_pip_node{
-				.wire_id{ head_reachable_wire },
-				.parent{ static_cast<uint64_t>(cn) },
-				.all_reachable_wires{std::move(n_reachable)},
-				.head_reachable_wires{std::move(n_head_reachable)},
-			});
+			auto reachable_wire{ get_reachable_wire(
+				cn,
+				head_reachable_wire,
+				c_wpn,
+				inbound_only_wires,
+				outbound_only_wires,
+				bidirectional_wires,
+				touched_wires,
+				pipsByWire,
+				ends,
+				reachable_wires
+			) };
+			if (!reachable_wire) continue;
+			ret.emplace_back(reachable_wire.value());
 		}
 		return ret;
 	}
