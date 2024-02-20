@@ -31,9 +31,12 @@ struct sv_u16v2 {
 
 namespace xcvu3p {
 
-	struct flat_span {
+	class flat_span {
+	public:
 		uint16_t count;
 		int32_t index;
+		inline constexpr bool empty() const noexcept { return !count; }
+		inline constexpr size_t size() const noexcept { return count; }
 	};
 
 	class SpanIndexCount {
@@ -50,57 +53,6 @@ namespace xcvu3p {
 		}
 		inline size_t size() const noexcept { return s_u32_index.size(); }
 		inline bool empty() const noexcept { return !size(); }
-#if 0
-		inline SpanIndexCount subscript(const SpanIndexCount& sic, uint16_t index) const {
-			if (!size()) {
-				return SpanIndexCount{};
-			}
-			if (index >= size()) {
-				std::cout << std::format("index({}) >= size({})\n", index, size());
-				return SpanIndexCount{};
-				// abort();
-			}
-			// std::cout << std::format("index({}) < size({})\n", index, size());
-			const int32_t sub_index{ s_u32_index[index] };
-			const uint16_t sub_count{ s_u16_count[index] };
-
-			if (!sub_count) return SpanIndexCount{};
-			if (sub_count && (sub_index + sub_count > sic.size())) {
-				std::cout << std::format("sub_index({}) + sub_count({}) > sic.size({})\n", sub_index, sub_count, sic.size());
-				return SpanIndexCount{};
-				// abort();
-			}
-			// std::cout << std::format("sub_index({}) + sub_count({}) <= sic.size({})\n", sub_index, sub_count, sic.size());
-			return SpanIndexCount{
-				.s_u32_index{sic.s_u32_index.subspan(sub_index, sub_count)},
-				.s_u16_count{sic.s_u16_count.subspan(sub_index, sub_count)}
-			};
-		}
-#endif
-#if 0
-		template<typename T>
-		inline std::span<T> subscript(const std::span<T>& sv, uint16_t index) const {
-			if (!size()) {
-				return std::span<T>{};
-			}
-			if (index >= size()) {
-				std::cout << std::format("index({}) >= size({})\n", index, size());
-				return std::span<T>{};
-				// abort();
-			}
-			// std::cout << std::format("index({}) < size({})\n", index, size());
-			const int32_t sub_index{ s_u32_index[index] };
-			const uint16_t sub_count{ s_u16_count[index] };
-			if (!sub_count) return std::span<T>{};
-			if (sub_count && (sub_index + sub_count > sv.size())) {
-				std::cout << std::format("sub_index({}) + sub_count({}) > sv.size({})\n", sub_index, sub_count, sv.size());
-				return std::span<T>{};
-				// abort();
-			}
-			// std::cout << std::format("sub_index({}) + sub_count({}) <= sv.size({})\n", sub_index, sub_count, sv.size());
-			return sv.subspan(sub_index, sub_count);
-		}
-#endif
 	};
 
 	class FlatPipPaths {
@@ -133,68 +85,82 @@ namespace xcvu3p {
 		const MemoryMappedFile mmf_flat_wires_u16_index{ "flat_wires_u16_index.bin" };
 		const std::span<uint16_t> s_flat_wires_u16_index{ mmf_flat_wires_u16_index.get_span<uint16_t>() };
 
-#if 0
-		inline SpanIndexCount subscript(uint16_t tileTypeIdx) const noexcept {
-			return flat_tree.subscript(flat_tile, tileTypeIdx);
+		class Subscript1 : public flat_span { };
+		class Subscript2 : public flat_span { };
+		class Subscript3 : public flat_span { };
+		class Subscript4 : public flat_span { };
+		class Subscript5 : public flat_span { };
+
+		inline Subscript1 subscript(uint16_t tileTypeIdx) const noexcept {
+			const Subscript1 result0{ flat_span{.count{s_flat_tree.s_u16_count[tileTypeIdx]}, .index{s_flat_tree.s_u32_index[tileTypeIdx]}} };
+
+			return result0;
 		}
 
-		inline SpanIndexCount subscript(uint16_t tileTypeIdx, uint16_t startWireIdx) const noexcept {
-			auto previous{ subscript(tileTypeIdx) };
-			return previous.subscript(flat_start, startWireIdx);
+		inline Subscript2 subscript(uint16_t tileTypeIdx, uint16_t startWireIdx) const noexcept {
+			const auto result0{ subscript(tileTypeIdx) };
+
+			int32_t off_startWireIdx{ result0.index + static_cast<int32_t>(startWireIdx) };
+			const Subscript2 result1{ flat_span{.count{s_flat_tile.s_u16_count[off_startWireIdx]}, .index{s_flat_tile.s_u32_index[off_startWireIdx]}} };
+
+			return result1;
 		}
 
-		inline SpanIndexCount subscript(tile_idx_tile_wire_idx tw) const noexcept {
+		inline Subscript2 subscript(tile_idx_tile_wire_idx tw) const noexcept {
 			return subscript(xcvu3p::tiles[tw.tile_idx].getType(), tw.tile_wire_idx);
 		}
 
-		inline SpanIndexCount subscript_by_wireIdx(uint32_t wireIdx) const noexcept {
+		inline Subscript2 subscript_by_wireIdx(uint32_t wireIdx) const noexcept {
 			return subscript(xcvu3p::wire_idx_to_tile_idx_tile_wire_idx[wireIdx]);
 		}
 
-		inline SpanIndexCount subscript(uint16_t tileTypeIdx, uint16_t startWireIdx, uint16_t finishWireIdx) const noexcept {
-			auto previous{ subscript(tileTypeIdx, startWireIdx) };
-			return previous.subscript(flat_finish, finishWireIdx);
-		}
-#endif
-
-		inline std::span<uint32_t> subscript(uint16_t tileTypeIdx, uint16_t startWireIdx, uint16_t finishWireIdx, uint16_t depth) const noexcept {
-			const flat_span result0{ .count{s_flat_tree.s_u16_count[tileTypeIdx]}, .index{s_flat_tree.s_u32_index[tileTypeIdx]}};
-
-			int32_t off_startWireIdx{ result0.index + static_cast<int32_t>(startWireIdx) };
-			const flat_span result1{ .count{s_flat_tile.s_u16_count[off_startWireIdx]}, .index{s_flat_tile.s_u32_index[off_startWireIdx]} };
-
+		inline Subscript3 subscript(Subscript2 result1, uint16_t finishWireIdx) const noexcept {
 			int32_t off_finishWireIdx{ result1.index + static_cast<int32_t>(finishWireIdx) };
-			const flat_span result2{ .count{s_flat_start.s_u16_count[off_finishWireIdx]}, .index{s_flat_start.s_u32_index[off_finishWireIdx]} };
+			const Subscript3 result2{ flat_span{.count{s_flat_start.s_u16_count[off_finishWireIdx]}, .index{s_flat_start.s_u32_index[off_finishWireIdx]}} };
 
+			return result2;
+		}
+
+		inline Subscript3 subscript(uint16_t tileTypeIdx, uint16_t startWireIdx, uint16_t finishWireIdx) const noexcept {
+			const Subscript2 result1{ subscript(tileTypeIdx, startWireIdx) };
+
+			return subscript(result1, finishWireIdx);
+		}
+
+		inline Subscript4 subscript(Subscript3 result2, uint16_t depth) const noexcept {
 			int32_t off_depth{ result2.index + static_cast<int32_t>(depth) };
-			const flat_span result3{ .count{s_flat_finish.s_u16_count[off_depth]}, .index{s_flat_finish.s_u32_index[off_depth]} };
+			const Subscript4 result3{ flat_span{.count{s_flat_finish.s_u16_count[off_depth]}, .index{s_flat_finish.s_u32_index[off_depth]}} };
 
-			const auto result4{ s_flat_depth_u32_index.subspan(result3.index, result3.count) };
+			return result3;
+		}
 
+		inline Subscript4 subscript(uint16_t tileTypeIdx, uint16_t startWireIdx, uint16_t finishWireIdx, uint16_t depth) const noexcept {
+			const Subscript3 result2{ subscript(tileTypeIdx, startWireIdx, finishWireIdx) };
+
+			return subscript(result2, depth);
+		}
+
+		inline std::span<uint32_t> subscript(const Subscript4 result3) const noexcept {
+			const std::span<uint32_t> result4{ s_flat_depth_u32_index.subspan(result3.index, result3.count) };
 			return result4;
 		}
 
-		inline std::span<uint16_t> subscript(uint16_t tileTypeIdx, uint16_t startWireIdx, uint16_t finishWireIdx, uint16_t depth, uint16_t path_idx) const noexcept {
-			const flat_span result0{ .count{s_flat_tree.s_u16_count[tileTypeIdx]}, .index{s_flat_tree.s_u32_index[tileTypeIdx]} };
-
-			int32_t off_startWireIdx{ result0.index + static_cast<int32_t>(startWireIdx) };
-			const flat_span result1{ .count{s_flat_tile.s_u16_count[off_startWireIdx]}, .index{s_flat_tile.s_u32_index[off_startWireIdx]} };
-
-			int32_t off_finishWireIdx{ result1.index + static_cast<int32_t>(finishWireIdx) };
-			const flat_span result2{ .count{s_flat_start.s_u16_count[off_finishWireIdx]}, .index{s_flat_start.s_u32_index[off_finishWireIdx]} };
-
-			int32_t off_depth{ result2.index + static_cast<int32_t>(depth) };
-			const flat_span result3{ .count{s_flat_finish.s_u16_count[off_depth]}, .index{s_flat_finish.s_u32_index[off_depth]} };
-
-			const auto result4{ s_flat_depth_u32_index.subspan(result3.index, result3.count) };
+		inline std::span<uint16_t> subscript(const Subscript4 result3, uint16_t path_idx) const noexcept {
+			const std::span<uint32_t> result4{ s_flat_depth_u32_index.subspan(result3.index, result3.count) };
 
 			const auto result5{ result4[path_idx] };
 
-			const flat_span result6{ .count{ s_flat_path.s_u16_count[result5] }, .index{ s_flat_path.s_u32_index[result5] }};
+			const flat_span result6{ .count{ s_flat_path.s_u16_count[result5] }, .index{ s_flat_path.s_u32_index[result5] } };
 
 			const auto result7{ s_flat_wires_u16_index.subspan(result6.index, result6.count) };
 
 			return result7;
+		}
+
+		inline std::span<uint16_t> subscript(uint16_t tileTypeIdx, uint16_t startWireIdx, uint16_t finishWireIdx, uint16_t depth, uint16_t path_idx) const noexcept {
+			const Subscript4 result3{ subscript(tileTypeIdx, startWireIdx, finishWireIdx, depth) };
+
+			return subscript(result3, path_idx);
 		}
 
 	};
@@ -761,7 +727,7 @@ namespace xcvu3p {
 					const auto finishWire{ kp[1] };
 					const auto depth{ kp[0] };
 
-					auto sub_path_ids{ tfpp.subscript(tile_type_index, startWire, finishWire, depth) };
+					auto sub_path_ids{ tfpp.subscript(tfpp.subscript(tile_type_index, startWire, finishWire, depth)) };
 
 					if (!std::ranges::equal(path_ids, sub_path_ids)) {
 						abort();
@@ -1269,11 +1235,10 @@ public:
 	}
 
 	void set_shader_tile_wire_inbox(const uint32_t wire_idx, const uint32_t net_id, const uint32_t previous_tile_id = UINT32_MAX, const uint16_t previous_tile_wire = UINT16_MAX) noexcept {
-#if 0
 		decltype(auto) tw{ xcvu3p::wire_idx_to_tile_idx_tile_wire_idx[wire_idx] };
 		auto tile_net_ids{ get_tile_net_ids(tw.tile_idx) };
 		auto tileTypeIdx{ xcvu3p::tiles[tw.tile_idx].getType() };
-		auto finishes{ xcvu3p::fpp.subscript(tileTypeIdx, tw.tile_wire_idx) };
+		auto finishes{ xcvu3p::fpp.subscript_by_wireIdx(wire_idx) };
 		if (finishes.empty()) {
 			const auto node_idx{ xcvu3p::wire_idx_to_node_idx[wire_idx] };
 			const auto node{ xcvu3p::nodes[node_idx] };
@@ -1282,28 +1247,47 @@ public:
 			for (auto node_wire_idx : node_wires) {
 				auto fn{ xcvu3p::fpp.subscript_by_wireIdx(node_wire_idx) };
 				if (fn.empty()) continue;
-				std::cout << std::format(" wire_idx:{} node_wire_idx: {} fn: {}\n", wire_idx, node_wire_idx, fn.size());
-				for (uint16_t finish_wire_idx = 0; finish_wire_idx < fn.size(); finish_wire_idx++) {
-					auto depths{ fn.subscript(xcvu3p::fpp.flat_finish, finish_wire_idx) };
-					if (depths.empty()) continue;
-					std::cout << std::format("  finish_wire_idx: {}, depths: {}\n", finish_wire_idx, depths.size());
-					for (uint16_t depth_idx = 0; depth_idx < depths.size(); depth_idx++) {
-						auto path_ids{ depths.subscript(xcvu3p::fpp.flat_depth_u32_index, depth_idx) };
-						std::cout << std::format("   depth: {}, path_ids: {}\n", depth_idx, path_ids.size());
+				// std::cout << std::format(" wire_idx:{} node_wire_idx: {} fn: {}\n", wire_idx, node_wire_idx, fn.size());
+#if 0
+				for (uint16_t finish_wire_idx = 0; finish_wire_idx < fn.size();) {
+					auto depths{ xcvu3p::fpp.subscript(fn, finish_wire_idx) };
+					std::cout << std::format("  finish_wire_idx: {}, depths: {}:{}\n", finish_wire_idx, depths.size(), depths.index);
+					if (depths.empty()) {
+						finish_wire_idx -= depths.index;
+						continue;
+					}
+					else {
+						++finish_wire_idx;
+					}
+					for (uint16_t depth_idx = 0; depth_idx < depths.size();) {
+						auto path_ids{ xcvu3p::fpp.subscript(depths, depth_idx) };
+						std::cout << std::format("   depth: {}, path_ids: {}:{}\n", depth_idx, path_ids.size(), path_ids.index);
+						if (path_ids.empty()) {
+							depth_idx -= path_ids.index;
+							continue;
+						}
+						else {
+							// std::cout << std::format("   depth: {}, path_ids: {}\n", depth_idx, path_ids.size());
+							++depth_idx;
+						}
 					}
 				}
+#endif
 				v_usable_wire_idx.emplace_back(node_wire_idx);
 			}
 			if (v_usable_wire_idx.size()) {
-				std::cout << std::format("v_usable_wire_idx.size(): {}\n", v_usable_wire_idx.size());
+				// std::cout << std::format("v_usable_wire_idx.size(): {}\n", v_usable_wire_idx.size());
 				set_shader_tile_wire_inbox(v_usable_wire_idx.front(), net_id, previous_tile_id, previous_tile_wire);
+				return;
 			}
-			// std::cout << std::format("tileTypeIdx:{} start: {} finishes: {}\n", tileTypeIdx, tw.tile_wire_idx, finishes.size());
+			std::cout << std::format("tileTypeIdx:{} start: {} finishes: {}\n",
+				xcvu3p::strs[xcvu3p::tileTypes[tileTypeIdx].getName()].cStr(),
+				xcvu3p::strs[xcvu3p::tileTypes[tileTypeIdx].getWires()[tw.tile_wire_idx]].cStr(),
+				finishes.size());
 			return;
 		}
 		// std::cout << std::format("tileTypeIdx:{} start: {} finishes: {}\n", tileTypeIdx, tw.tile_wire_idx, finishes.size());
 		tile_net_ids[tw.tile_wire_idx] = net_id | 0x8000'0000u;
-#endif
 	}
 
 	template<bool is_source>
@@ -1476,7 +1460,7 @@ public:
 #endif
 
 	bool route_step() {
-#if 0
+#if 1
 		each<uint32_t>(s_tile_wire_offset, [&](const uint32_t tile_idx, const uint32_t wire_offset) -> void {
 			if (wire_offset == UINT32_MAX) return;
 			auto tile_net_ids{ get_tile_net_ids(tile_idx) };
@@ -1498,10 +1482,36 @@ public:
 					phys.getStrList()[phys.getPhysNets()[net_id].getName()].cStr(),
 					available_finish_wires.size()
 				);
-				each<uint16_t>(available_finish_wires.s_u16_count, [&](uint16_t finish_wire_idx, uint16_t depth_count) {
-					if (!depth_count) return;
-					std::cout << std::format("  finish:{} depths:{}\n", finish_wire_idx, depth_count);
-				});
+
+				for (uint16_t finish_wire_idx = 0; finish_wire_idx < available_finish_wires.size();) {
+					auto depths{ xcvu3p::fpp.subscript(available_finish_wires, finish_wire_idx) };
+					if (depths.empty()) {
+						finish_wire_idx -= depths.index;
+						continue;
+					}
+					else {
+						std::cout << std::format("  finish_wire_idx: {}, depths: {}\n", finish_wire_idx, depths.size());
+						++finish_wire_idx;
+					}
+					for (uint16_t depth_idx = 0; depth_idx < depths.size();) {
+						auto path_ids{ xcvu3p::fpp.subscript(depths, depth_idx) };
+						if (path_ids.empty()) {
+							depth_idx -= path_ids.index;
+							continue;
+						}
+						else {
+							// std::cout << std::format("   depth: {}, path_ids: {}\n", depth_idx, path_ids.size());
+							std::cout << std::format("   depth: {}, path_ids: {}\n", depth_idx, path_ids.size());
+							++depth_idx;
+						}
+					}
+				}
+
+
+				// each<uint16_t>(available_finish_wires.s_u16_count, [&](uint16_t finish_wire_idx, uint16_t depth_count) {
+				//	if (!depth_count) return;
+				//	std::cout << std::format("  finish:{} depths:{}\n", finish_wire_idx, depth_count);
+				//});
 			});
 		});
 #endif
