@@ -215,7 +215,7 @@ public:
     return true;
   }
 
-  inline MemoryMappedFile() : file_name{ "<EMPTY>" } {
+  inline explicit MemoryMappedFile() : file_name{ "<EMPTY>" } {
   }
 
   inline MemoryMappedFile(MemoryMappedFile&& other) noexcept :
@@ -242,7 +242,7 @@ public:
       other.fp = nullptr;
   }
 
-  inline MemoryMappedFile(std::string fn):
+  inline explicit MemoryMappedFile(std::string fn):
     file_name{ fn },
     is_writable{ false },
     fh{open_readonly_file_handle(fn)},
@@ -254,7 +254,9 @@ public:
 #endif
   }
 
-  inline MemoryMappedFile(decltype(fh) fh, bool is_writable = false) :
+  inline explicit MemoryMappedFile(const char* fn) : MemoryMappedFile{ std::string(fn) } { }
+
+  inline explicit MemoryMappedFile(decltype(fh) fh, bool is_writable = false) :
     file_name{ "<FROM HANDLE>" },
     is_writable{ is_writable },
     fh{fh},
@@ -266,7 +268,7 @@ public:
 #endif
   }
 
-  inline MemoryMappedFile(std::string fn, uint64_t requestedSize):
+  inline explicit MemoryMappedFile(std::string fn, uint64_t requestedSize):
     file_name{ fn },
     is_writable{ true },
     fh{ create_readwrite_file_handle(fn)},
@@ -278,6 +280,9 @@ public:
       puts(std::format("fn:{} requestedSize:{} fh:{} fsize:{} fp:{}", fn, requestedSize, fh, fsize, fp).c_str());
 #endif
       zero();
+  }
+
+  inline explicit MemoryMappedFile(const char *fn, uint64_t requestedSize): MemoryMappedFile(std::string(fn), requestedSize) {
   }
 
   template<typename T>
