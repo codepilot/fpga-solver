@@ -9,7 +9,11 @@
 #include <cmath>
 #include <thread>
 #include <nmmintrin.h>
+
+#ifdef _MSC_VER
 #include <intrin.h>
+#endif
+
 #include <map>
 
 template<class _Ty, size_t _Size>
@@ -553,17 +557,16 @@ namespace xcvu3p {
 		void write_flat_span_file(std::string base_name, std::span<flat_span> s_fs) {
 			{
 				MemoryMappedFile mmf_flat_tree{ std::format("{}_u32_index.bin", base_name), s_fs.size() * sizeof(uint32_t) };
-				std::ranges::copy(std::ranges::views::transform(s_fs, [](flat_span& fs)-> uint32_t { return fs.index; }), mmf_flat_tree.get_span<uint32_t>().begin());
+				std::ranges::transform(s_fs, mmf_flat_tree.get_span<uint32_t>().begin(), [](flat_span& fs)-> uint32_t { return fs.index; });
 			}
 			{
 				MemoryMappedFile mmf_flat_tree{ std::format("{}_u16_count.bin", base_name), s_fs.size() * sizeof(uint16_t) };
-				std::ranges::copy(std::ranges::views::transform(s_fs, [](flat_span& fs)-> uint16_t { return static_cast<uint16_t>(fs.count); }), mmf_flat_tree.get_span<uint16_t>().begin());
+				std::ranges::transform(s_fs, mmf_flat_tree.get_span<uint16_t>().begin(), [](flat_span& fs)-> uint16_t { return static_cast<uint16_t>(fs.count); });
 			}
 		}
 
 		static void skippable(std::span<flat_span> sfs) noexcept {
-			int32_t skip{};
-			for (auto& fs0 : std::ranges::reverse_view(sfs)) {
+			std::for_each(sfs.rbegin(), sfs.rend(), [skip = 0](flat_span &fs0) mutable {
 				if (fs0.count) {
 					skip = 0;
 				}
@@ -574,7 +577,7 @@ namespace xcvu3p {
 					--skip;
 					fs0.index = skip;
 				}
-			}
+			});
 		}
 
 		void store_in_file() {
@@ -656,7 +659,7 @@ namespace xcvu3p {
 								.index{tree_tile_startWire_finishWire_depth.empty()? (-1) :static_cast<int32_t>(flat_depth.size())},
 							});
 
-							flat_depth.append_range(tree_tile_startWire_finishWire_depth);
+							std::ranges::copy(tree_tile_startWire_finishWire_depth, std::back_inserter(flat_depth));
 						}
 					}
 				}
