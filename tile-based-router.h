@@ -157,6 +157,14 @@ namespace xcvu3p {
 			return result7;
 		}
 
+		inline uint32_t subscript_path_id(const Subscript4 result3, uint16_t path_idx) const noexcept {
+			const std::span<uint32_t> result4{ s_flat_depth_u32_index.subspan(result3.index, result3.count) };
+
+			const auto result5{ result4[path_idx] };
+
+			return result5;
+		}
+
 		inline std::span<uint16_t> subscript(uint16_t tileTypeIdx, uint16_t startWireIdx, uint16_t finishWireIdx, uint16_t depth, uint16_t path_idx) const noexcept {
 			const Subscript4 result3{ subscript(tileTypeIdx, startWireIdx, finishWireIdx, depth) };
 
@@ -1101,6 +1109,138 @@ namespace xcvu3p {
 	}
 	inline static const decltype(make_pip_paths()) a_pip_paths{ make_pip_paths() };
 	inline static const FlatPipPaths fpp;
+
+	class NodeTileWire {
+	public:
+		const MemoryMappedFile a_node_counts{ MemoryMappedFile{"node_counts_u16.bin"} };
+		const MemoryMappedFile a_node_offsets{ MemoryMappedFile{"node_offsets_i32.bin"} };
+
+		const MemoryMappedFile a_node_tileIdx{ MemoryMappedFile{"node_tile_idx_u32.bin"} };
+		const MemoryMappedFile a_node_tile_wire{ MemoryMappedFile{"node_tile_wire_idx_u16.bin"} };
+		const MemoryMappedFile a_node_tilePos{ MemoryMappedFile{"node_tile_pos_2x_u16.bin"} };
+
+		const MemoryMappedFile a_flat_tile_wire_to_node{ MemoryMappedFile{"flat_tile_wire_to_node_u32.bin" } };
+		const MemoryMappedFile a_flat_tile_wire_offset{ MemoryMappedFile{"flat_tile_wire_offset_u32.bin" } };
+		const MemoryMappedFile a_flat_tile_wire_count{ MemoryMappedFile{"flat_tile_wire_count_u16.bin" } };
+
+		const std::span<const uint16_t, xcvu3p::node_count> s_node_counts{ a_node_counts.get_span<const uint16_t, xcvu3p::node_count>() };
+		const std::span<const int32_t, xcvu3p::node_count> s_node_offsets{ a_node_offsets.get_span<const int32_t, xcvu3p::node_count>() };
+
+		const std::span<const uint32_t, xcvu3p::wire_count> s_node_tileIdx{ a_node_tileIdx.get_span<const uint32_t, xcvu3p::wire_count>() };
+		const std::span<const uint16_t, xcvu3p::wire_count> s_node_tile_wire{ a_node_tile_wire.get_span<const uint16_t, xcvu3p::wire_count>() };
+		const std::span<const std::array<uint16_t, 2>, xcvu3p::wire_count> s_node_tilePos{ a_node_tilePos.get_span<const std::array<uint16_t, 2>, xcvu3p::wire_count>() };
+
+		const std::span<const uint32_t, xcvu3p::wire_count> s_flat_tile_wire_to_node{ a_flat_tile_wire_to_node.get_span<const uint32_t, xcvu3p::wire_count>() };
+		const std::span<const uint32_t, xcvu3p::tile_count> s_flat_tile_wire_offset{ a_flat_tile_wire_offset.get_span<const uint32_t, xcvu3p::tile_count>() };
+		const std::span<const uint16_t, xcvu3p::tile_count> s_flat_tile_wire_count{ a_flat_tile_wire_count.get_span<const uint16_t, xcvu3p::tile_count>() };
+
+		inline auto get_tile_wire_nodeIdx(uint32_t tileIdx, uint16_t tile_wire_idx) const noexcept {
+			std::span<const uint32_t> tile_nodes{ s_flat_tile_wire_to_node.subspan(s_flat_tile_wire_offset[tileIdx], s_flat_tile_wire_count[tileIdx])};
+			return tile_nodes[tile_wire_idx];
+		}
+	};
+
+	bool enum_node_wire_tile_tw() {
+		{
+			const MemoryMappedFile a_node_counts{ MemoryMappedFile{"node_counts_u16.bin"} };
+			if (a_node_counts.fsize == (sizeof(uint16_t) * xcvu3p::node_count)) {
+				return true;
+			}
+		}
+		auto a_node_counts{ MemoryMappedFile{"node_counts_u16.bin", sizeof(uint16_t) * xcvu3p::node_count} };
+		auto a_node_offsets{ MemoryMappedFile{"node_offsets_i32.bin", sizeof(int32_t) * xcvu3p::node_count} };
+
+		auto a_node_tileIdx{ MemoryMappedFile{"node_tile_idx_u32.bin", sizeof(uint32_t) * xcvu3p::wire_count} };
+		auto a_node_tile_wire{ MemoryMappedFile{"node_tile_wire_idx_u16.bin", sizeof(uint16_t) * xcvu3p::wire_count} };
+		auto a_node_tilePos{ MemoryMappedFile{"node_tile_pos_2x_u16.bin", sizeof(std::array<uint16_t, 2>) * xcvu3p::wire_count} };
+		auto a_tileStrIdx_to_tileIdx{ std::make_unique<std::array<uint32_t, xcvu3p::str_count>>() };
+		auto a_tileTypeWires{ std::make_unique<std::array<std::array<uint32_t, xcvu3p::str_count>, xcvu3p::tileType_count>>() };
+
+		auto a_flat_tile_wire_to_node{ MemoryMappedFile{"flat_tile_wire_to_node_u32.bin", xcvu3p::wire_count * sizeof(uint32_t) } };
+		auto a_flat_tile_wire_offset{ MemoryMappedFile{"flat_tile_wire_offset_u32.bin", xcvu3p::tile_count * sizeof(uint32_t) } };
+		auto a_flat_tile_wire_count{ MemoryMappedFile{"flat_tile_wire_count_u16.bin", xcvu3p::tile_count * sizeof(uint16_t) } };
+
+		auto s_flat_tile_wire_to_node{ a_flat_tile_wire_to_node.get_span<uint32_t, xcvu3p::wire_count>() };
+		auto s_flat_tile_wire_offset{ a_flat_tile_wire_offset.get_span<uint32_t, xcvu3p::tile_count>() };
+		auto s_flat_tile_wire_count{ a_flat_tile_wire_count.get_span<uint16_t, xcvu3p::tile_count>() };
+
+		uint32_t tile_wire_to_node_offset{};
+
+		auto a_tile_wire_to_node{ std::make_unique<std::array<std::span<uint32_t>, xcvu3p::tile_count>>() };
+		auto s_tile_wire_to_node{ std::span(*a_tile_wire_to_node.get()) };
+
+		for (uint32_t tileIdx = 0; tileIdx < xcvu3p::tile_count; tileIdx++) {
+			const auto tile{ xcvu3p::tiles[tileIdx] };
+			const auto tileTypeIdx{ tile.getType() };
+			const auto tileType{ xcvu3p::tileTypes[tileTypeIdx] };
+			const auto tileTypeWireSize{ tileType.getWires().size() };
+
+			s_flat_tile_wire_offset[tileIdx] = tile_wire_to_node_offset;
+			s_flat_tile_wire_count[tileIdx] = tileTypeWireSize;
+			s_tile_wire_to_node[tileIdx] = s_flat_tile_wire_to_node.subspan(tile_wire_to_node_offset, tileTypeWireSize);
+			tile_wire_to_node_offset += tileTypeWireSize;
+		}
+
+		auto s_node_tileIdx{ a_node_tileIdx.get_span<uint32_t, xcvu3p::wire_count>() };
+		auto s_node_tile_wire{ a_node_tile_wire.get_span<uint16_t, xcvu3p::wire_count>() };
+		auto s_node_tilePos{ a_node_tilePos.get_span<std::array<uint16_t, 2>, xcvu3p::wire_count>() };
+		auto s_node_counts{ a_node_counts.get_span<uint16_t, xcvu3p::node_count>() };
+		auto s_node_offsets{ a_node_offsets.get_span<int32_t, xcvu3p::node_count>() };
+		auto s_tileStrIdx_to_tileIdx{ std::span(*a_tileStrIdx_to_tileIdx.get()) };
+		std::vector<std::span<uint32_t, xcvu3p::str_count>> vs_tileTypeWires;
+		vs_tileTypeWires.reserve(xcvu3p::tileType_count);
+		std::ranges::copy(*a_tileTypeWires.get(), std::back_inserter(vs_tileTypeWires));
+		auto ss_tileTypeWires{ std::span(vs_tileTypeWires) };
+
+		std::ranges::fill(s_tileStrIdx_to_tileIdx, UINT32_MAX);
+		std::ranges::for_each(vs_tileTypeWires, [](std::span<uint32_t, xcvu3p::str_count> ttwires) { std::ranges::fill(ttwires, UINT32_MAX); });
+
+		for (uint32_t tileIdx = 0; tileIdx < xcvu3p::tile_count; tileIdx++) {
+			auto tile{ xcvu3p::tiles[tileIdx] };
+			auto tileTypeIdx{ tile.getType() };
+			auto tileType{ xcvu3p::tileTypes[tileTypeIdx] };
+
+			s_tileStrIdx_to_tileIdx[xcvu3p::tiles[tileIdx].getName()] = tileIdx;
+		}
+
+		for (uint32_t tileTypeIdx = 0; tileTypeIdx < xcvu3p::tileType_count; tileTypeIdx++) {
+			const auto tileType{ xcvu3p::tileTypes[tileTypeIdx] };
+			const auto tileWires{ tileType.getWires() };
+			const auto s_tileTypeWires{ ss_tileTypeWires[tileTypeIdx] };
+			for (uint16_t tileWireIdx = 0; tileWireIdx < tileWires.size(); tileWireIdx++) {
+				const auto tileWireStrIdx{ tileWires[tileWireIdx] };
+				s_tileTypeWires[tileWireStrIdx] = tileWireIdx;
+			}
+		}
+
+		int32_t nodeOffset{};
+		each<uint32_t>(xcvu3p::nodes, [&](uint32_t nodeIdx, node_reader node) {
+			s_node_offsets[nodeIdx] = nodeOffset;
+			nodeOffset += node.getWires().size();
+			});
+
+		jthread_each<uint32_t>(xcvu3p::nodes, [&](uint32_t nodeIdx, node_reader node) {
+			auto nodeWires{ node.getWires() };
+			s_node_counts[nodeIdx] = nodeWires.size();
+			each<uint32_t>(nodeWires, [&](uint32_t nodeWireIdx, uint32_t wireIdx) {
+				auto wire{ xcvu3p::wires[wireIdx] };
+				auto wireNameStrIdx{ wire.getWire() };
+				auto wireTileNameStrIdx{ wire.getTile() };
+				auto tileIdx{ s_tileStrIdx_to_tileIdx[wireTileNameStrIdx] };
+				auto tile{ xcvu3p::tiles[tileIdx] };
+				auto tileTypeIdx{ tile.getType() };
+				auto tileWireIdx{ ss_tileTypeWires[tileTypeIdx][wireNameStrIdx] };
+				s_tile_wire_to_node[tileIdx][tileWireIdx] = nodeIdx;
+				auto node_offset{ s_node_offsets[nodeIdx] };
+				s_node_tileIdx[node_offset + nodeWireIdx] = tileIdx;
+				s_node_tile_wire[node_offset + nodeWireIdx] = tileWireIdx;
+				s_node_tilePos[node_offset + nodeWireIdx] = std::array<uint16_t, 2>{tile.getCol(), tile.getRow()};
+				});
+			});
+	}
+
+	inline static bool results_enum_node_wire_tile_tw{ enum_node_wire_tile_tw() };
+	NodeTileWire ntw;
 };
 
 class Tile_Based_Router {
@@ -1113,11 +1253,15 @@ public:
 
 	phys_reader& phys;
 	net_list_reader nets;
+	std::vector<uint32_t> net_source_tileIdx;
+	std::vector<uint16_t> net_source_tileWire;
+	std::vector<std::array<int16_t, 2>> net_source_tilePos;
 
 //host side
 	const std::vector<uint32_t> v_physStrs_to_devStrs;
 	const std::span<const uint32_t> s_physStrs_to_devStrs;
 	std::unique_ptr<std::array<uint32_t, xcvu3p::wire_count>> a_tile_wire_net_id;
+	std::unique_ptr<std::array<uint32_t, xcvu3p::wire_count>> a_tile_wire_path_id;
 	std::unique_ptr<std::array<uint32_t, tile_shader_count>> a_tile_wire_offset; //readonly, one per tile
 	std::unique_ptr<std::array<uint16_t, tile_shader_count>> a_tile_wire_count; //readonly, one per tile
 
@@ -1130,7 +1274,8 @@ public:
 
 //shader side
 	std::span<uint32_t, xcvu3p::wire_count> s_tile_wire_net_id;
-//	std::span<uint32_t, xcvu3p::wire_count> s_tile_wire_previous_tile_id;
+	std::span<uint32_t, xcvu3p::wire_count> s_tile_wire_path_id;
+	//	std::span<uint32_t, xcvu3p::wire_count> s_tile_wire_previous_tile_id;
 //	std::span<uint16_t, xcvu3p::wire_count> s_tile_wire_previous_tile_wire;
 //	std::span<uint16_t, xcvu3p::wire_count> s_inbox_modified_wires;
 
@@ -1191,16 +1336,22 @@ public:
 
 		phys{ _phys },
 		nets{ phys.getPhysNets() },
+		net_source_tileIdx{ std::vector<uint32_t>(static_cast<size_t>(nets.size()), UINT32_MAX) },
+		net_source_tileWire{ std::vector<uint16_t>(static_cast<size_t>(nets.size()), UINT16_MAX) },
+		net_source_tilePos{ std::vector<std::array<int16_t, 2>>(static_cast<size_t>(nets.size()), std::array<int16_t, 2>{INT16_MAX, INT16_MAX}) },
 		v_physStrs_to_devStrs{ make_physStrs_to_devStrs(phys.getStrList()) },
 		s_physStrs_to_devStrs{ v_physStrs_to_devStrs },
 		a_tile_wire_net_id{ std::make_unique<std::array<uint32_t, xcvu3p::wire_count>>() },
+		a_tile_wire_path_id{ std::make_unique<std::array<uint32_t, xcvu3p::wire_count>>() },
 		a_tile_wire_offset{ std::make_unique<std::array<uint32_t, tile_shader_count>>() },
 		a_tile_wire_count{ std::make_unique<std::array<uint16_t, tile_shader_count>>() },
 		s_tile_wire_net_id{ *a_tile_wire_net_id.get() },
+		s_tile_wire_path_id{ *a_tile_wire_path_id.get() },
 		s_tile_wire_offset{ *a_tile_wire_offset.get() },
 		s_tile_wire_count{ *a_tile_wire_count.get() }
 	{
 		std::ranges::fill(s_tile_wire_net_id, UINT32_MAX);
+		std::ranges::fill(s_tile_wire_path_id, UINT32_MAX);
 		std::ranges::fill(s_tile_wire_offset, UINT32_MAX);
 		std::ranges::fill(s_tile_wire_count, 0);
 		uint32_t tile_wire_offset{};
@@ -1228,10 +1379,18 @@ public:
 		return s_tile_wire_net_id.subspan(s_tile_wire_offset[tile_idx], s_tile_wire_count[tile_idx]);
 	}
 
+	std::span<uint32_t> get_tile_path_ids(const uint32_t tile_idx) const noexcept {
+		return s_tile_wire_path_id.subspan(s_tile_wire_offset[tile_idx], s_tile_wire_count[tile_idx]);
+	}
+
 	void set_shader_tile_wire(const uint32_t wire_idx, const uint32_t net_id, const uint32_t previous_tile_id = UINT32_MAX, const uint16_t previous_tile_wire = UINT16_MAX) noexcept {
 		decltype(auto) tw{ xcvu3p::wire_idx_to_tile_idx_tile_wire_idx[wire_idx] };
 		auto tile_net_ids{ get_tile_net_ids(tw.tile_idx) };
 		tile_net_ids[tw.tile_wire_idx] = net_id;
+		net_source_tileIdx[net_id] = tw.tile_idx;
+		net_source_tileWire[net_id] = tw.tile_wire_idx;
+		auto tile{ xcvu3p::tiles[tw.tile_idx] };
+		net_source_tilePos[net_id] = { static_cast<int16_t>(tile.getCol()), static_cast<int16_t>(tile.getRow()) };
 	}
 
 	void set_shader_tile_wire_inbox(const uint32_t wire_idx, const uint32_t net_id, const uint32_t previous_tile_id = UINT32_MAX, const uint16_t previous_tile_wire = UINT16_MAX) noexcept {
@@ -1280,10 +1439,12 @@ public:
 				set_shader_tile_wire_inbox(v_usable_wire_idx.front(), net_id, previous_tile_id, previous_tile_wire);
 				return;
 			}
+#if 0
 			std::cout << std::format("tileTypeIdx:{} start: {} finishes: {}\n",
 				xcvu3p::strs[xcvu3p::tileTypes[tileTypeIdx].getName()].cStr(),
 				xcvu3p::strs[xcvu3p::tileTypes[tileTypeIdx].getWires()[tw.tile_wire_idx]].cStr(),
 				finishes.size());
+#endif
 			return;
 		}
 		// std::cout << std::format("tileTypeIdx:{} start: {} finishes: {}\n", tileTypeIdx, tw.tile_wire_idx, finishes.size());
@@ -1464,6 +1625,7 @@ public:
 		each<uint32_t>(s_tile_wire_offset, [&](const uint32_t tile_idx, const uint32_t wire_offset) -> void {
 			if (wire_offset == UINT32_MAX) return;
 			auto tile_net_ids{ get_tile_net_ids(tile_idx) };
+			auto tile_path_ids{ get_tile_path_ids(tile_idx) };
 			auto tile_type_idx{ xcvu3p::tiles[tile_idx].getType() };
 
 			each<uint16_t>(tile_net_ids, [&](const uint16_t tile_wire_idx, uint32_t &ib_net_id) -> void {
@@ -1473,16 +1635,98 @@ public:
 				if (!isInbox) return;
 				auto available_finish_wires{ xcvu3p::fpp.subscript(tile_type_idx, tile_wire_idx) };
 				if (available_finish_wires.empty()) return;
+				
+				const auto nodeIdx{ xcvu3p::ntw.get_tile_wire_nodeIdx(tile_idx, tile_wire_idx) };
 
-				std::cout << std::format("tile:{} type:{} start:{} is:{} net:{} avail:{}\n",
-					xcvu3p::strs[xcvu3p::tiles[tile_idx].getName()].cStr(),
-					xcvu3p::strs[xcvu3p::tileTypes[tile_type_idx].getName()].cStr(),
-					xcvu3p::strs[xcvu3p::tileTypes[tile_type_idx].getWires()[tile_wire_idx]].cStr(),
-					isInbox,
-					phys.getStrList()[phys.getPhysNets()[net_id].getName()].cStr(),
-					available_finish_wires.size()
-				);
+				const auto source_tileIdx{ net_source_tileIdx[net_id] };
+				const auto source_tileWire{net_source_tileWire[net_id] };
+				const auto source_tilePos{ net_source_tilePos[net_id] };
+				const auto cur_tilePos{ std::array<int16_t, 2>{
+					static_cast<int16_t>(xcvu3p::tiles[tile_idx].getCol()),
+					static_cast<int16_t>(xcvu3p::tiles[tile_idx].getRow()),
+				} };
+				if (source_tileIdx == UINT32_MAX) return;
+				const auto delta{ std::array<int16_t, 2>{
+					static_cast<int16_t>(source_tilePos[0] - cur_tilePos[0]),
+					static_cast<int16_t>(source_tilePos[1] - cur_tilePos[1]),
+				} };
 
+				const auto tile_dist{ std::sqrt(
+					std::pow(static_cast<double>(delta[0]), 2) +
+					std::pow(static_cast<double>(delta[1]), 2)
+				)};
+
+				if (source_tileIdx == tile_idx) {
+#if 1
+					std::cout << std::format("tile:{} srcTile:{} tile:{},{}=> src:{:4d},{:4d} delta: {:4d},{:4d} dist: {:7.3f} type:{} start:{} node:{} node_wires:{} is:{} net:{} avail:{}\n",
+						xcvu3p::strs[xcvu3p::tiles[tile_idx].getName()].cStr(),
+						xcvu3p::strs[xcvu3p::tiles[source_tileIdx].getName()].cStr(),
+						xcvu3p::tiles[tile_idx].getCol(), xcvu3p::tiles[tile_idx].getRow(),
+						source_tilePos[0], source_tilePos[1],
+						delta[0], delta[1],
+						tile_dist,
+						xcvu3p::strs[xcvu3p::tileTypes[tile_type_idx].getName()].cStr(),
+						xcvu3p::strs[xcvu3p::tileTypes[tile_type_idx].getWires()[tile_wire_idx]].cStr(),
+						xcvu3p::strs[xcvu3p::wires[xcvu3p::nodes[nodeIdx].getWires()[0]].getWire()].cStr(),
+						xcvu3p::ntw.s_node_counts[nodeIdx],
+						isInbox,
+						phys.getStrList()[phys.getPhysNets()[net_id].getName()].cStr(),
+						available_finish_wires.size()
+					);
+#endif
+
+					auto depths{ xcvu3p::fpp.subscript(available_finish_wires, source_tileWire) };
+					std::cout << std::format("  depths: {}\n", depths.size());
+					bool pathAssigned{ false };
+					for (uint16_t depth_idx = 0; (!pathAssigned) && depth_idx < depths.size();) {
+						auto path_ids{ xcvu3p::fpp.subscript(depths, depth_idx) };
+						if (path_ids.empty()) {
+							depth_idx -= path_ids.index;
+							continue;
+						}
+						else {
+							// std::cout << std::format("   depth: {}, path_ids: {}\n", depth_idx, path_ids.size());
+							std::cout << std::format("   depth: {}, path_ids: {}\n", depth_idx, path_ids.size());
+							for (uint16_t path_idx = 0; (!pathAssigned) && path_idx < path_ids.size(); ++path_idx) {
+								auto path_n{ xcvu3p::fpp.subscript(path_ids, path_idx) };
+								// std::cout << "    ";
+								bool pathAvailable{ true };
+								for (auto path_step_wire : path_n) {
+									// std::cout << std::format("{} ", path_step_wire);
+									if (tile_net_ids[path_step_wire] != UINT32_MAX && (tile_net_ids[path_step_wire] & 0x7fff'ffffu) != net_id) {
+										// std::cout << std::format("used by {}", tile_net_ids[path_step_wire]);
+										pathAvailable = false;
+										break;
+									}
+								}
+								if (pathAvailable) {
+									std::cout << "   routed in tile\n";
+									pathAssigned = true;
+									tile_path_ids[tile_wire_idx] = xcvu3p::fpp.subscript_path_id(path_ids, path_idx);
+									tile_net_ids[tile_wire_idx] &= 0x7fff'ffffu;
+									for (auto path_step_wire : path_n) {
+										tile_net_ids[path_step_wire] = net_id;
+									}
+
+									break;
+								}
+								else {
+
+								}
+								// std::cout << "\n";
+							}
+							if (pathAssigned) {
+								break;
+							}
+							++depth_idx;
+						}
+					}
+					if (!pathAssigned) {
+						std::cout << "   unroutable in tile\n";
+					}
+				}
+
+				return;
 				for (uint16_t finish_wire_idx = 0; finish_wire_idx < available_finish_wires.size();) {
 					auto depths{ xcvu3p::fpp.subscript(available_finish_wires, finish_wire_idx) };
 					if (depths.empty()) {
